@@ -1,34 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   watchCampaign, watchCharacterList, createCharacter,
-  saveCharacterDebounced, setFaculty, derive,
+  saveCharacterDebounced, updateCharacterNow, derive,
 } from "./lib/db";
 import { CAMPAIGN_ID } from "./lib/config";
 import { FACULTIES } from "./lib/seed-faculties";
+import { SKILLS_DATA } from "./lib/seed-skills";
 
 // ============================================================
-// КК9 — App: живая карточка из Firestore (этап 1).
-// ID кампании берётся из src/lib/config.js (сейчас "testOne").
+// КК9 — App (этап 1+): роли ГМ/игрок + ручная редактура ГМ.
+//  • Игрок: только своя карточка. Структурные поля не правятся на лету.
+//  • ГМ: своей карточки нет; открывает любого; «Редактировать вручную»
+//    → форма (атрибуты/навыки/факультет/курс/семестр/...) → 1 сохранение.
+//  • Живые счётчики (здоровье, энергия; жетоны у ГМ) — правятся сразу.
 // ============================================================
 
-// ── Логика пипов (1:1 из health-pips.mjs) ───────────────────
-function attrPipSizes(die) {
-  switch (die) {
-    case 20: return [2,2,2,2,1]; case 12: return [1,2,2,2,1];
-    case 10: return [1,1,2,2,1]; case 8: return [1,1,1,2,1];
-    default: return [1,1,1,1,1];
-  }
-}
-function computeHealthPips(attrDie) {
-  const sizes = attrPipSizes(attrDie).map((s,i)=> i===4?1:s);
-  const thresholds=[0]; for(let i=0;i<4;i++) thresholds.push(thresholds[i]+sizes[i]);
-  return { sizes, thresholds, maxValue: sizes.reduce((a,b)=>a+b,0) };
-}
-function buildPipStates(value, sizes, thresholds) {
-  return sizes.map((size,i)=>{ const lo=thresholds[i]; const filled=Math.max(0,Math.min(size,value-lo));
-    return { pip:i+1, size, lo, cells:Array.from({length:size},(_,c)=>({filled:c<filled})),
-      started:filled>0, closed:filled>=size, knockout:i===4 }; });
-}
+const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
+const DICE = [4, 6, 8, 10, 12, 20];
+
+function attrPipSizes(die){ switch(die){ case 20:return[2,2,2,2,1]; case 12:return[1,2,2,2,1]; case 10:return[1,1,2,2,1]; case 8:return[1,1,1,2,1]; default:return[1,1,1,1,1]; } }
+function computeHealthPips(attrDie){ const sizes=attrPipSizes(attrDie).map((s,i)=>i===4?1:s); const thresholds=[0]; for(let i=0;i<4;i++) thresholds.push(thresholds[i]+sizes[i]); return {sizes,thresholds,maxValue:sizes.reduce((a,b)=>a+b,0)}; }
+function buildPipStates(value,sizes,thresholds){ return sizes.map((size,i)=>{ const lo=thresholds[i]; const filled=Math.max(0,Math.min(size,value-lo)); return {pip:i+1,size,lo,cells:Array.from({length:size},(_,c)=>({filled:c<filled})),started:filled>0,closed:filled>=size,knockout:i===4}; }); }
 
 const ATTR_ORDER=["agility","smarts","spirit","endurance","magic"];
 const ATTR_LABEL={agility:"Ловкость",smarts:"Смекалка",spirit:"Дух",endurance:"Выносливость",magic:"Магия"};
@@ -36,22 +28,22 @@ const ATTR_SHORT={agility:"Ловк",smarts:"Смек",spirit:"Дух",endurance
 const CAT_LABEL={common:"Общие",learned:"Изученные",personal:"Личные",magic:"Магические"};
 const CAT_ORDER=["common","learned","personal","magic"];
 const MENU=[
-  {id:"portal",label:"Портал",on:true},{id:"card",label:"Моя карточка",on:true},{id:"rel",label:"Связи",on:true},
+  {id:"portal",label:"Портал",on:true},{id:"card",label:"Карточка",on:true},
   {id:"adv",label:"Прокачка"},{id:"gear",label:"Снаряжение"},{id:"magic",label:"Магия"},
   {id:"log",label:"Лог сессий"},{id:"scene",label:"Сцена"},{id:"shop",label:"Магазин"},
   {id:"journal",label:"Журнал кампании"},{id:"gm",label:"Год Мод · ГМ"},{id:"print",label:"Печать карточки"},{id:"set",label:"Настройки"},
 ];
 const dieStr=(die,mod)=>`d${die}${mod?(mod>0?`+${mod}`:`${mod}`):""}`;
 
-// Оптимистичные правки: чтение/запись по пути "a.b.c"
 function getPath(o,p){ return p.split(".").reduce((x,k)=>x?.[k],o); }
-function applyOverrides(base,ov){
-  const keys=Object.keys(ov); if(!keys.length) return base;
-  const res=structuredClone(base);
-  for(const p of keys){ const parts=p.split("."); let cur=res;
-    for(let i=0;i<parts.length-1;i++) cur=cur[parts[i]];
-    cur[parts[parts.length-1]]=ov[p]; }
-  return res;
+function applyOverrides(base,ov){ const keys=Object.keys(ov); if(!keys.length) return base; const res=structuredClone(base);
+  for(const p of keys){ const parts=p.split("."); let cur=res; for(let i=0;i<parts.length-1;i++) cur=cur[parts[i]]; cur[parts[parts.length-1]]=ov[p]; } return res; }
+
+// Докинуть навыки факультета в массив (для драфта редактуры).
+function mergeFacultySkills(skills, fac){
+  const have=new Set(skills.map(s=>s.name));
+  const add=(fac.abilities||[]).filter(n=>!have.has(n)).map(n=>{ const r=SKILL_BY_NAME[n]; return {name:n,attr:r?.attr||"smarts",categ:r?.categ||"learned",die:4,modifier:-2}; });
+  return [...skills, ...add];
 }
 
 function Tip({text,children,label}){
@@ -66,7 +58,7 @@ function Tip({text,children,label}){
 function HealthTrack({label,attrLabel,attrDie,value,onChange,tipExtra}){
   const {sizes,thresholds,maxValue}=computeHealthPips(attrDie);
   const states=buildPipStates(value,sizes,thresholds);
-  const setVal=(v)=>onChange(Math.max(0,Math.min(maxValue,v)));
+  const setVal=(v)=>onChange&&onChange(Math.max(0,Math.min(maxValue,v)));
   return (<div className="kk-track">
     <div className="kk-track-head">
       <Tip text={`${label}: ${value}/${maxValue} ячеек. ${tipExtra} Пип «начат» — штраф порога. 5-й пип = нокаут.`}>
@@ -93,37 +85,8 @@ function Stat({label,value,onChange,max,tip,accent}){
   </div>);
 }
 
-// ── Карточка из реального документа Firestore ───────────────
-function FacultyPicker({ current, onPick }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <section className="kk-fac-pick">
-      <div className="kk-fac-row">
-        <span className="kk-fac-cur">
-          Факультет: {current?.name
-            ? <b style={{ color: current.color || "var(--kk-gold)" }}>{current.name}</b>
-            : <span className="kk-fac-none">не выбран</span>}
-        </span>
-        <button className="kk-fac-toggle" onClick={() => setOpen((v) => !v)}>
-          {open ? "скрыть" : current?.name ? "сменить" : "выбрать"}
-        </button>
-      </div>
-      {open && (
-        <div className="kk-fac-grid">
-          {FACULTIES.map((f) => (
-            <button key={f.key} className={`kk-fac-chip ${current?.key === f.key ? "on" : ""}`}
-              style={{ ["--c"]: f.color }} onClick={() => { onPick(f); setOpen(false); }}>
-              <span className="kk-fac-dot" /><span>{f.name.replace(" факультет", "")}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {open && <p className="kk-note">Навыки факультета добавятся в список нетренированными (d4-2). Уже прокачанные не сбросятся.</p>}
-    </section>
-  );
-}
-
-function Card({ch,save,onPickFaculty,tab,setTab}){
+// ── Карточка (просмотр) ─────────────────────────────────────
+function Card({ch,save,isGM,onEdit}){
   const toughness=derive.toughness(ch);
   const energyMax=derive.energyMax(ch);
   const im=ch.attributes.agility.modifier+ch.attributes.smarts.modifier;
@@ -143,88 +106,175 @@ function Card({ch,save,onPickFaculty,tab,setTab}){
           <span>{ch.academyYear} курс, {ch.semester} семестр</span><span className="kk-sep">·</span><span>{ch.age} лет</span>
         </div>
         <div className="kk-head-econ">
-          <Tip text="Деньги. Меняет только ГМ (закрыто правилами)."><span className="kk-econ kk-dotted">◈ {ch.money}</span></Tip>
-          <Tip text="Опыт. Меняет только ГМ. Распределяется в прокачке."><span className="kk-econ kk-dotted">✦ {ch.experience} опыта</span></Tip>
+          <span className="kk-econ">◈ {ch.money}</span>
+          <span className="kk-econ">✦ {ch.experience} опыта</span>
         </div>
       </div>
+      {isGM&&<button className="kk-edit-btn" onClick={onEdit}>Редактировать вручную</button>}
     </header>
 
-    <nav className="kk-tabs">
-      <button className={tab==="main"?"on":""} onClick={()=>setTab("main")}>Основное</button>
-      <button className={tab==="rel"?"on":""} onClick={()=>setTab("rel")}>Связи</button>
-      <button className="kk-tab-soon" disabled>Снаряжение <em>скоро</em></button>
-      <button className="kk-tab-soon" disabled>Магия <em>скоро</em></button>
-    </nav>
+    <section className="kk-strip">
+      <Stat label="Стойкость" value={toughness} tip="2 + ⌊Дух/2⌋. Считается автоматически." accent="var(--kk-gold)"/>
+      <div className="kk-stat kk-stat-wide">
+        <Tip text="Пул инициативы: Ловкость + Смекалка + Wild Die d6, 2 лучших. Бросок — вне карточки.">
+          <span className="kk-stat-label kk-dotted">Инициатива</span></Tip>
+        <span className="kk-init">{initStr}</span>
+      </div>
+      <Stat label="Энергия" value={ch.energy.value} max={energyMax}
+        onChange={(v)=>save({"energy.value":Math.max(0,Math.min(energyMax,v))})}
+        tip="Максимум = возраст + грань Духа." accent="var(--kk-gold)"/>
+      <Stat label="Жетоны судьбы" value={ch.bennies} max={9}
+        onChange={isGM?(v)=>save({bennies:Math.max(0,Math.min(9,v))}):undefined}
+        tip={isGM?"Старт 3, максимум 9. Выдаёт/снимает ГМ.":"Старт 3, максимум 9. Меняет только ГМ."} accent="var(--kk-gold)"/>
+    </section>
 
-    {tab==="rel"&&<div className="kk-empty">Связи, контакты и спутники переносим отдельной сущностью на следующем шаге.</div>}
+    <section className="kk-block">
+      <h2 className="kk-h2">Здоровье</h2>
+      <HealthTrack label="Физическое" attrLabel="Выносливости" attrDie={ch.attributes.endurance.die}
+        value={ch.health.physical.value} onChange={(v)=>save({"health.physical.value":v})} tipExtra="Растёт от Выносливости."/>
+      <HealthTrack label="Ментальное" attrLabel="Духа" attrDie={ch.attributes.spirit.die}
+        value={ch.health.mental.value} onChange={(v)=>save({"health.mental.value":v})} tipExtra="Растёт от Духа."/>
+    </section>
 
-    {tab==="main"&&<>
-      <FacultyPicker current={ch.faculty} onPick={onPickFaculty}/>
-      <section className="kk-strip">
-        <Stat label="Стойкость" value={toughness} tip="2 + ⌊Дух/2⌋. Считается автоматически." accent="var(--kk-gold)"/>
-        <div className="kk-stat kk-stat-wide">
-          <Tip text="Пул инициативы: Ловкость + Смекалка + Wild Die d6, 2 лучших. Бросок — вне карточки.">
-            <span className="kk-stat-label kk-dotted">Инициатива</span></Tip>
-          <span className="kk-init">{initStr}</span>
-        </div>
-        <Stat label="Энергия" value={ch.energy.value} max={energyMax}
-          onChange={(v)=>save({"energy.value":Math.max(0,Math.min(energyMax,v))})}
-          tip="Максимум = возраст + грань Духа." accent="var(--kk-gold)"/>
-        <Stat label="Жетоны судьбы" value={ch.bennies} max={9}
-          tip="Старт 3, максимум 9. Выдаёт/снимает только ГМ." accent="var(--kk-gold)"/>
-      </section>
+    <section className="kk-block">
+      <h2 className="kk-h2">Атрибуты</h2>
+      <div className="kk-attrs">{ATTR_ORDER.map((k)=>{ const a=ch.attributes[k]; return (
+        <div className="kk-attr" key={k}><span className="kk-attr-name">{ATTR_LABEL[k]}</span><span className="kk-attr-die">{dieStr(a.die,a.modifier)}</span></div>);})}</div>
+    </section>
 
-      <section className="kk-block">
-        <h2 className="kk-h2">Здоровье</h2>
-        <HealthTrack label="Физическое" attrLabel="Выносливости" attrDie={ch.attributes.endurance.die}
-          value={ch.health.physical.value} onChange={(v)=>save({"health.physical.value":v})} tipExtra="Растёт от Выносливости."/>
-        <HealthTrack label="Ментальное" attrLabel="Духа" attrDie={ch.attributes.spirit.die}
-          value={ch.health.mental.value} onChange={(v)=>save({"health.mental.value":v})} tipExtra="Растёт от Духа."/>
-      </section>
-
-      <section className="kk-block">
-        <h2 className="kk-h2">Атрибуты</h2>
-        <div className="kk-attrs">{ATTR_ORDER.map((k)=>{ const a=ch.attributes[k]; return (
-          <div className="kk-attr" key={k}><span className="kk-attr-name">{ATTR_LABEL[k]}</span><span className="kk-attr-die">{dieStr(a.die,a.modifier)}</span></div>);})}</div>
-      </section>
-
-      <section className="kk-block">
-        <h2 className="kk-h2">Навыки</h2>
-        {grouped.map(g=>(<div className="kk-skill-group" key={g.cat}>
-          <div className="kk-skill-cat">{CAT_LABEL[g.cat]}</div>
-          <div className="kk-skills">{g.items.map(s=>{ const unt=s.die===4&&s.modifier<=-2; return (
-            <div className={`kk-skill ${unt?"untrained":""}`} key={s.name}>
-              <span className="kk-skill-name">{s.name}</span>
-              <Tip text={`Связан с: ${ATTR_LABEL[s.attr]}. Бросок — вне карточки. Не выше атрибута.`}>
-                <span className="kk-skill-attr">{ATTR_SHORT[s.attr]}</span></Tip>
-              <span className="kk-skill-die">{dieStr(s.die,s.modifier)}</span>
-            </div>);})}</div>
-        </div>))}
-        <p className="kk-note">Базовые навыки на чистой карточке. Факультетские докинем в массив при выборе факультета.</p>
-      </section>
-    </>}
+    <section className="kk-block">
+      <h2 className="kk-h2">Навыки</h2>
+      {grouped.map(g=>(<div className="kk-skill-group" key={g.cat}>
+        <div className="kk-skill-cat">{CAT_LABEL[g.cat]}</div>
+        <div className="kk-skills">{g.items.map(s=>{ const unt=s.die===4&&s.modifier<=-2; return (
+          <div className={`kk-skill ${unt?"untrained":""}`} key={s.name}>
+            <span className="kk-skill-name">{s.name}</span>
+            <Tip text={`Связан с: ${ATTR_LABEL[s.attr]}. Бросок — вне карточки. Не выше атрибута.`}>
+              <span className="kk-skill-attr">{ATTR_SHORT[s.attr]}</span></Tip>
+            <span className="kk-skill-die">{dieStr(s.die,s.modifier)}</span>
+          </div>);})}</div>
+      </div>))}
+    </section>
   </div>);
 }
 
-function Portal({campaign,characters,onOpenCard,myUid}){
-  return (<div className="kk-portal">
-    <div className="kk-campaign">
-      <div className="kk-campaign-name">{campaign?.name||"Кампания"}</div>
-      <div className="kk-campaign-meta">
-        <span>{campaign?.gameDate||"дата не задана"}</span><span className="kk-sep">·</span><span>{campaign?.weather||"погода не задана"}</span>
+// ── Карточка (ручная редактура ГМ) ──────────────────────────
+function EditCard({ch,onSave,onCancel}){
+  const [d,setD]=useState(()=>structuredClone(ch));
+  const set=(patch)=>setD(p=>({...p,...patch}));
+  const setAttr=(k,field,val)=>setD(p=>({...p,attributes:{...p.attributes,[k]:{...p.attributes[k],[field]:val}}}));
+  const setSkill=(i,field,val)=>setD(p=>{ const sk=[...p.skills]; sk[i]={...sk[i],[field]:val}; return {...p,skills:sk}; });
+  const removeSkill=(i)=>setD(p=>({...p,skills:p.skills.filter((_,j)=>j!==i)}));
+  const addSkill=(name)=>{ if(!name) return; const r=SKILL_BY_NAME[name]; setD(p=>({...p,skills:[...p.skills,{name,attr:r?.attr||"smarts",categ:r?.categ||"learned",die:4,modifier:-2}]})); };
+  const pickFaculty=(f)=>setD(p=>({...p,faculty:{id:null,name:f.name,key:f.key,color:f.color},skills:mergeFacultySkills(p.skills,f)}));
+
+  const present=new Set(d.skills.map(s=>s.name));
+  const addable=SKILLS_DATA.map(s=>s.name).filter(n=>!present.has(n));
+
+  function commit(){
+    onSave({ name:d.name, age:Number(d.age)||0, academyYear:String(d.academyYear),
+      semester:Number(d.semester)||1, faculty:d.faculty, attributes:d.attributes, skills:d.skills,
+      money:Number(d.money)||0, experience:Number(d.experience)||0 });
+  }
+
+  return (<div className="kk-edit">
+    <div className="kk-edit-bar">
+      <span className="kk-edit-title">Ручная редактура · {d.name}</span>
+      <div className="kk-edit-actions">
+        <button className="kk-btn ghost" onClick={onCancel}>Отмена</button>
+        <button className="kk-btn primary" onClick={commit}>Сохранить</button>
       </div>
     </div>
+
+    <section className="kk-block">
+      <h2 className="kk-h2">Профиль</h2>
+      <div className="kk-form-grid">
+        <label className="kk-field"><span>Имя</span><input className="kk-input" value={d.name} onChange={e=>set({name:e.target.value})}/></label>
+        <label className="kk-field"><span>Возраст</span><input className="kk-input" type="number" value={d.age} onChange={e=>set({age:e.target.value})}/></label>
+        <label className="kk-field"><span>Курс</span><input className="kk-input" value={d.academyYear} onChange={e=>set({academyYear:e.target.value})}/></label>
+        <label className="kk-field"><span>Семестр</span><select className="kk-input" value={d.semester} onChange={e=>set({semester:e.target.value})}><option value={1}>1</option><option value={2}>2</option></select></label>
+        <label className="kk-field"><span>Деньги</span><input className="kk-input" type="number" value={d.money} onChange={e=>set({money:e.target.value})}/></label>
+        <label className="kk-field"><span>Опыт</span><input className="kk-input" type="number" value={d.experience} onChange={e=>set({experience:e.target.value})}/></label>
+      </div>
+    </section>
+
+    <section className="kk-block">
+      <h2 className="kk-h2">Факультет</h2>
+      <div className="kk-fac-grid">{FACULTIES.map(f=>(
+        <button key={f.key} className={`kk-fac-chip ${d.faculty?.key===f.key?"on":""}`} style={{["--c"]:f.color}} onClick={()=>pickFaculty(f)}>
+          <span className="kk-fac-dot"/><span>{f.name.replace(" факультет","")}</span></button>))}</div>
+      <p className="kk-note">Выбор докинет навыки факультета (d4-2), уже имеющиеся не тронет.</p>
+    </section>
+
+    <section className="kk-block">
+      <h2 className="kk-h2">Атрибуты</h2>
+      <div className="kk-attrs-edit">{ATTR_ORDER.map(k=>(
+        <div className="kk-attr-edit" key={k}>
+          <span className="kk-attr-name">{ATTR_LABEL[k]}</span>
+          <select className="kk-input sm" value={d.attributes[k].die} onChange={e=>setAttr(k,"die",Number(e.target.value))}>
+            {DICE.map(x=><option key={x} value={x}>d{x}</option>)}</select>
+          <input className="kk-input sm" type="number" value={d.attributes[k].modifier} onChange={e=>setAttr(k,"modifier",Number(e.target.value))} title="модификатор"/>
+        </div>))}</div>
+    </section>
+
+    <section className="kk-block">
+      <h2 className="kk-h2">Навыки <span className="kk-count">{d.skills.length}</span></h2>
+      <div className="kk-skills-edit">{d.skills.map((s,i)=>(
+        <div className="kk-skill-edit" key={s.name+i}>
+          <span className="kk-skill-name" title={s.name}>{s.name}</span>
+          <span className="kk-skill-attr2">{ATTR_SHORT[s.attr]}</span>
+          <select className="kk-input sm" value={s.die} onChange={e=>setSkill(i,"die",Number(e.target.value))}>
+            {DICE.map(x=><option key={x} value={x}>d{x}</option>)}</select>
+          <input className="kk-input sm" type="number" value={s.modifier} onChange={e=>setSkill(i,"modifier",Number(e.target.value))} title="модификатор"/>
+          <button className="kk-x" onClick={()=>removeSkill(i)} title="убрать">✕</button>
+        </div>))}</div>
+      <div className="kk-add-skill">
+        <select className="kk-input" defaultValue="" onChange={e=>{addSkill(e.target.value); e.target.value="";}}>
+          <option value="" disabled>+ добавить навык…</option>
+          {addable.map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+    </section>
+
+    <div className="kk-edit-foot">
+      <button className="kk-btn ghost" onClick={onCancel}>Отмена</button>
+      <button className="kk-btn primary" onClick={commit}>Сохранить</button>
+    </div>
+  </div>);
+}
+
+// ── Портал игрока ───────────────────────────────────────────
+function PlayerPortal({campaign,characters,onOpen,myUid}){
+  return (<div className="kk-portal">
+    <CampaignHead campaign={campaign}/>
     <div className="kk-party-label">Отряд</div>
     <div className="kk-party">{characters.map(p=>{ const self=p.ownerUid===myUid; const col=p.faculty?.color||"#c8a14e"; return (
-      <button key={p.id} className={`kk-party-card ${self?"self":""}`} style={{["--fac-color"]:col}} onClick={()=>onOpenCard(self?"main":"rel")}>
+      <button key={p.id} className={`kk-party-card ${self?"self":""}`} style={{["--fac-color"]:col}} onClick={()=>self&&onOpen(p.id)} disabled={!self}>
         <span className="kk-party-av">{(p.name||"?").slice(0,1)}</span>
         <span className="kk-party-name">{p.name}</span>{self&&<span className="kk-party-you">это вы</span>}
       </button>);})}</div>
-    <div className="kk-portal-nav">
-      <button className="kk-big" onClick={()=>onOpenCard("main")}><span className="kk-big-t">Моя карточка</span><span className="kk-big-s">персонаж целиком</span></button>
-      <button className="kk-big ghost" disabled><span className="kk-big-t">Лог сессий</span><span className="kk-big-s">скоро</span></button>
-      <button className="kk-big ghost" disabled><span className="kk-big-t">Сцена</span><span className="kk-big-s">скоро</span></button>
-    </div>
+  </div>);
+}
+
+// ── Портал ГМа ──────────────────────────────────────────────
+function GmPortal({campaign,characters,onOpen}){
+  return (<div className="kk-portal">
+    <CampaignHead campaign={campaign} gm/>
+    <div className="kk-party-label">Игроки · {characters.length}</div>
+    {characters.length===0&&<div className="kk-empty">В кампании ещё нет персонажей. Игроки создают их при первом входе.</div>}
+    <div className="kk-party">{characters.map(p=>{ const col=p.faculty?.color||"#c8a14e"; return (
+      <button key={p.id} className="kk-party-card" style={{["--fac-color"]:col}} onClick={()=>onOpen(p.id)}>
+        <span className="kk-party-av">{(p.name||"?").slice(0,1)}</span>
+        <span className="kk-party-name">{p.name}</span>
+        <span className="kk-party-sub">{p.faculty?.name||"без факультета"}</span>
+      </button>);})}</div>
+  </div>);
+}
+
+function CampaignHead({campaign,gm}){
+  return (<div className="kk-campaign">
+    <div className="kk-campaign-name">{campaign?.name||"Кампания"}{gm&&<span className="kk-gm-badge">ГМ</span>}</div>
+    <div className="kk-campaign-meta"><span>{campaign?.gameDate||"дата не задана"}</span><span className="kk-sep">·</span><span>{campaign?.weather||"погода не задана"}</span></div>
   </div>);
 }
 
@@ -241,55 +291,60 @@ function Menu({open,onClose,onNav,current,onSignOut}){
   </>);
 }
 
-// ── Корень: подписки + развилка «есть карточка / нет» ───────
+// ── Корень ──────────────────────────────────────────────────
 export default function App({user,signOut}){
   const [campaign,setCampaign]=useState(null);
   const [characters,setCharacters]=useState([]);
   const [ready,setReady]=useState(false);
+  const [view,setView]=useState("portal");
+  const [menu,setMenu]=useState(false);
+  const [selectedId,setSelectedId]=useState(null);
+  const [editing,setEditing]=useState(false);
+  const [overrides,setOverrides]=useState({});
   const [creating,setCreating]=useState(false);
   const [newName,setNewName]=useState("");
-  const [view,setView]=useState("portal");
-  const [tab,setTab]=useState("main");
-  const [menu,setMenu]=useState(false);
-  const [overrides,setOverrides]=useState({}); // оптимистичные правки {path:value}
 
   useEffect(()=>watchCampaign(CAMPAIGN_ID,setCampaign),[]);
   useEffect(()=>watchCharacterList(CAMPAIGN_ID,(list)=>{ setCharacters(list); setReady(true); }),[]);
 
-  const mine=characters.find(c=>c.ownerUid===user.uid)||null;
+  const role=campaign?.members?.[user.uid];        // "gm" | "player" | undefined
+  const isGM=role==="gm";
+  const myChar=characters.find(c=>c.ownerUid===user.uid)||null;
+  const activeId=isGM?selectedId:myChar?.id;
+  const activeChar=characters.find(c=>c.id===activeId)||null;
 
-  // Когда сервер подтвердил правку (значение совпало) — снимаем оверрайд.
-  useEffect(()=>{ if(!mine) return;
-    setOverrides(prev=>{ const next={...prev}; let changed=false;
-      for(const p of Object.keys(prev)){ if(getPath(mine,p)===prev[p]){ delete next[p]; changed=true; } }
-      return changed?next:prev; });
-  },[mine]);
+  useEffect(()=>{ if(!activeChar) return;
+    setOverrides(prev=>{ const next={...prev}; let ch=false;
+      for(const p of Object.keys(prev)){ if(getPath(activeChar,p)===prev[p]){ delete next[p]; ch=true; } } return ch?next:prev; });
+  },[activeChar]);
 
-  // Карточка для рендера = серверная + мгновенные оверрайды.
-  const viewCh=mine?applyOverrides(mine,overrides):null;
+  const viewCh=activeChar?applyOverrides(activeChar,overrides):null;
 
-  const save=useCallback((patch)=>{ if(!mine) return;
-    setOverrides(prev=>({...prev,...patch}));          // мгновенно на экране
-    saveCharacterDebounced(CAMPAIGN_ID,mine.id,patch,500); // запись в фоне
-  },[mine]);
-  const pickFaculty=useCallback((fac)=>{ if(!mine) return;
-    setFaculty(CAMPAIGN_ID,mine.id,fac,mine.skills||[]).catch(e=>alert("Не удалось: "+(e?.message||e)));
-  },[mine]);
-  const openCard=useCallback((t)=>{setTab(t);setView("card");},[]);
+  const save=useCallback((patch)=>{ if(!activeId) return;
+    setOverrides(prev=>({...prev,...patch}));
+    saveCharacterDebounced(CAMPAIGN_ID,activeId,patch,500);
+  },[activeId]);
+
+  const openCard=useCallback((id)=>{ setSelectedId(id); setOverrides({}); setEditing(false); setView("card"); },[]);
+
+  const saveEdit=useCallback(async(patch)=>{ if(!activeId) return;
+    try{ await updateCharacterNow(CAMPAIGN_ID,activeId,patch); setEditing(false); }
+    catch(e){ alert("Не удалось сохранить: "+(e?.message||e)); }
+  },[activeId]);
+
   const nav=useCallback((id)=>{ setMenu(false);
     if(id==="portal") setView("portal");
-    else if(id==="card"){setTab("main");setView("card");}
-    else if(id==="rel"){setTab("rel");setView("card");} },[]);
-  const current=view==="portal"?"portal":(tab==="rel"?"rel":"card");
+    else if(id==="card"){ setEditing(false); setView("card"); } },[]);
+  const current=view==="portal"?"portal":"card";
 
   async function doCreate(){
-    if(!newName.trim()) return;
-    setCreating(true);
-    try{ const id=crypto.randomUUID();
-      await createCharacter(CAMPAIGN_ID,id,{name:newName.trim(),ownerUid:user.uid}); }
+    if(!newName.trim()) return; setCreating(true);
+    try{ const id=crypto.randomUUID(); await createCharacter(CAMPAIGN_ID,id,{name:newName.trim(),ownerUid:user.uid}); }
     catch(e){ alert("Не удалось создать: "+(e?.message||e)); }
     finally{ setCreating(false); setNewName(""); }
   }
+
+  const campaignLoaded=campaign!==null;
 
   return (<div className="kk-root">
     <style>{CSS}</style>
@@ -301,21 +356,30 @@ export default function App({user,signOut}){
         {view==="card"&&<button className="kk-back" onClick={()=>setView("portal")}>← к порталу</button>}
       </div>
 
-      {!ready && <div className="kk-load">Загрузка кампании…</div>}
+      {(!ready||!campaignLoaded) && <div className="kk-load">Загрузка кампании…</div>}
 
-      {ready && !mine && (
+      {ready && campaignLoaded && !role && (
+        <div className="kk-empty">Вы не участник этой кампании. Попросите ГМа добавить ваш UID в <code>members</code>.</div>
+      )}
+
+      {/* ИГРОК без персонажа */}
+      {ready && campaignLoaded && role==="player" && !myChar && (
         <div className="kk-create">
           <h2 className="kk-h2">У вас ещё нет персонажа</h2>
-          <p className="kk-note">Создадим карточку — базовые навыки добавятся сами, атрибуты d4. Прокачку и факультет настроим дальше.</p>
-          <input className="kk-input" placeholder="Имя персонажа" value={newName}
-            onChange={(e)=>setNewName(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&doCreate()}/>
-          <button className="kk-create-btn" disabled={creating||!newName.trim()} onClick={doCreate}>
-            {creating?"Создаём…":"Создать персонажа"}</button>
+          <p className="kk-note">Создадим карточку — базовые навыки добавятся сами. Полный мастер создания сделаем позже.</p>
+          <input className="kk-input" placeholder="Имя персонажа" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doCreate()}/>
+          <button className="kk-create-btn" disabled={creating||!newName.trim()} onClick={doCreate}>{creating?"Создаём…":"Создать персонажа"}</button>
         </div>
       )}
 
-      {ready && mine && view==="portal" && <Portal campaign={campaign} characters={characters} onOpenCard={openCard} myUid={user.uid}/>}
-      {ready && mine && view==="card" && <Card ch={viewCh} save={save} onPickFaculty={pickFaculty} tab={tab} setTab={setTab}/>}
+      {/* ПОРТАЛ */}
+      {ready && campaignLoaded && view==="portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard}/>}
+      {ready && campaignLoaded && view==="portal" && role==="player" && myChar && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid}/>}
+
+      {/* КАРТОЧКА */}
+      {ready && view==="card" && viewCh && !editing && <Card ch={viewCh} save={save} isGM={isGM} onEdit={()=>setEditing(true)}/>}
+      {ready && view==="card" && viewCh && editing && isGM && <EditCard ch={activeChar} onSave={saveEdit} onCancel={()=>setEditing(false)}/>}
+      {ready && view==="card" && !viewCh && <div className="kk-empty">Персонаж не выбран. Вернитесь на портал и выберите карточку.</div>}
     </div>
     <Menu open={menu} onClose={()=>setMenu(false)} onNav={nav} current={current} onSignOut={signOut}/>
   </div>);
@@ -335,18 +399,16 @@ const CSS = `
   background:radial-gradient(120% 90% at 50% -10%,#271f15 0%,var(--kk-bg) 58%,#120f0b 100%),
   repeating-linear-gradient(118deg,transparent 0 40px,rgba(255,230,180,.014) 40px 41px),
   repeating-linear-gradient(32deg,transparent 0 52px,rgba(0,0,0,.20) 52px 53px);}
-.kk-bg::after{content:"";position:absolute;inset:0;opacity:.45;mix-blend-mode:overlay;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><path d='M0 66 L78 82 L132 50 L220 78' stroke='black' stroke-width='.7' fill='none' opacity='.5'/><path d='M44 0 L60 88 L38 154 L66 220' stroke='black' stroke-width='.5' fill='none' opacity='.4'/></svg>");}
 .kk-shell{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:14px 14px 60px;}
 .kk-topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
 .kk-burger{width:34px;height:34px;flex:none;border:1px solid var(--kk-line);border-radius:8px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;}
 .kk-burger span{width:16px;height:2px;background:var(--kk-gold);border-radius:2px;} .kk-burger:hover{border-color:var(--kk-gold);}
-.kk-logo{font-family:var(--kk-font-d);font-weight:700;font-size:26px;letter-spacing:.02em;color:var(--kk-text);} .kk-logo span{color:var(--kk-gold);}
+.kk-logo{font-family:var(--kk-font-d);font-weight:700;font-size:26px;color:var(--kk-text);} .kk-logo span{color:var(--kk-gold);}
 .kk-back{margin-left:auto;font-size:13px;color:var(--kk-text-dim);} .kk-back:hover{color:var(--kk-gold);}
 .kk-load,.kk-create{padding:30px 16px;color:var(--kk-text-dim);text-align:center;}
 .kk-create{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:380px;margin:20px auto;}
-.kk-input{width:100%;padding:11px 13px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line);background:var(--kk-stone);color:var(--kk-text);font-family:inherit;font-size:14px;}
-.kk-input:focus{outline:none;border-color:var(--kk-gold);}
+.kk-input{width:100%;padding:9px 11px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line);background:var(--kk-stone);color:var(--kk-text);font-family:inherit;font-size:14px;}
+.kk-input:focus{outline:none;border-color:var(--kk-gold);} .kk-input.sm{padding:6px 8px;font-size:13px;width:auto;}
 .kk-create-btn{width:100%;padding:12px;border-radius:9px;background:var(--kk-gold);color:#1a140c;font-weight:600;font-size:14px;}
 .kk-create-btn:hover:not(:disabled){background:var(--kk-gold-bright);} .kk-create-btn:disabled{opacity:.5;cursor:default;}
 .kk-scrim{position:absolute;inset:0;z-index:40;background:rgba(8,6,4,.6);opacity:0;pointer-events:none;transition:opacity .2s;}
@@ -369,30 +431,27 @@ const CSS = `
 .kk-portal{display:flex;flex-direction:column;gap:18px;}
 .kk-campaign{padding:20px;border-radius:var(--kk-r);border:1px solid var(--kk-line-soft);background:linear-gradient(160deg,var(--kk-surface) 0%,var(--kk-stone) 100%);position:relative;overflow:hidden;}
 .kk-campaign::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kk-gold);}
-.kk-campaign-name{font-family:var(--kk-font-d);font-weight:700;font-size:25px;}
+.kk-campaign-name{font-family:var(--kk-font-d);font-weight:700;font-size:25px;display:flex;align-items:center;gap:10px;}
+.kk-gm-badge{font-family:var(--kk-font-b);font-size:10px;font-weight:700;letter-spacing:.1em;background:var(--kk-gold);color:#1a140c;padding:2px 7px;border-radius:5px;}
 .kk-campaign-meta{margin-top:4px;color:var(--kk-text-dim);font-size:13px;display:flex;gap:8px;align-items:center;}
 .kk-party-label,.kk-skill-cat{font-family:var(--kk-font-b);text-transform:uppercase;letter-spacing:.16em;font-size:11px;color:var(--kk-text-faint);font-weight:600;}
 .kk-party{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px;}
-.kk-party-card{display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px 10px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r);background:var(--kk-surface);transition:border-color .15s,transform .1s;}
-.kk-party-card:hover{border-color:var(--fac-color);transform:translateY(-2px);} .kk-party-card.self{border-color:var(--kk-gold-dim);}
+.kk-party-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 10px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r);background:var(--kk-surface);transition:border-color .15s,transform .1s;}
+.kk-party-card:not(:disabled):hover{border-color:var(--fac-color);transform:translateY(-2px);} .kk-party-card.self{border-color:var(--kk-gold-dim);} .kk-party-card:disabled{opacity:.45;cursor:default;}
 .kk-party-av{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-family:var(--kk-font-d);font-weight:600;font-size:22px;color:#1a140c;background:var(--fac-color);border:2px solid rgba(255,240,210,.14);}
 .kk-party-name{font-size:13px;font-weight:600;text-align:center;} .kk-party-you{font-size:10px;color:var(--kk-gold);letter-spacing:.08em;text-transform:uppercase;}
-.kk-portal-nav{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
-.kk-big{display:flex;flex-direction:column;gap:3px;padding:16px;text-align:left;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r);background:var(--kk-surface);transition:border-color .15s;}
-.kk-big:not(:disabled):hover{border-color:var(--kk-gold);} .kk-big-t{font-family:var(--kk-font-d);font-weight:600;font-size:16px;} .kk-big-s{font-size:11px;color:var(--kk-text-faint);}
-.kk-big.ghost{opacity:.5;} .kk-big:disabled{cursor:default;}
-.kk-card{display:flex;flex-direction:column;gap:18px;} .kk-head{display:flex;gap:16px;align-items:flex-start;}
+.kk-party-sub{font-size:10px;color:var(--kk-text-faint);text-align:center;}
+.kk-card{display:flex;flex-direction:column;gap:18px;} .kk-head{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
 .kk-portrait{width:88px;height:88px;flex:none;border-radius:var(--kk-r);overflow:hidden;background:var(--kk-stone);border:1px solid var(--kk-line);box-shadow:inset 0 0 0 2px var(--kk-bg),0 0 0 1px var(--fac-color);display:grid;place-items:center;}
 .kk-portrait img{width:100%;height:100%;object-fit:cover;} .kk-portrait-ph{font-family:var(--kk-font-d);font-size:40px;color:var(--kk-text-faint);}
 .kk-head-main{flex:1;min-width:0;} .kk-name{font-family:var(--kk-font-d);font-weight:700;font-size:30px;margin:0 0 3px;}
 .kk-head-tags{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:13px;color:var(--kk-text-dim);}
 .kk-fac{color:var(--fac-color);font-weight:600;} .kk-sep{color:var(--kk-text-faint);}
 .kk-head-econ{display:flex;gap:14px;margin-top:8px;} .kk-econ{font-size:13px;color:var(--kk-gold-bright);font-weight:600;}
-.kk-tabs{display:flex;gap:4px;border-bottom:1px solid var(--kk-line-soft);flex-wrap:wrap;}
-.kk-tabs button{font-family:var(--kk-font-b);font-weight:600;font-size:13px;padding:9px 13px;color:var(--kk-text-dim);border-bottom:2px solid transparent;margin-bottom:-1px;}
-.kk-tabs button.on{color:var(--kk-text);border-bottom-color:var(--kk-gold);} .kk-tabs button:not(:disabled):hover{color:var(--kk-text);}
-.kk-tab-soon{opacity:.4;cursor:default !important;} .kk-tab-soon em{font-style:normal;font-size:9px;color:var(--kk-text-faint);margin-left:4px;}
-.kk-empty{padding:28px 18px;text-align:center;color:var(--kk-text-dim);font-size:14px;border:1px dashed var(--kk-line);border-radius:var(--kk-r);}
+.kk-edit-btn{padding:9px 13px;border:1px solid var(--kk-gold-dim);border-radius:var(--kk-r-sm);color:var(--kk-gold);font-size:13px;font-weight:600;height:fit-content;}
+.kk-edit-btn:hover{border-color:var(--kk-gold);background:var(--kk-surface);}
+.kk-empty{padding:28px 18px;text-align:center;color:var(--kk-text-dim);font-size:14px;border:1px dashed var(--kk-line);border-radius:var(--kk-r);margin-top:10px;}
+.kk-empty code{color:var(--kk-gold-bright);font-size:13px;}
 .kk-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:10px;}
 .kk-stat{padding:11px 13px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r);background:var(--kk-surface);display:flex;flex-direction:column;gap:6px;--local-accent:var(--kk-text);}
 .kk-stat-wide{grid-column:span 2;} .kk-stat-label{font-family:var(--kk-font-b);font-weight:600;text-transform:uppercase;letter-spacing:.1em;font-size:11px;color:var(--kk-text-dim);}
@@ -400,7 +459,8 @@ const CSS = `
 .kk-stat-max{font-size:15px;color:var(--kk-text-faint);} .kk-init{font-family:var(--kk-font-b);font-weight:500;font-size:15px;color:var(--kk-text);padding-top:3px;}
 .kk-step{width:27px;height:27px;flex:none;border-radius:6px;border:1px solid var(--kk-line);color:var(--kk-text-dim);font-size:17px;line-height:1;display:grid;place-items:center;}
 .kk-step:hover{border-color:var(--kk-gold);color:var(--kk-gold);}
-.kk-block{display:flex;flex-direction:column;gap:11px;} .kk-h2{font-family:var(--kk-font-b);font-weight:600;text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--kk-text-dim);margin:0;padding-bottom:6px;border-bottom:1px solid var(--kk-line-soft);}
+.kk-block{display:flex;flex-direction:column;gap:11px;} .kk-h2{font-family:var(--kk-font-b);font-weight:600;text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--kk-text-dim);margin:0;padding-bottom:6px;border-bottom:1px solid var(--kk-line-soft);display:flex;justify-content:space-between;align-items:center;}
+.kk-count{color:var(--kk-text-faint);font-weight:500;}
 .kk-track{display:flex;flex-direction:column;gap:7px;} .kk-track-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
 .kk-track-name{font-weight:600;font-size:14px;} .kk-track-meta{font-size:11px;color:var(--kk-text-faint);}
 .kk-pips{display:flex;gap:12px;flex-wrap:wrap;} .kk-pip{position:relative;display:flex;gap:5px;padding:7px;border-radius:10px;background:var(--kk-stone);border:1px solid var(--kk-line-soft);}
@@ -418,15 +478,28 @@ const CSS = `
 .kk-skill-attr{font-size:10px;color:var(--kk-text-faint);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px dotted var(--kk-text-faint);}
 .kk-skill-die{font-family:var(--kk-font-d);font-size:16px;font-weight:600;color:var(--kk-gold-bright);min-width:44px;text-align:right;}
 .kk-note{font-size:12px;color:var(--kk-text-faint);font-style:italic;margin:6px 0 0;}
-.kk-fac-pick{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r);background:var(--kk-surface);}
-.kk-fac-row{display:flex;justify-content:space-between;align-items:center;gap:10px;}
-.kk-fac-cur{font-size:14px;color:var(--kk-text-dim);} .kk-fac-cur b{font-weight:700;}
-.kk-fac-none{color:var(--kk-text-faint);font-style:italic;}
-.kk-fac-toggle{font-size:12px;color:var(--kk-gold);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px dotted var(--kk-gold-dim);}
-.kk-fac-toggle:hover{color:var(--kk-gold-bright);}
-.kk-fac-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:2px;}
+/* — Редактура — */
+.kk-edit{display:flex;flex-direction:column;gap:18px;}
+.kk-edit-bar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 13px;border-radius:var(--kk-r);background:var(--kk-surface-2);border:1px solid var(--kk-gold-dim);}
+.kk-edit-title{font-family:var(--kk-font-d);font-size:16px;}
+.kk-edit-actions{display:flex;gap:8px;} .kk-edit-foot{display:flex;justify-content:flex-end;gap:8px;padding-top:6px;}
+.kk-btn{padding:9px 16px;border-radius:var(--kk-r-sm);font-size:13px;font-weight:600;}
+.kk-btn.primary{background:var(--kk-gold);color:#1a140c;} .kk-btn.primary:hover{background:var(--kk-gold-bright);}
+.kk-btn.ghost{border:1px solid var(--kk-line);color:var(--kk-text-dim);} .kk-btn.ghost:hover{border-color:var(--kk-danger);color:var(--kk-danger);}
+.kk-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+.kk-field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--kk-text-dim);}
+.kk-attrs-edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;}
+.kk-attr-edit{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r-sm);background:var(--kk-surface);}
+.kk-attr-edit .kk-attr-name{flex:1;text-align:left;}
+.kk-skills-edit{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;}
+.kk-skill-edit{display:flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r-sm);background:var(--kk-surface);}
+.kk-skill-edit .kk-skill-name{flex:1;} .kk-skill-attr2{font-size:10px;color:var(--kk-text-faint);text-transform:uppercase;width:34px;}
+.kk-x{width:24px;height:24px;flex:none;border-radius:5px;border:1px solid var(--kk-line);color:var(--kk-text-faint);font-size:12px;}
+.kk-x:hover{border-color:var(--kk-danger);color:var(--kk-danger);}
+.kk-add-skill{margin-top:8px;} .kk-add-skill .kk-input{max-width:260px;}
+.kk-fac-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;}
 .kk-fac-chip{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line-soft);background:var(--kk-stone);font-size:13px;color:var(--kk-text);text-align:left;}
 .kk-fac-chip:hover{border-color:var(--c);} .kk-fac-chip.on{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
 .kk-fac-dot{width:13px;height:13px;flex:none;border-radius:50%;background:var(--c);border:1px solid rgba(255,255,255,.18);}
-@media (max-width:560px){.kk-portal-nav{grid-template-columns:1fr;} .kk-strip{grid-template-columns:1fr 1fr;} .kk-name{font-size:25px;} .kk-cell{width:32px;height:40px;}}
+@media (max-width:560px){.kk-strip{grid-template-columns:1fr 1fr;} .kk-name{font-size:25px;} .kk-cell{width:32px;height:40px;} .kk-edit-bar{flex-direction:column;align-items:stretch;}}
 `;

@@ -107,6 +107,12 @@ export async function setFaculty(campaignId, characterId, fac, currentSkills = [
     skills: [...currentSkills, ...additions],
   });
 }
+// ── Ручная редактура (ГМ): одно сохранение по конфирму ──────
+export async function updateCharacterNow(campaignId, characterId, patch) {
+  const ref = doc(db, "campaigns", campaignId, "characters", characterId);
+  await updateDoc(ref, patch);
+}
+
 export const derive = {
   toughness: (ch) => 2 + Math.floor(ch.attributes.spirit.die / 2),
   energyMax: (ch) => ch.age + ch.attributes.spirit.die,
