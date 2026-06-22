@@ -9,6 +9,7 @@
 // ============================================================
 import {
   doc, collection, onSnapshot, setDoc, updateDoc, serverTimestamp,
+  addDoc, getDocs, query, orderBy, writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
@@ -111,6 +112,34 @@ export async function setFaculty(campaignId, characterId, fac, currentSkills = [
 export async function updateCharacterNow(campaignId, characterId, patch) {
   const ref = doc(db, "campaigns", campaignId, "characters", characterId);
   await updateDoc(ref, patch);
+}
+
+// ── Настройки кампании (ГМ): сохранить разом ────────────────
+export async function updateCampaignNow(campaignId, patch) {
+  const ref = doc(db, "campaigns", campaignId);
+  await updateDoc(ref, patch);
+}
+
+// ── Лог прокачки (по персонажу) ─────────────────────────────
+// Пишется ПЕРВЫМ делом при применении прокачки — чтобы при падении
+// апдейта карточки запись о списании опыта осталась для восстановления.
+export async function addLogEntry(campaignId, characterId, entry) {
+  const ref = collection(db, "campaigns", campaignId, "characters", characterId, "log");
+  return addDoc(ref, { ...entry, at: serverTimestamp() });
+}
+export function watchCharacterLog(campaignId, characterId, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "characters", characterId, "log"),
+    orderBy("at", "desc")
+  );
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+export async function clearCharacterLog(campaignId, characterId) {
+  const ref = collection(db, "campaigns", campaignId, "characters", characterId, "log");
+  const snap = await getDocs(ref);
+  const batch = writeBatch(db);
+  snap.docs.forEach((d) => batch.delete(d.ref));
+  await batch.commit();
 }
 
 export const derive = {
