@@ -30,13 +30,18 @@ export function watchCharacterList(campaignId, cb) {
 }
 
 // ── Запись с дебаунсом (чтобы не писать на каждый символ) ───
+// Накапливаем патчи разных полей и шлём одним updateDoc после паузы.
 const _timers = new Map();
+const _pending = new Map();
 export function saveCharacterDebounced(campaignId, characterId, patch, ms = 700) {
   const key = `${campaignId}/${characterId}`;
+  _pending.set(key, { ...(_pending.get(key) || {}), ...patch });
   clearTimeout(_timers.get(key));
   _timers.set(key, setTimeout(() => {
+    const merged = _pending.get(key) || {};
+    _pending.delete(key);
     const ref = doc(db, "campaigns", campaignId, "characters", characterId);
-    updateDoc(ref, patch).catch((e) => console.error("save error", e));
+    updateDoc(ref, merged).catch((e) => console.error("save error", e));
   }, ms));
 }
 
