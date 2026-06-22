@@ -30,6 +30,7 @@ function buildPipStates(value, sizes, thresholds) {
       started:filled>0, closed:filled>=size, knockout:i===4 }; });
 }
 
+const ATTR_ORDER=["agility","smarts","spirit","endurance","magic"];
 const ATTR_LABEL={agility:"Ловкость",smarts:"Смекалка",spirit:"Дух",endurance:"Выносливость",magic:"Магия"};
 const ATTR_SHORT={agility:"Ловк",smarts:"Смек",spirit:"Дух",endurance:"Вын",magic:"Магия"};
 const CAT_LABEL={common:"Общие",learned:"Изученные",personal:"Личные",magic:"Магические"};
@@ -41,6 +42,17 @@ const MENU=[
   {id:"journal",label:"Журнал кампании"},{id:"gm",label:"Год Мод · ГМ"},{id:"print",label:"Печать карточки"},{id:"set",label:"Настройки"},
 ];
 const dieStr=(die,mod)=>`d${die}${mod?(mod>0?`+${mod}`:`${mod}`):""}`;
+
+// Оптимистичные правки: чтение/запись по пути "a.b.c"
+function getPath(o,p){ return p.split(".").reduce((x,k)=>x?.[k],o); }
+function applyOverrides(base,ov){
+  const keys=Object.keys(ov); if(!keys.length) return base;
+  const res=structuredClone(base);
+  for(const p of keys){ const parts=p.split("."); let cur=res;
+    for(let i=0;i<parts.length-1;i++) cur=cur[parts[i]];
+    cur[parts[parts.length-1]]=ov[p]; }
+  return res;
+}
 
 function Tip({text,children,label}){
   const [open,setOpen]=useState(false); const ref=useRef(null);
@@ -142,8 +154,8 @@ function Card({ch,save,tab,setTab}){
 
       <section className="kk-block">
         <h2 className="kk-h2">Атрибуты</h2>
-        <div className="kk-attrs">{Object.entries(ch.attributes).map(([k,a])=>(
-          <div className="kk-attr" key={k}><span className="kk-attr-name">{ATTR_LABEL[k]}</span><span className="kk-attr-die">{dieStr(a.die,a.modifier)}</span></div>))}</div>
+        <div className="kk-attrs">{ATTR_ORDER.map((k)=>{ const a=ch.attributes[k]; return (
+          <div className="kk-attr" key={k}><span className="kk-attr-name">{ATTR_LABEL[k]}</span><span className="kk-attr-die">{dieStr(a.die,a.modifier)}</span></div>);})}</div>
       </section>
 
       <section className="kk-block">
@@ -209,12 +221,27 @@ export default function App({user,signOut}){
   const [view,setView]=useState("portal");
   const [tab,setTab]=useState("main");
   const [menu,setMenu]=useState(false);
+  const [overrides,setOverrides]=useState({}); // оптимистичные правки {path:value}
 
   useEffect(()=>watchCampaign(CAMPAIGN_ID,setCampaign),[]);
   useEffect(()=>watchCharacterList(CAMPAIGN_ID,(list)=>{ setCharacters(list); setReady(true); }),[]);
 
   const mine=characters.find(c=>c.ownerUid===user.uid)||null;
-  const save=useCallback((patch)=>{ if(mine) saveCharacterDebounced(CAMPAIGN_ID,mine.id,patch); },[mine]);
+
+  // Когда сервер подтвердил правку (значение совпало) — снимаем оверрайд.
+  useEffect(()=>{ if(!mine) return;
+    setOverrides(prev=>{ const next={...prev}; let changed=false;
+      for(const p of Object.keys(prev)){ if(getPath(mine,p)===prev[p]){ delete next[p]; changed=true; } }
+      return changed?next:prev; });
+  },[mine]);
+
+  // Карточка для рендера = серверная + мгновенные оверрайды.
+  const viewCh=mine?applyOverrides(mine,overrides):null;
+
+  const save=useCallback((patch)=>{ if(!mine) return;
+    setOverrides(prev=>({...prev,...patch}));          // мгновенно на экране
+    saveCharacterDebounced(CAMPAIGN_ID,mine.id,patch,500); // запись в фоне
+  },[mine]);
   const openCard=useCallback((t)=>{setTab(t);setView("card");},[]);
   const nav=useCallback((id)=>{ setMenu(false);
     if(id==="portal") setView("portal");
@@ -255,7 +282,7 @@ export default function App({user,signOut}){
       )}
 
       {ready && mine && view==="portal" && <Portal campaign={campaign} characters={characters} onOpenCard={openCard} myUid={user.uid}/>}
-      {ready && mine && view==="card" && <Card ch={mine} save={save} tab={tab} setTab={setTab}/>}
+      {ready && mine && view==="card" && <Card ch={viewCh} save={save} tab={tab} setTab={setTab}/>}
     </div>
     <Menu open={menu} onClose={()=>setMenu(false)} onNav={nav} current={current} onSignOut={signOut}/>
   </div>);
@@ -343,9 +370,9 @@ const CSS = `
 .kk-block{display:flex;flex-direction:column;gap:11px;} .kk-h2{font-family:var(--kk-font-b);font-weight:600;text-transform:uppercase;letter-spacing:.1em;font-size:12px;color:var(--kk-text-dim);margin:0;padding-bottom:6px;border-bottom:1px solid var(--kk-line-soft);}
 .kk-track{display:flex;flex-direction:column;gap:7px;} .kk-track-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
 .kk-track-name{font-weight:600;font-size:14px;} .kk-track-meta{font-size:11px;color:var(--kk-text-faint);}
-.kk-pips{display:flex;gap:11px;flex-wrap:wrap;} .kk-pip{position:relative;display:flex;gap:4px;padding:6px;border-radius:9px;background:var(--kk-stone);border:1px solid var(--kk-line-soft);}
+.kk-pips{display:flex;gap:12px;flex-wrap:wrap;} .kk-pip{position:relative;display:flex;gap:5px;padding:7px;border-radius:10px;background:var(--kk-stone);border:1px solid var(--kk-line-soft);}
 .kk-pip.started{border-color:var(--kk-gold-dim);} .kk-pip.closed{border-color:var(--kk-gold);} .kk-pip.ko{border-style:dashed;} .kk-pip.ko.started{border-color:var(--kk-danger);}
-.kk-cell{width:30px;height:36px;border-radius:6px;border:1px solid var(--kk-cell-line);background:var(--kk-cell-empty);box-shadow:inset 0 2px 5px rgba(0,0,0,.45);transition:background .12s,box-shadow .12s;}
+.kk-cell{width:38px;height:44px;border-radius:7px;border:1px solid var(--kk-cell-line);background:var(--kk-cell-empty);box-shadow:inset 0 2px 5px rgba(0,0,0,.45);transition:background .12s,box-shadow .12s;}
 .kk-cell.filled{background:var(--kk-cell-fill);border-color:var(--kk-gold-bright);box-shadow:inset 0 1px 2px rgba(255,235,190,.3),0 0 8px rgba(200,161,78,.4);}
 .kk-pip.ko .kk-cell.filled{background:var(--kk-danger);border-color:var(--kk-danger);box-shadow:0 0 9px rgba(189,90,58,.55);} .kk-cell:hover{border-color:var(--kk-gold);}
 .kk-pip-num{position:absolute;top:-8px;right:-5px;font-size:10px;color:var(--kk-text-faint);background:var(--kk-bg);padding:0 3px;border-radius:4px;font-family:var(--kk-font-d);}
@@ -358,5 +385,5 @@ const CSS = `
 .kk-skill-attr{font-size:10px;color:var(--kk-text-faint);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px dotted var(--kk-text-faint);}
 .kk-skill-die{font-family:var(--kk-font-d);font-size:16px;font-weight:600;color:var(--kk-gold-bright);min-width:44px;text-align:right;}
 .kk-note{font-size:12px;color:var(--kk-text-faint);font-style:italic;margin:6px 0 0;}
-@media (max-width:560px){.kk-portal-nav{grid-template-columns:1fr;} .kk-strip{grid-template-columns:1fr 1fr;} .kk-name{font-size:25px;} .kk-cell{width:26px;height:34px;}}
+@media (max-width:560px){.kk-portal-nav{grid-template-columns:1fr;} .kk-strip{grid-template-columns:1fr 1fr;} .kk-name{font-size:25px;} .kk-cell{width:32px;height:40px;}}
 `;
