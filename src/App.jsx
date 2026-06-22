@@ -3,13 +3,12 @@ import {
   watchCampaign, watchCharacterList, createCharacter,
   saveCharacterDebounced, derive,
 } from "./lib/db";
+import { CAMPAIGN_ID } from "./lib/config";
 
 // ============================================================
 // КК9 — App: живая карточка из Firestore (этап 1).
-// ⚠ ВСТАВЬ СЮДА ID своей кампании из Firestore
-//   (campaigns → твой документ → строка ID сверху).
+// ID кампании берётся из src/lib/config.js (сейчас "testOne").
 // ============================================================
-const CAMPAIGN_ID = "testOne";
 
 // ── Логика пипов (1:1 из health-pips.mjs) ───────────────────
 function attrPipSizes(die) {
