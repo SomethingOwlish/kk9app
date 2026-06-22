@@ -11,7 +11,10 @@ import {
   doc, collection, onSnapshot, setDoc, updateDoc, serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { buildBaseSkills } from "./seed-skills";
+import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
+
+// Навык по имени — для подтягивания attr/categ при добавлении.
+const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
 
 export const SCHEMA_VERSION = 1;
 
@@ -86,7 +89,24 @@ export async function createCharacter(campaignId, characterId, { name, ownerUid,
   return characterId;
 }
 
-// ── Деривативы (считаем на клиенте, не храним) ──────────────
+// ── Выбор факультета ────────────────────────────────────────
+// Пишет faculty{} и ДОКИДЫВАЕТ недостающие навыки факультета в skills[]
+// (нетренированными d4-2). Существующие навыки не трогает — прокачку не теряем.
+// Навыки прошлого факультета НЕ удаляем (смена факультета = только добавление).
+export async function setFaculty(campaignId, characterId, fac, currentSkills = []) {
+  const have = new Set(currentSkills.map((s) => s.name));
+  const additions = (fac.abilities || [])
+    .filter((n) => !have.has(n))
+    .map((n) => {
+      const ref = SKILL_BY_NAME[n];
+      return { name: n, attr: ref?.attr || "smarts", categ: ref?.categ || "learned", die: 4, modifier: -2 };
+    });
+  const ref = doc(db, "campaigns", campaignId, "characters", characterId);
+  await updateDoc(ref, {
+    faculty: { id: null, name: fac.name, key: fac.key, color: fac.color },
+    skills: [...currentSkills, ...additions],
+  });
+}
 export const derive = {
   toughness: (ch) => 2 + Math.floor(ch.attributes.spirit.die / 2),
   energyMax: (ch) => ch.age + ch.attributes.spirit.die,

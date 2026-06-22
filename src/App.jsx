@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   watchCampaign, watchCharacterList, createCharacter,
-  saveCharacterDebounced, derive,
+  saveCharacterDebounced, setFaculty, derive,
 } from "./lib/db";
 import { CAMPAIGN_ID } from "./lib/config";
+import { FACULTIES } from "./lib/seed-faculties";
 
 // ============================================================
 // КК9 — App: живая карточка из Firestore (этап 1).
@@ -93,7 +94,36 @@ function Stat({label,value,onChange,max,tip,accent}){
 }
 
 // ── Карточка из реального документа Firestore ───────────────
-function Card({ch,save,tab,setTab}){
+function FacultyPicker({ current, onPick }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="kk-fac-pick">
+      <div className="kk-fac-row">
+        <span className="kk-fac-cur">
+          Факультет: {current?.name
+            ? <b style={{ color: current.color || "var(--kk-gold)" }}>{current.name}</b>
+            : <span className="kk-fac-none">не выбран</span>}
+        </span>
+        <button className="kk-fac-toggle" onClick={() => setOpen((v) => !v)}>
+          {open ? "скрыть" : current?.name ? "сменить" : "выбрать"}
+        </button>
+      </div>
+      {open && (
+        <div className="kk-fac-grid">
+          {FACULTIES.map((f) => (
+            <button key={f.key} className={`kk-fac-chip ${current?.key === f.key ? "on" : ""}`}
+              style={{ ["--c"]: f.color }} onClick={() => { onPick(f); setOpen(false); }}>
+              <span className="kk-fac-dot" /><span>{f.name.replace(" факультет", "")}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && <p className="kk-note">Навыки факультета добавятся в список нетренированными (d4-2). Уже прокачанные не сбросятся.</p>}
+    </section>
+  );
+}
+
+function Card({ch,save,onPickFaculty,tab,setTab}){
   const toughness=derive.toughness(ch);
   const energyMax=derive.energyMax(ch);
   const im=ch.attributes.agility.modifier+ch.attributes.smarts.modifier;
@@ -129,6 +159,7 @@ function Card({ch,save,tab,setTab}){
     {tab==="rel"&&<div className="kk-empty">Связи, контакты и спутники переносим отдельной сущностью на следующем шаге.</div>}
 
     {tab==="main"&&<>
+      <FacultyPicker current={ch.faculty} onPick={onPickFaculty}/>
       <section className="kk-strip">
         <Stat label="Стойкость" value={toughness} tip="2 + ⌊Дух/2⌋. Считается автоматически." accent="var(--kk-gold)"/>
         <div className="kk-stat kk-stat-wide">
@@ -241,6 +272,9 @@ export default function App({user,signOut}){
     setOverrides(prev=>({...prev,...patch}));          // мгновенно на экране
     saveCharacterDebounced(CAMPAIGN_ID,mine.id,patch,500); // запись в фоне
   },[mine]);
+  const pickFaculty=useCallback((fac)=>{ if(!mine) return;
+    setFaculty(CAMPAIGN_ID,mine.id,fac,mine.skills||[]).catch(e=>alert("Не удалось: "+(e?.message||e)));
+  },[mine]);
   const openCard=useCallback((t)=>{setTab(t);setView("card");},[]);
   const nav=useCallback((id)=>{ setMenu(false);
     if(id==="portal") setView("portal");
@@ -281,7 +315,7 @@ export default function App({user,signOut}){
       )}
 
       {ready && mine && view==="portal" && <Portal campaign={campaign} characters={characters} onOpenCard={openCard} myUid={user.uid}/>}
-      {ready && mine && view==="card" && <Card ch={viewCh} save={save} tab={tab} setTab={setTab}/>}
+      {ready && mine && view==="card" && <Card ch={viewCh} save={save} onPickFaculty={pickFaculty} tab={tab} setTab={setTab}/>}
     </div>
     <Menu open={menu} onClose={()=>setMenu(false)} onNav={nav} current={current} onSignOut={signOut}/>
   </div>);
@@ -384,5 +418,15 @@ const CSS = `
 .kk-skill-attr{font-size:10px;color:var(--kk-text-faint);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px dotted var(--kk-text-faint);}
 .kk-skill-die{font-family:var(--kk-font-d);font-size:16px;font-weight:600;color:var(--kk-gold-bright);min-width:44px;text-align:right;}
 .kk-note{font-size:12px;color:var(--kk-text-faint);font-style:italic;margin:6px 0 0;}
+.kk-fac-pick{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r);background:var(--kk-surface);}
+.kk-fac-row{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.kk-fac-cur{font-size:14px;color:var(--kk-text-dim);} .kk-fac-cur b{font-weight:700;}
+.kk-fac-none{color:var(--kk-text-faint);font-style:italic;}
+.kk-fac-toggle{font-size:12px;color:var(--kk-gold);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px dotted var(--kk-gold-dim);}
+.kk-fac-toggle:hover{color:var(--kk-gold-bright);}
+.kk-fac-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:2px;}
+.kk-fac-chip{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line-soft);background:var(--kk-stone);font-size:13px;color:var(--kk-text);text-align:left;}
+.kk-fac-chip:hover{border-color:var(--c);} .kk-fac-chip.on{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);}
+.kk-fac-dot{width:13px;height:13px;flex:none;border-radius:50%;background:var(--c);border:1px solid rgba(255,255,255,.18);}
 @media (max-width:560px){.kk-portal-nav{grid-template-columns:1fr;} .kk-strip{grid-template-columns:1fr 1fr;} .kk-name{font-size:25px;} .kk-cell{width:32px;height:40px;}}
 `;
