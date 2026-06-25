@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   watchCampaign, watchCharacterList, createCharacter, saveCharacterDebounced,
   updateCharacterNow, updateCampaignNow, addLogEntry, watchCharacterLog, clearCharacterLog, derive,
@@ -430,72 +431,109 @@ function Menu({open,onClose,onNav,current,onSignOut,isGM,isAdmin,actingAs,onActA
 }
 
 // ── Корень ──────────────────────────────────────────────────
+//
+// Navigation decision (B-03):
+//   Top-level routes (/landing, /print/:charId) live in main.jsx.
+//   Portal sub-views (card, advance, log, settings) are driven by URL inside this
+//   component via useNavigate/useLocation — no separate <Route> elements needed.
+//   URLs: #/ → portal · #/card/:id → card · #/card/:id/advance → advance
+//          #/card/:id/log → log · #/settings → settings
+//   Formal component decomposition into separate files happens in B-06.
+//
 export default function App({user,signOut}){
+  const navigate=useNavigate();
+  const {pathname}=useLocation();
+
   const [campaign,setCampaign]=useState(null);
   const [characters,setCharacters]=useState([]);
   const [ready,setReady]=useState(false);
-  const [view,setView]=useState("portal");
   const [menu,setMenu]=useState(false);
-  const [selectedId,setSelectedId]=useState(null);
   const [editing,setEditing]=useState(false);
   const [overrides,setOverrides]=useState({});
+  // Scopes overrides to a character ID so back/forward never applies one
+  // character's unsaved changes to another character's view.
+  const [overridesCharId,setOverridesCharId]=useState(null);
   const [creating,setCreating]=useState(false);
   const [newName,setNewName]=useState("");
-  const [actingAs,setActingAs]=useState("player"); // для админа
+  const [actingAs,setActingAs]=useState("player");
+  // Persists the last charId the GM explicitly opened via openCard so the
+  // "Карточка" menu item still works after returning to the portal.
+  const [lastSelectedCharId,setLastSelectedCharId]=useState(null);
 
   useEffect(()=>watchCampaign(CAMPAIGN_ID,setCampaign),[]);
   useEffect(()=>watchCharacterList(CAMPAIGN_ID,(list)=>{ setCharacters(list); setReady(true); }),[]);
 
+  // Derive view and active character ID from URL
+  const cardMatch=pathname.match(/^\/card\/([^/]+)/);
+  const urlCharId=cardMatch?cardMatch[1]:null;
+
+  const view=/^\/card\/[^/]+\/advance$/.test(pathname)?"advance"
+    :/^\/card\/[^/]+\/log$/.test(pathname)?"log"
+    :/^\/card\//.test(pathname)?"card"
+    :pathname==="/settings"?"settings"
+    :"portal";
+
   const baseRole=campaign?.members?.[user.uid];
   const isAdmin=baseRole==="admin";
-  const role=isAdmin?actingAs:baseRole;        // эффективная роль
+  const role=isAdmin?actingAs:baseRole;
   const isGM=role==="gm";
   const settings=advSettings(campaign);
 
   const myChar=characters.find(c=>c.ownerUid===user.uid)||null;
-  const activeId=isGM?selectedId:myChar?.id;
+  // GM: use charId from URL; fall back to lastSelectedCharId when URL has no charId
+  // (e.g. after returning to the portal via back button or logo click).
+  // Player: always their own character regardless of URL.
+  const activeId=isGM?(urlCharId||lastSelectedCharId):myChar?.id;
   const activeChar=characters.find(c=>c.id===activeId)||null;
 
   useEffect(()=>{ if(!activeChar) return;
     setOverrides(prev=>{ const next={...prev}; let ch=false;
       for(const p of Object.keys(prev)){ if(getPath(activeChar,p)===prev[p]){ delete next[p]; ch=true; } } return ch?next:prev; });
   },[activeChar]);
-  const viewCh=activeChar?applyOverrides(activeChar,overrides):null;
+
+  // Only show overrides that belong to the currently viewed character.
+  const effectiveOverrides=overridesCharId===activeId?overrides:{};
+  const viewCh=activeChar?applyOverrides(activeChar,effectiveOverrides):null;
   const canAdv=activeChar?canAdvance(activeChar,settings):false;
 
   const save=useCallback((patch)=>{ if(!activeId) return;
+    setOverridesCharId(activeId);
     setOverrides(prev=>({...prev,...patch})); saveCharacterDebounced(CAMPAIGN_ID,activeId,patch,500);
   },[activeId]);
-  const openCard=useCallback((id)=>{ setSelectedId(id); setOverrides({}); setEditing(false); setView("card"); },[]);
+
+  const openCard=useCallback((id)=>{
+    setLastSelectedCharId(id); setOverridesCharId(null); setOverrides({}); setEditing(false); navigate(`/card/${id}`);
+  },[navigate]);
 
   const saveEdit=useCallback(async(patch)=>{ if(!activeId) return;
     try{ await updateCharacterNow(CAMPAIGN_ID,activeId,patch); setEditing(false); }
     catch(e){ alert("Не удалось сохранить: "+(e?.message||e)); } },[activeId]);
 
   const saveSettings=useCallback(async(patch)=>{
-    try{ await updateCampaignNow(CAMPAIGN_ID,patch); setView("portal"); }
-    catch(e){ alert("Не удалось сохранить настройки: "+(e?.message||e)); } },[]);
+    try{ await updateCampaignNow(CAMPAIGN_ID,patch); navigate("/"); }
+    catch(e){ alert("Не удалось сохранить настройки: "+(e?.message||e)); } },[navigate]);
 
-  // Применение прокачки: СНАЧАЛА лог, потом карточка (для восстановления при падении).
+  // Apply advancement: log first, then update (so crash during write is recoverable).
   const applyAdvance=useCallback(async({attributes,skills,spent,changes,newExperience})=>{
     if(!activeId) return;
     try{
       await addLogEntry(CAMPAIGN_ID,activeId,{ type:"advancement", spent, changes });
       await updateCharacterNow(CAMPAIGN_ID,activeId,{ attributes, skills, experience:newExperience });
-      setView("card");
+      navigate(`/card/${activeId}`);
     }catch(e){ alert("Не удалось применить прокачку: "+(e?.message||e)); }
-  },[activeId]);
+  },[activeId, navigate]);
 
   const clearLog=useCallback(async()=>{ if(!activeId) return;
     try{ await clearCharacterLog(CAMPAIGN_ID,activeId); }catch(e){ alert("Не удалось очистить: "+(e?.message||e)); } },[activeId]);
 
   const nav=useCallback((id)=>{ setMenu(false);
-    if(id==="portal") setView("portal");
-    else if(id==="card"){ setEditing(false); setView("card"); }
-    else if(id==="set"&&isGM){ setView("settings"); } },[isGM]);
-  const current=view==="portal"?"portal":(view==="settings"?"set":(view==="advance"?"adv":"card"));
+    if(id==="portal") navigate("/");
+    else if(id==="card"){ setEditing(false); navigate(activeId?`/card/${activeId}`:`/`); }
+    else if(id==="set"&&isGM){ navigate("/settings"); }
+  },[isGM, navigate, activeId]);
 
-  const actAs=useCallback((r)=>{ setActingAs(r); setMenu(false); setView("portal"); setEditing(false); },[]);
+  const current=view==="portal"?"portal":(view==="settings"?"set":(view==="advance"?"adv":"card"));
+  const actAs=useCallback((r)=>{ setActingAs(r); setMenu(false); setEditing(false); navigate("/"); },[navigate]);
 
   async function doCreate(){ if(!newName.trim()) return; setCreating(true);
     try{ const id=crypto.randomUUID(); await createCharacter(CAMPAIGN_ID,id,{name:newName.trim(),ownerUid:user.uid}); }
@@ -509,8 +547,8 @@ export default function App({user,signOut}){
     <div className="kk-shell">
       <div className="kk-topbar">
         <button className="kk-burger" onClick={()=>setMenu(true)} aria-label="Меню"><span/><span/><span/></button>
-        <button className="kk-logo" onClick={()=>setView("portal")}>КК<span>9</span></button>
-        {(view!=="portal")&&<button className="kk-back" onClick={()=>{setEditing(false);setView("portal");}}>← к порталу</button>}
+        <button className="kk-logo" onClick={()=>navigate("/")}>КК<span>9</span></button>
+        {view!=="portal"&&<button className="kk-back" onClick={()=>{setEditing(false);navigate("/");}}>← к порталу</button>}
       </div>
 
       {(!ready||!campaignLoaded) && <div className="kk-load">Загрузка кампании…</div>}
@@ -519,12 +557,10 @@ export default function App({user,signOut}){
         <div className="kk-empty">Вы не участник этой кампании. Попросите ГМа добавить ваш UID в <code>members</code>.</div>
       )}
 
-      {/* ДЕМОНСТРАЦИЯ */}
       {ready && campaignLoaded && role==="demo" && (
         <div className="kk-empty">Режим демонстрации. Модуль ещё не готов — права заложены, функции добавим позже.</div>
       )}
 
-      {/* ИГРОК без персонажа (или админ как игрок без своей карточки) */}
       {ready && campaignLoaded && role==="player" && !myChar && (
         <div className="kk-create">
           <h2 className="kk-h2">{isAdmin?"У админа нет привязанной карточки":"У вас ещё нет персонажа"}</h2>
@@ -534,18 +570,15 @@ export default function App({user,signOut}){
         </div>
       )}
 
-      {/* ПОРТАЛ */}
-      {ready && campaignLoaded && view==="portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={()=>setView("settings")} role={baseRole}/>}
+      {ready && campaignLoaded && view==="portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={()=>navigate("/settings")} role={baseRole}/>}
       {ready && campaignLoaded && view==="portal" && role==="player" && myChar && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
 
-      {/* НАСТРОЙКИ */}
-      {ready && campaignLoaded && view==="settings" && isGM && <CampaignSettings campaign={campaign} onSave={saveSettings} onClose={()=>setView("portal")}/>}
+      {ready && campaignLoaded && view==="settings" && isGM && <CampaignSettings campaign={campaign} onSave={saveSettings} onClose={()=>navigate("/")}/>}
 
-      {/* КАРТОЧКА / РЕДАКТУРА / ЛОГИ / ПРОКАЧКА */}
-      {ready && view==="card" && viewCh && !editing && <Card ch={viewCh} save={save} isGM={isGM} canAdv={canAdv} onEdit={()=>setEditing(true)} onAdvance={()=>setView("advance")} onLog={()=>setView("log")}/>}
+      {ready && view==="card" && viewCh && !editing && <Card ch={viewCh} save={save} isGM={isGM} canAdv={canAdv} onEdit={()=>setEditing(true)} onAdvance={()=>navigate(`/card/${activeId}/advance`)} onLog={()=>navigate(`/card/${activeId}/log`)}/>}
       {ready && view==="card" && viewCh && editing && isGM && <EditCard ch={activeChar} onSave={saveEdit} onCancel={()=>setEditing(false)}/>}
-      {ready && view==="log" && viewCh && isGM && <LogView char={activeChar} onClose={()=>setView("card")} onClear={clearLog}/>}
-      {ready && view==="advance" && viewCh && !isGM && <Advance ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={()=>setView("card")}/>}
+      {ready && view==="log" && viewCh && isGM && <LogView char={activeChar} onClose={()=>navigate(`/card/${activeId}`)} onClear={clearLog}/>}
+      {ready && view==="advance" && viewCh && !isGM && <Advance ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={()=>navigate(`/card/${activeId}`)}/>}
       {ready && (view==="card"||view==="advance"||view==="log") && !viewCh && <div className="kk-empty">Персонаж не выбран. Вернитесь на портал.</div>}
     </div>
     <Menu open={menu} onClose={()=>setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs}/>
