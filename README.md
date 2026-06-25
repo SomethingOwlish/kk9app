@@ -1,16 +1,43 @@
-# React + Vite
+# КК9 App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite + Firebase character sheet app for the КК9 tabletop campaign.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+cp .env.example .env.local   # fill in your Firebase credentials
+npm install
+npm run dev
+```
 
-## React Compiler
+## CI/CD
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Two GitHub Actions workflows run on every push:
 
-## Expanding the ESLint configuration
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `ci.yml` | push + PR to `main` | `npm ci` → lint → build |
+| `deploy.yml` | push to `main` | build → publish `dist/` to `gh-pages` |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Required GitHub Actions secrets
+
+Add these in **Settings → Secrets and variables → Actions**:
+
+| Secret name | Value |
+|---|---|
+| `VITE_FIREBASE_API_KEY` | Firebase `apiKey` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase `authDomain` |
+| `VITE_FIREBASE_PROJECT_ID` | Firebase `projectId` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | Firebase `storageBucket` |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase `messagingSenderId` |
+| `VITE_FIREBASE_APP_ID` | Firebase `appId` |
+
+The `GITHUB_TOKEN` secret is provided automatically by GitHub Actions — no manual setup needed for the deploy step.
+
+## Deploy manually
+
+```bash
+npm run deploy
+```
+
+Builds and pushes `dist/` to the `gh-pages` branch. Requires `gh-pages` package (already in devDependencies).
