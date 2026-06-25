@@ -26,7 +26,14 @@ export function watchCharacter(campaignId, characterId, cb) {
 }
 export function watchCampaign(campaignId, cb) {
   const ref = doc(db, "campaigns", campaignId);
-  return onSnapshot(ref, (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null));
+  return onSnapshot(ref, (snap) => {
+    if (!snap.exists()) { cb(null); return; }
+    const data = snap.data();
+    if (data.schemaVersion == null) {
+      updateDoc(ref, { schemaVersion: SCHEMA_VERSION }).catch((e) => console.error("schemaVersion patch", e));
+    }
+    cb({ id: snap.id, ...data });
+  });
 }
 export function watchCharacterList(campaignId, cb) {
   const ref = collection(db, "campaigns", campaignId, "characters");
