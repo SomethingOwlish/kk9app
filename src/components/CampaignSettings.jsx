@@ -33,8 +33,8 @@ function parseChargen(campaign) {
   };
 }
 
-export default function CampaignSettings({ campaign, onSave, onClose }) {
-  const [d, setD] = useState(() => advSettings(campaign));
+export default function CampaignSettings({ campaign, advancementConfig, onSave, onClose }) {
+  const [d, setD] = useState(() => advSettings(advancementConfig));
   const [cg, setCg] = useState(() => parseChargen(campaign));
 
   const setIn = (g, k, v) => setD(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
