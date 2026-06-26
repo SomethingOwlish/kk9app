@@ -227,4 +227,28 @@
 .kk-wiz-review-section{border:1px solid var(--kk-line-soft);border-radius:var(--kk-r-sm);padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
 .kk-wiz-review-row{display:flex;align-items:center;gap:8px;font-size:13px;} .kk-wiz-review-row span:first-child{color:var(--kk-text-dim);flex:1;}
 .kk-text-dim{color:var(--kk-text-dim);}
+/* Gender button group (IMP-08) */
+.kk-wiz-gender-group{display:flex;gap:6px;flex-wrap:wrap;}
+.kk-wiz-gender-btn{padding:5px 14px;border-radius:20px;border:1px solid var(--kk-line);background:var(--kk-surface);color:var(--kk-text-dim);font-size:13px;cursor:pointer;transition:border-color .15s,color .15s;}
+.kk-wiz-gender-btn:hover{border-color:var(--kk-gold);color:var(--kk-gold);}
+.kk-wiz-gender-btn.selected{border-color:var(--kk-gold);color:var(--kk-gold);background:var(--kk-surface-2);}
+/* Attr-save toggle (FEAT-09) */
+.kk-wiz-attr-save-row{margin-top:12px;display:flex;justify-content:flex-end;}
+/* Skill attr/cap badges (IMP-09) */
+.kk-wiz-skill-attr{margin-left:6px;font-size:10px;color:var(--kk-text-faint);padding:1px 5px;background:var(--kk-surface-2);border-radius:8px;}
+.kk-wiz-skill-cap{margin-left:4px;font-size:10px;color:var(--kk-text-faint);}
+/* Spec request block (FEAT-10) */
+.kk-wiz-spec-block{border-top:1px solid var(--kk-line-soft);margin-top:16px;padding-top:12px;}
+/* Background cards (FEAT-10) */
+.kk-wiz-bg-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.kk-wiz-bg-card{border:1px solid var(--kk-line-soft);border-radius:var(--kk-r-sm);padding:10px 12px;background:var(--kk-surface);}
+.kk-wiz-bg-card.selected{border-color:var(--kk-gold-dim);background:var(--kk-surface-2);}
+.kk-wiz-bg-card.disabled{opacity:.45;}
+.kk-wiz-bg-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.kk-wiz-bg-check{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;}
+.kk-wiz-bg-label{font-size:13px;font-weight:600;color:var(--kk-text);}
+.kk-wiz-bg-cost{font-size:11px;color:var(--kk-text-dim);}
+.kk-wiz-bg-desc{font-size:12px;color:var(--kk-text-dim);margin:4px 0 0;}
+.kk-note{font-size:12px;color:var(--kk-text-dim);}
+.kk-textarea{resize:vertical;min-height:60px;margin-top:6px;width:100%;box-sizing:border-box;}
 @media (max-width:480px){.kk-wiz-step-label{display:none;} .kk-wiz-row{grid-template-columns:1fr;} .kk-wiz-fac-grid{grid-template-columns:1fr 1fr;}}

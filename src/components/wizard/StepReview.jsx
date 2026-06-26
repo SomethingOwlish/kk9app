@@ -4,7 +4,8 @@ const ATTR_LABELS = {
 };
 const ATTRS = ["agility", "smarts", "spirit", "endurance", "magic"];
 
-export default function StepReview({ identity, faculty, attrDice, skills, saving, onConfirm }) {
+export default function StepReview({ identity, attrDice, skills, specCount, bgSelections, saving, onConfirm }) {
+  const chosenBgs = Object.entries(bgSelections || {}).filter(([, v]) => v.selected);
   return (
     <div className="kk-block">
       <h2 className="kk-h2">Итог</h2>
@@ -14,21 +15,9 @@ export default function StepReview({ identity, faculty, attrDice, skills, saving
         <div className="kk-h2">Личность</div>
         <div className="kk-wiz-review-row"><span>Имя</span><strong>{identity.name || "—"}</strong></div>
         <div className="kk-wiz-review-row"><span>Возраст</span><strong>{identity.age}</strong></div>
-        {identity.gender && <div className="kk-wiz-review-row"><span>Пол</span><strong>{identity.gender}</strong></div>}
+        {identity.gender && <div className="kk-wiz-review-row"><span>Пол</span><strong>{{ m: "М", f: "Ж", nb: "Нонбинари" }[identity.gender] || identity.gender}</strong></div>}
         {identity.birthplace && <div className="kk-wiz-review-row"><span>Место рождения</span><strong>{identity.birthplace}</strong></div>}
-        {identity.dormitory && <div className="kk-wiz-review-row"><span>Дормиторий</span><strong>{identity.dormitory}</strong></div>}
         {identity.height && <div className="kk-wiz-review-row"><span>Рост</span><strong>{identity.height}</strong></div>}
-      </div>
-
-      <div className="kk-wiz-review-section">
-        <div className="kk-h2">Факультет</div>
-        {faculty
-          ? <div className="kk-wiz-review-row">
-              <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: faculty.color, flexShrink: 0 }} />
-              <strong>{faculty.name}</strong>
-            </div>
-          : <span className="kk-text-dim">Не выбран</span>
-        }
       </div>
 
       <div className="kk-wiz-review-section">
@@ -51,6 +40,23 @@ export default function StepReview({ identity, faculty, attrDice, skills, saving
           ))}
         </div>
       </div>
+
+      {(specCount > 0 || chosenBgs.length > 0) && (
+        <div className="kk-wiz-review-section">
+          <div className="kk-h2">Запросы ГМу</div>
+          {specCount > 0 && (
+            <div className="kk-wiz-review-row">
+              <span>Спецспособностей</span><strong>{specCount}</strong>
+            </div>
+          )}
+          {chosenBgs.map(([key, val]) => (
+            <div key={key} className="kk-wiz-review-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+              <strong>{key}</strong>
+              {val.notes && <span className="kk-text-dim" style={{ fontSize: 12 }}>{val.notes}</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       <button
         className="kk-create-btn"

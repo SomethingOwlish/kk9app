@@ -1,5 +1,17 @@
 import { useState } from "react";
 import { advSettings, DEFAULT_ADVANCEMENT } from "../lib/advancement";
+import { DEFAULT_BACKGROUNDS } from "../lib/chargen";
+
+const DIE_OPTIONS = [4, 6, 8, 10, 12];
+
+const DEFAULT_CHARGEN = {
+  points: { attributes: 5, skills: 10 },
+  attr: { maxDie: 8 },
+  convert: { attrToSkill: 5 },
+  special: { cost: 3, max: 1 },
+  skills: { maxSave: 2 },
+  backgrounds: "",
+};
 
 function SettingsField({ label, value, onChange, step }) {
   return (
@@ -9,26 +21,82 @@ function SettingsField({ label, value, onChange, step }) {
   );
 }
 
+function parseChargen(campaign) {
+  const cg = campaign?.chargen || {};
+  return {
+    points:  { attributes: cg.points?.attributes ?? 5, skills: cg.points?.skills ?? 10 },
+    attr:    { maxDie: cg.attr?.maxDie ?? 8 },
+    convert: { attrToSkill: cg.convert?.attrToSkill ?? 5 },
+    special: { cost: cg.special?.cost ?? 3, max: cg.special?.max ?? 1 },
+    skills:  { maxSave: cg.skills?.maxSave ?? 2 },
+    backgrounds: cg.backgrounds ?? "",
+  };
+}
+
 export default function CampaignSettings({ campaign, onSave, onClose }) {
   const [d, setD] = useState(() => advSettings(campaign));
+  const [cg, setCg] = useState(() => parseChargen(campaign));
+
   const setIn = (g, k, v) => setD(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
+  const setCgIn = (g, k, v) => setCg(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
   const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
   const field = (label, g, k, step) => (
     <SettingsField label={label} value={d[g][k]} step={step} onChange={e => setIn(g, k, num(e.target.value))}/>
   );
+  const cgField = (label, g, k, step) => (
+    <SettingsField label={label} value={cg[g][k]} step={step} onChange={e => setCgIn(g, k, num(e.target.value))}/>
+  );
+
+  function handleSave() {
+    onSave({ advancement: d, chargen: cg });
+  }
 
   return (
     <div className="kk-edit">
       <div className="kk-edit-bar">
-        <span className="kk-edit-title">Настройки кампании · прокачка</span>
+        <span className="kk-edit-title">Настройки кампании</span>
         <div className="kk-edit-actions">
           <button className="kk-btn ghost" onClick={onClose}>Закрыть</button>
-          <button className="kk-btn primary" onClick={() => onSave({ advancement: d })}>Сохранить</button>
+          <button className="kk-btn primary" onClick={handleSave}>Сохранить</button>
         </div>
       </div>
+
       <section className="kk-block">
-        <h2 className="kk-h2">Атрибуты</h2>
-        <p className="kk-note">Кубик: цена шага = база × № шага от d4. Мод: база × новый мод. Потолок мода на d20 — отдельно.</p>
+        <h2 className="kk-h2">Создание персонажа</h2>
+        <p className="kk-note">Параметры мастера создания — влияют только на новых персонажей.</p>
+        <div className="kk-form-grid">
+          {cgField("Очков атрибутов", "points", "attributes")}
+          {cgField("Очков навыков", "points", "skills")}
+          {cgField("Конвертация атр→нав", "convert", "attrToSkill")}
+          {cgField("Цена спецспособности", "special", "cost")}
+          {cgField("Макс. спецспособностей", "special", "max")}
+          {cgField("Макс. сохранённых очков", "skills", "maxSave")}
+        </div>
+        <label className="kk-field" style={{ marginTop: 8 }}>
+          <span>Макс. кубик атрибута/навыка</span>
+          <select
+            className="kk-input sm"
+            value={cg.attr.maxDie}
+            onChange={e => setCgIn("attr", "maxDie", Number(e.target.value))}
+          >
+            {DIE_OPTIONS.map(n => <option key={n} value={n}>d{n}</option>)}
+          </select>
+        </label>
+        <label className="kk-field" style={{ marginTop: 8, flexDirection: "column", alignItems: "flex-start" }}>
+          <span>Бэкграунды (JSON, пусто = дефолт)</span>
+          <textarea
+            className="kk-input kk-textarea"
+            rows={4}
+            value={cg.backgrounds}
+            placeholder={JSON.stringify(DEFAULT_BACKGROUNDS, null, 2)}
+            onChange={e => setCg(p => ({ ...p, backgrounds: e.target.value }))}
+          />
+        </label>
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Прокачка · Атрибуты</h2>
+        <p className="kk-note">Кубик: цена шага = база × № шага от d4. Мод: база × новый мод.</p>
         <div className="kk-form-grid">
           {field("База кубика", "attr", "dieCostBase")}
           {field("База мода", "attr", "modCostBase")}
@@ -37,7 +105,7 @@ export default function CampaignSettings({ campaign, onSave, onClose }) {
         </div>
       </section>
       <section className="kk-block">
-        <h2 className="kk-h2">Навыки</h2>
+        <h2 className="kk-h2">Прокачка · Навыки</h2>
         <p className="kk-note">Кубик: база × (№ шага +1). Мод: база × (2 × новый мод). Всё ×множитель категории.</p>
         <div className="kk-form-grid">
           {field("База кубика", "abil", "dieCostBase")}
@@ -46,7 +114,7 @@ export default function CampaignSettings({ campaign, onSave, onClose }) {
         </div>
       </section>
       <section className="kk-block">
-        <h2 className="kk-h2">Множители по группам навыков</h2>
+        <h2 className="kk-h2">Прокачка · Множители навыков</h2>
         <div className="kk-form-grid">
           {field("Общие", "catMult", "common", 0.1)}
           {field("Изученные", "catMult", "learned", 0.1)}
@@ -55,8 +123,8 @@ export default function CampaignSettings({ campaign, onSave, onClose }) {
         </div>
       </section>
       <div className="kk-edit-foot">
-        <button className="kk-btn ghost" onClick={() => setD(structuredClone(DEFAULT_ADVANCEMENT))}>Сбросить к дефолтам</button>
-        <button className="kk-btn primary" onClick={() => onSave({ advancement: d })}>Сохранить</button>
+        <button className="kk-btn ghost" onClick={() => { setD(structuredClone(DEFAULT_ADVANCEMENT)); setCg(structuredClone(DEFAULT_CHARGEN)); }}>Сбросить к дефолтам</button>
+        <button className="kk-btn primary" onClick={handleSave}>Сохранить</button>
       </div>
     </div>
   );

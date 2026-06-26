@@ -1,3 +1,9 @@
+const GENDER_OPTIONS = [
+  { value: "m",  label: "М" },
+  { value: "f",  label: "Ж" },
+  { value: "nb", label: "Нонбинари" },
+];
+
 export default function StepIdentity({ data, onChange }) {
   return (
     <div className="kk-block">
@@ -33,33 +39,28 @@ export default function StepIdentity({ data, onChange }) {
         </div>
         <div className="kk-wiz-field">
           <label className="kk-wiz-label">Пол</label>
-          <input
-            className="kk-input"
-            value={data.gender}
-            onChange={e => onChange({ gender: e.target.value })}
-            placeholder="—"
-          />
+          <div className="kk-wiz-gender-group">
+            {GENDER_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`kk-wiz-gender-btn${data.gender === opt.value ? " selected" : ""}`}
+                onClick={() => onChange({ gender: opt.value })}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-      <div className="kk-wiz-row">
-        <div className="kk-wiz-field">
-          <label className="kk-wiz-label">Место рождения</label>
-          <input
-            className="kk-input"
-            value={data.birthplace}
-            onChange={e => onChange({ birthplace: e.target.value })}
-            placeholder="—"
-          />
-        </div>
-        <div className="kk-wiz-field">
-          <label className="kk-wiz-label">Дормиторий</label>
-          <input
-            className="kk-input"
-            value={data.dormitory}
-            onChange={e => onChange({ dormitory: e.target.value })}
-            placeholder="—"
-          />
-        </div>
+      <div className="kk-wiz-field">
+        <label className="kk-wiz-label">Место рождения</label>
+        <input
+          className="kk-input"
+          value={data.birthplace}
+          onChange={e => onChange({ birthplace: e.target.value })}
+          placeholder="—"
+        />
       </div>
       <div className="kk-wiz-field">
         <label className="kk-wiz-label">Рост</label>
@@ -70,6 +71,9 @@ export default function StepIdentity({ data, onChange }) {
           placeholder="—"
         />
       </div>
+      <p className="kk-note" style={{ marginTop: 4 }}>
+        Данные биографии можно изменить позже в карточке персонажа.
+      </p>
     </div>
   );
 }
