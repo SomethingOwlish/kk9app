@@ -126,6 +126,28 @@
 .kk-log-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;} .kk-log-date{font-size:12px;color:var(--kk-text-dim);} .kk-log-spent{font-size:13px;font-weight:600;color:var(--kk-danger);}
 .kk-log-changes{display:flex;flex-direction:column;gap:3px;} .kk-log-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;font-size:12px;}
 .kk-log-kind{font-size:9px;text-transform:uppercase;color:var(--kk-text-faint);} .kk-log-name{color:var(--kk-text);} .kk-log-delta{font-family:var(--kk-font-d);color:var(--kk-gold-bright);} .kk-log-cost{color:var(--kk-text-faint);}
+/* Log tabs */
+.kk-log-list{display:flex;flex-direction:column;gap:8px;padding:12px;}
+.kk-log-tabs{display:flex;gap:0;border-bottom:1px solid var(--kk-line-soft);padding:0 12px;}
+.kk-log-tab{padding:8px 14px;font-size:13px;color:var(--kk-text-dim);border:none;background:none;border-bottom:2px solid transparent;cursor:pointer;display:flex;align-items:center;gap:6px;transition:color .15s;}
+.kk-log-tab:hover{color:var(--kk-text);}
+.kk-log-tab.active{color:var(--kk-gold);border-bottom-color:var(--kk-gold);}
+.kk-log-tab-count{font-size:11px;padding:1px 6px;background:var(--kk-surface-2);border-radius:10px;color:var(--kk-text-faint);}
+/* Log type tags */
+.kk-log-type-tag{font-size:10px;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:var(--kk-surface-2);color:var(--kk-text-faint);letter-spacing:.04em;}
+.kk-log-type-tag.chargen{background:color-mix(in srgb,var(--kk-gold) 15%,transparent);color:var(--kk-gold);}
+.kk-log-type-tag.advancement{background:color-mix(in srgb,var(--kk-accent,#5b8dd9) 15%,transparent);color:var(--kk-accent,#5b8dd9);}
+/* Chargen card sections */
+.kk-log--chargen{border-color:color-mix(in srgb,var(--kk-gold) 30%,var(--kk-line-soft));}
+.kk-log-section{margin-top:8px;padding-top:8px;border-top:1px solid var(--kk-line-soft);}
+.kk-log-section-title{font-size:10px;text-transform:uppercase;color:var(--kk-text-faint);letter-spacing:.05em;margin-bottom:5px;display:flex;align-items:center;gap:8px;}
+.kk-log-grid{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--kk-text-dim);}
+.kk-log-grid strong{color:var(--kk-text);}
+.kk-log-badge{font-size:10px;padding:1px 6px;background:var(--kk-surface-2);border-radius:8px;text-transform:none;letter-spacing:0;}
+.kk-log-tags{display:flex;flex-wrap:wrap;gap:5px;}
+.kk-log-skill-tag{font-size:11px;padding:2px 8px;border-radius:12px;background:var(--kk-surface-2);border:1px solid var(--kk-line-soft);color:var(--kk-text);}
+.kk-log-bg-row{font-size:12px;color:var(--kk-text);margin-bottom:3px;}
+.kk-log-bg-notes{color:var(--kk-text-dim);}
 /* — Tension — */
 .kk-root{--kk-tension:#9b59b6;}
 .kk-tension-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:10px;}
