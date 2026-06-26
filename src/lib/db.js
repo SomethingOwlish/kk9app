@@ -8,7 +8,7 @@
 // выносим в отдельный документ под gm-only правило.
 // ============================================================
 import {
-  doc, collection, onSnapshot, setDoc, updateDoc, serverTimestamp,
+  doc, collection, onSnapshot, setDoc, updateDoc, getDoc, serverTimestamp,
   addDoc, getDocs, query, orderBy, where, writeBatch, deleteDoc, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -144,6 +144,17 @@ export async function setFaculty(campaignId, characterId, fac, currentSkills = [
 export async function updateCharacterNow(campaignId, characterId, patch) {
   const ref = doc(db, "campaigns", campaignId, "characters", characterId);
   await updateDoc(ref, patch);
+}
+
+// ── GM Notes (B-26) — private/gm sub-document ───────────────
+export async function getGmNotes(campaignId, characterId) {
+  const ref = doc(db, "campaigns", campaignId, "characters", characterId, "private", "gm");
+  const snap = await getDoc(ref);
+  return snap.exists() ? (snap.data().gmNotes ?? "") : "";
+}
+export async function saveGmNotes(campaignId, characterId, text) {
+  const ref = doc(db, "campaigns", campaignId, "characters", characterId, "private", "gm");
+  await updateDoc(ref, { gmNotes: text });
 }
 
 // ── Настройки кампании (ГМ): сохранить разом ────────────────
