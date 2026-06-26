@@ -9,7 +9,7 @@
 // ============================================================
 import {
   doc, collection, onSnapshot, setDoc, updateDoc, serverTimestamp,
-  addDoc, getDocs, query, orderBy, writeBatch,
+  addDoc, getDocs, query, orderBy, writeBatch, deleteField,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
@@ -147,6 +147,23 @@ export async function clearCharacterLog(campaignId, characterId) {
   const batch = writeBatch(db);
   snap.docs.forEach((d) => batch.delete(d.ref));
   await batch.commit();
+}
+
+// ── Настройки прокачки (отдельный документ per D-26) ────────
+// Path: campaigns/{id}/config/advancement
+export function watchAdvancementConfig(campaignId, cb) {
+  const ref = doc(db, "campaigns", campaignId, "config", "advancement");
+  return onSnapshot(ref, (snap) => cb(snap.exists() ? snap.data() : null));
+}
+export async function saveAdvancementConfig(campaignId, config) {
+  const ref = doc(db, "campaigns", campaignId, "config", "advancement");
+  await setDoc(ref, config);
+}
+// One-time migration: copies campaign.advancement to config/advancement and removes the old field.
+export async function migrateAdvancementConfig(campaignId, oldAdvancement) {
+  const ref = doc(db, "campaigns", campaignId, "config", "advancement");
+  await setDoc(ref, oldAdvancement);
+  await updateDoc(doc(db, "campaigns", campaignId), { advancement: deleteField() });
 }
 
 export const derive = {
