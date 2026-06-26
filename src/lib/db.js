@@ -9,7 +9,7 @@
 // ============================================================
 import {
   doc, collection, onSnapshot, setDoc, updateDoc, serverTimestamp,
-  addDoc, getDocs, query, orderBy, where, writeBatch, deleteField, deleteDoc, limit,
+  addDoc, getDocs, query, orderBy, where, writeBatch, deleteDoc, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
@@ -89,7 +89,7 @@ export async function createCharacter(campaignId, characterId, { name, ownerUid,
     allergies: "",
     weaknesses: "",
     biography: "",
-    faculty: { id: null, name: "", key: "", color: "#c8a14e" },
+    faculty: { name: "", key: "", color: "#c8a14e" },
     academyYear: "1",
     semester: 1,
     attributes: baseAttrs,
@@ -97,13 +97,13 @@ export async function createCharacter(campaignId, characterId, { name, ownerUid,
       physical: { value: 0, toughness: toughness },
       mental:   { value: 0 },
     },
-    energy: { value: 0, max: energyMax },
+    energy: { value: energyMax, max: energyMax },
     tension: { current: 0, overcap: 0, energyPenalty: 0, max: tensionMax },
     overflow_damage: 0,
     bennies: 3,
     money: 0,
     experience: 0,
-    notes: "",
+    notes: [],
     activeSpells: [],
     activeStatuses: [],
     magicLevels: [],
@@ -183,12 +183,6 @@ export function watchAdvancementConfig(campaignId, cb) {
 export async function saveAdvancementConfig(campaignId, config) {
   const ref = doc(db, "campaigns", campaignId, "config", "advancement");
   await setDoc(ref, config);
-}
-// One-time migration: copies campaign.advancement to config/advancement and removes the old field.
-export async function migrateAdvancementConfig(campaignId, oldAdvancement) {
-  const ref = doc(db, "campaigns", campaignId, "config", "advancement");
-  await setDoc(ref, oldAdvancement);
-  await updateDoc(doc(db, "campaigns", campaignId), { advancement: deleteField() });
 }
 
 // ── Scene system (B-08) ─────────────────────────────────────
