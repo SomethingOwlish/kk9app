@@ -2,7 +2,7 @@ import { DIE_SCALE } from "../../lib/advancement";
 
 const ATTR_LABELS = {
   agility:   "Ловкость",
-  smarts:    "Хитрость",
+  smarts:    "Смекалка",
   spirit:    "Дух",
   endurance: "Выносливость",
   magic:     "Магия",

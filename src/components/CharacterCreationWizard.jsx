@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  createCharacter, saveCharacterDebounced, updateCharacterNow, saveChargenRequest,
+  createCharacter, saveCharacterDebounced, updateCharacterNow, saveChargenRequest, addLogEntry,
 } from "../lib/db";
 import { enrichPatch } from "../lib/derive";
 import { CAMPAIGN_ID } from "../lib/config";
@@ -180,6 +180,30 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
           backgrounds: chosenBgs,
         });
       }
+
+      // Write creation log entry for GM (issue 4)
+      await addLogEntry(CAMPAIGN_ID, charId, {
+        type:       "chargen_created",
+        actorName:  identity.name.trim(),
+        identity: {
+          age:        Number(identity.age) || 15,
+          gender:     identity.gender,
+          birthplace: identity.birthplace,
+          height:     identity.height,
+        },
+        attributes: Object.fromEntries(
+          Object.entries(attrs).map(([k, v]) => [k, `d${v.die}`])
+        ),
+        attrSave,
+        skills: finalSkills.map(s => ({
+          name:     s.name,
+          attr:     s.attr,
+          die:      s.die,
+          modifier: s.modifier,
+        })),
+        specCount,
+        backgrounds: chosenBgs,
+      });
 
       navigate("/");
     } catch (e) {

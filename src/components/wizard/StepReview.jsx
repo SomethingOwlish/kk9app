@@ -1,5 +1,5 @@
 const ATTR_LABELS = {
-  agility: "Ловкость", smarts: "Хитрость", spirit: "Дух",
+  agility: "Ловкость", smarts: "Смекалка", spirit: "Дух",
   endurance: "Выносливость", magic: "Магия",
 };
 const ATTRS = ["agility", "smarts", "spirit", "endurance", "magic"];
