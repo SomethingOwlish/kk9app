@@ -1,7 +1,10 @@
 import { MENU } from "../lib/constants";
 
 export default function Menu({ open, onClose, onNav, current, onSignOut, isGM, isAdmin, actingAs, onActAs }) {
-  const items = MENU.map(m => ({ ...m, on: m.on || (isGM && m.id === "set") }));
+  const items = MENU.map(m => ({
+    ...m,
+    on: m.on || (isGM && (m.id === "set" || m.gmOnly)),
+  }));
   return (
     <>
       <div className={`kk-scrim ${open ? "show" : ""}`} onClick={onClose} aria-hidden/>
