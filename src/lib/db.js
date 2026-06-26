@@ -136,7 +136,7 @@ export async function setFaculty(campaignId, characterId, fac, currentSkills = [
     });
   const ref = doc(db, "campaigns", campaignId, "characters", characterId);
   await updateDoc(ref, {
-    faculty: { id: null, name: fac.name, key: fac.key, color: fac.color },
+    faculty: { name: fac.name, key: fac.key, color: fac.color },
     skills: [...currentSkills, ...additions],
   });
 }

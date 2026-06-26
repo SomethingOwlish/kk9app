@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  watchCampaign, watchCharacterList, createCharacter, saveCharacterDebounced,
+  watchCampaign, watchCharacterList, saveCharacterDebounced,
   updateCharacterNow, updateCampaignNow, addLogEntry, clearCharacterLog,
 } from "./lib/db";
 import { advSettings } from "./lib/advancement";
@@ -19,6 +19,7 @@ import PlayerPortal from "./views/PlayerPortal";
 import GmPortal from "./views/GmPortal";
 import ScenePlayerView from "./views/ScenePlayerView";
 import SceneManager from "./components/SceneManager";
+import CharacterCreationWizard from "./components/CharacterCreationWizard";
 
 export default function App({ user, signOut }) {
   const navigate = useNavigate();
@@ -32,8 +33,6 @@ export default function App({ user, signOut }) {
   // Scopes overrides to a character ID so back/forward never applies one
   // character's unsaved changes to another character's view.
   const [overridesCharId, setOverridesCharId] = useState(null);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
   const [actingAs, setActingAs] = useState("player");
   const [lastSelectedCharId, setLastSelectedCharId] = useState(null);
 
@@ -111,14 +110,6 @@ export default function App({ user, signOut }) {
     : view === "advance" ? "adv"
     : view === "scene" ? "scene" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
-  async function doCreate() {
-    if (!newName.trim()) return;
-    setCreating(true);
-    try { await createCharacter(CAMPAIGN_ID, crypto.randomUUID(), { name: newName.trim(), ownerUid: user.uid }); }
-    catch (e) { alert("Не удалось создать: " + (e?.message || e)); }
-    finally { setCreating(false); setNewName(""); }
-  }
-
   const cl = campaign !== null;
   return (
     <div className="kk-root">
@@ -132,16 +123,11 @@ export default function App({ user, signOut }) {
         {(!ready || !cl) && <div className="kk-load">Загрузка кампании…</div>}
         {ready && cl && !baseRole && <div className="kk-empty">Вы не участник этой кампании. Попросите ГМа добавить ваш UID в <code>members</code>.</div>}
         {ready && cl && role === "demo" && <div className="kk-empty">Режим демонстрации. Модуль ещё не готов — права заложены, функции добавим позже.</div>}
-        {ready && cl && role === "player" && !myChar && (
-          <div className="kk-create">
-            <h2 className="kk-h2">{isAdmin ? "У админа нет привязанной карточки" : "У вас ещё нет персонажа"}</h2>
-            <p className="kk-note">Создадим карточку — базовые навыки добавятся сами. Полный мастер создания позже.</p>
-            <input className="kk-input" placeholder="Имя персонажа" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && doCreate()}/>
-            <button className="kk-create-btn" disabled={creating || !newName.trim()} onClick={doCreate}>{creating ? "Создаём…" : "Создать персонажа"}</button>
-          </div>
+        {ready && cl && role === "player" && (!myChar || myChar.characterCreated === false) && (
+          <CharacterCreationWizard user={user} myChar={myChar} campaign={campaign} />
         )}
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
-        {ready && cl && view === "portal" && role === "player" && myChar && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
+        {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && isGM && <CampaignSettings campaign={campaign} onSave={saveSettings} onClose={() => navigate("/")}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}
         {ready && cl && view === "scene" && !isGM && <ScenePlayerView/>}
