@@ -1,0 +1,443 @@
+/* ============================================================
+   КК9 — стили листа печати персонажа (B-23).
+   Screen: A4-proportioned white preview with a print button.
+   Print:  @media print removes the button and page chrome.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Golos+Text:wght@400;500;600;700&display=swap');
+
+/* ── Root variables ─────────────────────────────────────────── */
+.pr-sheet {
+  --fac-color: #c8a14e;
+  --pr-gold: #c8a14e;
+  --pr-danger: #bd5a3a;
+  --pr-text: #1a1209;
+  --pr-text-dim: #6b5d44;
+  --pr-line: #c8b898;
+  --pr-bg: #ffffff;
+  --pr-font-d: 'Playfair Display', Georgia, serif;
+  --pr-font-b: 'Golos Text', system-ui, sans-serif;
+
+  font-family: var(--pr-font-b);
+  font-size: 11pt;
+  color: var(--pr-text);
+  background: var(--pr-bg);
+  min-height: 100vh;
+
+  max-width: 21cm;
+  margin: 0 auto;
+  padding: 1.5cm 2cm 2cm;
+  box-sizing: border-box;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pr-sheet * { box-sizing: border-box; }
+
+/* ── Message states (loading / error / denied) ──────────────── */
+.pr-msg {
+  font-family: 'Golos Text', system-ui, sans-serif;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  background: #fff;
+  color: #6b5d44;
+  font-size: 16px;
+  padding: 40px;
+  text-align: center;
+}
+
+/* ── Print button (screen-only) ─────────────────────────────── */
+.pr-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14pt;
+}
+
+.pr-print-btn {
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6pt 14pt;
+  border-radius: 5pt;
+  background: var(--pr-gold);
+  color: #1a140c;
+  border: none;
+  font-size: 10pt;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.pr-print-btn:hover { opacity: 0.85; }
+
+/* ── Header ─────────────────────────────────────────────────── */
+.pr-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14pt;
+  border-bottom: 2pt solid var(--fac-color);
+  padding-bottom: 10pt;
+  margin-bottom: 14pt;
+}
+
+.pr-portrait {
+  width: 72pt;
+  height: 72pt;
+  object-fit: cover;
+  border-radius: 4pt;
+  flex-shrink: 0;
+  border: 1pt solid var(--pr-line);
+}
+
+.pr-head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pr-name {
+  font-family: var(--pr-font-d);
+  font-size: 22pt;
+  font-weight: 700;
+  margin: 0 0 4pt;
+  line-height: 1.1;
+  color: var(--pr-text);
+}
+
+.pr-tags {
+  font-size: 9.5pt;
+  color: var(--pr-text-dim);
+  display: flex;
+  align-items: center;
+  gap: 8pt;
+  flex-wrap: wrap;
+  margin-bottom: 4pt;
+}
+
+.pr-fac-badge {
+  background: var(--fac-color);
+  color: #1a140c;
+  font-weight: 700;
+  font-size: 7.5pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 1.5pt 5pt;
+  border-radius: 3pt;
+}
+
+.pr-econ {
+  font-size: 9.5pt;
+  color: var(--pr-text-dim);
+  display: flex;
+  gap: 12pt;
+  flex-wrap: wrap;
+}
+
+.pr-logo {
+  font-family: var(--pr-font-d);
+  font-size: 20pt;
+  font-weight: 700;
+  color: #bbb;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.pr-logo span { color: var(--pr-gold); }
+
+/* ── Resources bar ──────────────────────────────────────────── */
+.pr-resources {
+  display: flex;
+  border: 1pt solid var(--pr-line);
+  border-radius: 5pt;
+  margin-bottom: 14pt;
+  overflow: hidden;
+}
+
+.pr-res-item {
+  flex: 1;
+  padding: 6pt 8pt;
+  border-right: 1pt solid var(--pr-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1pt;
+}
+
+.pr-res-item:last-child { border-right: none; }
+
+.pr-res-label {
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--pr-text-dim);
+}
+
+.pr-res-val {
+  font-size: 14pt;
+  font-weight: 700;
+  color: var(--fac-color);
+  font-family: var(--pr-font-d);
+}
+
+.pr-res-danger { color: var(--pr-danger); }
+
+/* ── Sections ───────────────────────────────────────────────── */
+.pr-section {
+  margin-bottom: 12pt;
+}
+
+.pr-h2 {
+  font-family: var(--pr-font-d);
+  font-size: 11pt;
+  font-weight: 600;
+  margin: 0 0 6pt;
+  color: var(--fac-color);
+  border-bottom: 1pt solid var(--fac-color);
+  padding-bottom: 2pt;
+  letter-spacing: 0.02em;
+}
+
+/* ── Health pip tracks ──────────────────────────────────────── */
+.pr-track {
+  margin-bottom: 10pt;
+}
+
+.pr-track-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4pt;
+}
+
+.pr-track-name {
+  font-size: 9.5pt;
+  font-weight: 600;
+}
+
+.pr-track-meta {
+  font-size: 8pt;
+  color: var(--pr-text-dim);
+}
+
+.pr-pips {
+  display: flex;
+  gap: 5pt;
+  align-items: flex-start;
+}
+
+.pr-pip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2pt;
+}
+
+.pr-pip-cells {
+  display: flex;
+  gap: 2pt;
+}
+
+.pr-cell {
+  display: block;
+  width: 11pt;
+  height: 11pt;
+  border: 1pt solid var(--pr-line);
+  border-radius: 2pt;
+  background: #fff;
+}
+
+.pr-cell.filled {
+  background: var(--fac-color);
+  border-color: var(--fac-color);
+}
+
+/* Knockout pip (5th) — circle, red */
+.pr-pip.ko .pr-cell {
+  border-radius: 50%;
+  border-color: var(--pr-danger);
+}
+
+.pr-pip.ko .pr-cell.filled {
+  background: var(--pr-danger);
+  border-color: var(--pr-danger);
+}
+
+.pr-pip-num {
+  font-size: 7pt;
+  color: var(--pr-text-dim);
+  line-height: 1;
+}
+
+/* ── Attributes ─────────────────────────────────────────────── */
+.pr-attrs {
+  display: flex;
+  border: 1pt solid var(--pr-line);
+  border-radius: 5pt;
+  overflow: hidden;
+}
+
+.pr-attr {
+  flex: 1;
+  padding: 6pt 4pt;
+  text-align: center;
+  border-right: 1pt solid var(--pr-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2pt;
+}
+
+.pr-attr:last-child { border-right: none; }
+
+.pr-attr-name {
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pr-text-dim);
+}
+
+.pr-attr-die {
+  font-size: 13pt;
+  font-weight: 700;
+  font-family: var(--pr-font-d);
+}
+
+/* ── Skills ─────────────────────────────────────────────────── */
+.pr-skill-group {
+  margin-bottom: 6pt;
+}
+
+.pr-skill-cat {
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--pr-text-dim);
+  font-weight: 600;
+  margin-bottom: 2pt;
+}
+
+.pr-skills {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130pt, 1fr));
+  gap: 1pt 8pt;
+}
+
+.pr-skill {
+  display: flex;
+  align-items: baseline;
+  gap: 4pt;
+  padding: 1.5pt 2pt;
+  font-size: 9pt;
+}
+
+.pr-unt { opacity: 0.45; }
+
+.pr-skill-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.pr-skill-attr {
+  font-size: 7pt;
+  color: var(--pr-text-dim);
+  background: #f2ece0;
+  padding: 1pt 3pt;
+  border-radius: 2pt;
+  flex-shrink: 0;
+}
+
+.pr-skill-die {
+  font-weight: 700;
+  font-size: 9.5pt;
+  min-width: 22pt;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Anкeta / bio ───────────────────────────────────────────── */
+.pr-demo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110pt, 1fr));
+  gap: 5pt 14pt;
+  margin-bottom: 6pt;
+}
+
+.pr-demo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 1pt;
+}
+
+.pr-demo-label {
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pr-text-dim);
+}
+
+.pr-demo-val {
+  font-size: 9.5pt;
+}
+
+.pr-bio {
+  font-size: 9.5pt;
+  line-height: 1.55;
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--pr-text);
+}
+
+/* ── Notes list (B-25 array format) ────────────────────────── */
+.pr-notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3pt;
+}
+
+.pr-note-item {
+  display: flex;
+  gap: 8pt;
+  font-size: 9pt;
+  padding: 2pt 0 2pt 6pt;
+  border-left: 2pt solid var(--pr-line);
+}
+
+.pr-note-date {
+  color: var(--pr-text-dim);
+  flex-shrink: 0;
+  font-size: 7.5pt;
+  padding-top: 1pt;
+}
+
+/* ── Print media ────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.2cm 1.5cm;
+  }
+
+  html, body, #root {
+    background: #fff !important;
+  }
+
+  .pr-actions { display: none; }
+
+  .pr-sheet {
+    max-width: none;
+    min-height: auto;
+    padding: 0;
+    margin: 0;
+  }
+
+  .pr-section { break-inside: avoid; }
+  .pr-track   { break-inside: avoid; }
+}
+
+/* ── Screen: dark-page override ─────────────────────────────── */
+/* The root element has a dark background; the white sheet covers it. */
+@media screen {
+  html { background: #e8dfc8; }
+  body { background: #e8dfc8; }
+  #root { background: #e8dfc8; min-height: 100vh; }
+}
