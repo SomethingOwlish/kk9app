@@ -4,13 +4,28 @@ import HealthTrack from "./HealthTrack";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
 
+const DEMO_FIELDS = [
+  ["birthplace", "Место рождения"],
+  ["dormitory", "Общежитие"],
+  ["height", "Рост"],
+  ["build", "Телосложение"],
+  ["allergies", "Аллергии"],
+  ["weaknesses", "Слабости"],
+];
+
 export default function CharacterCard({ ch, save, isGM, canAdv, onEdit, onAdvance, onLog }) {
-  const toughness = derivePhysicalToughness(ch);
-  const energyMax = deriveEnergyMax(ch);
+  const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
+  // Stored energy.max falls back to derived for pre-B07 characters
+  const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
+  const tension = ch.tension || { current: 0, overcap: 0, energyPenalty: 0, max: 0 };
+  const energyMax = Math.max(0, energyMaxRaw - (tension.energyPenalty ?? 0));
+  const overflow = ch.overflow_damage ?? 0;
   const im = ch.attributes.agility.modifier + ch.attributes.smarts.modifier;
   const initStr = `d${ch.attributes.agility.die} · d${ch.attributes.smarts.die} · d6 → 2 лучших${im ? (im > 0 ? ` +${im}` : ` ${im}`) : ""}`;
   const grouped = CAT_ORDER.map(cat => ({ cat, items: (ch.skills || []).filter(s => s.categ === cat) })).filter(g => g.items.length);
   const fac = ch.faculty || {};
+  const hasBio = !!ch.biography;
+  const demoFields = DEMO_FIELDS.filter(([k]) => ch[k]);
 
   return (
     <div className="kk-card">
@@ -46,7 +61,8 @@ export default function CharacterCard({ ch, save, isGM, canAdv, onEdit, onAdvanc
         </div>
         <Stat label="Энергия" value={ch.energy.value} max={energyMax}
           onChange={(v) => save({ "energy.value": Math.max(0, Math.min(energyMax, v)) })}
-          tip="Максимум = возраст + грань Духа." accent="var(--kk-gold)"/>
+          tip={tension.energyPenalty > 0 ? `Максимум = ${energyMaxRaw} − ${tension.energyPenalty} (перегруз напряжения).` : "Максимум = возраст + грань Духа."}
+          accent="var(--kk-gold)"/>
         <Stat label="Жетоны судьбы" value={ch.bennies} max={9}
           onChange={isGM ? (v) => save({ bennies: Math.max(0, Math.min(9, v)) }) : undefined}
           tip={isGM ? "Старт 3, максимум 9. Выдаёт/снимает ГМ." : "Старт 3, максимум 9. Меняет только ГМ."}
@@ -61,6 +77,32 @@ export default function CharacterCard({ ch, save, isGM, canAdv, onEdit, onAdvanc
         <HealthTrack label="Ментальное" attrLabel="Духа" attrDie={ch.attributes.spirit.die}
           value={ch.health.mental.value} onChange={(v) => save({ "health.mental.value": v })}
           tipExtra="Растёт от Духа."/>
+        {overflow > 0 && (
+          <div className="kk-overflow-row">
+            <Tip text="Урон сверх обоих треков здоровья. Только ГМ или результат броска.">
+              <span className="kk-overflow-label kk-dotted">Переполнение</span>
+            </Tip>
+            <span className="kk-overflow-val">{overflow}</span>
+            {isGM && (
+              <button className="kk-step" onClick={() => save({ overflow_damage: Math.max(0, overflow - 1) })}>−</button>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Напряжение</h2>
+        <div className="kk-tension-strip">
+          <Stat label="Напряжение" value={tension.current} max={tension.max}
+            onChange={(v) => save({ "tension.current": Math.max(0, v) })}
+            tip="Психическое напряжение. Накапливается от бросков с сильными эмоциональными связями."
+            accent="var(--kk-tension)"/>
+          {tension.overcap > 0 && (
+            <Stat label="Перегруз" value={tension.overcap}
+              tip={`Напряжение выше порога. Каждая единица снижает макс. Энергию на 1 (сейчас −${tension.energyPenalty}).`}
+              accent="var(--kk-danger)"/>
+          )}
+        </div>
       </section>
 
       <section className="kk-block">
@@ -96,6 +138,30 @@ export default function CharacterCard({ ch, save, isGM, canAdv, onEdit, onAdvanc
           </div>
         ))}
       </section>
+
+      {(hasBio || demoFields.length > 0) && (
+        <details className="kk-bio-details">
+          <summary className="kk-h2 kk-bio-summary">Анкета</summary>
+          <div className="kk-bio-body">
+            {demoFields.length > 0 && (
+              <div className="kk-demo-grid">
+                {demoFields.map(([k, label]) => (
+                  <div className="kk-demo-field" key={k}>
+                    <span className="kk-demo-label">{label}</span>
+                    <span className="kk-demo-val">{ch[k]}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {hasBio && (
+              <div className="kk-bio-text">
+                <div className="kk-demo-label">Биография</div>
+                <p className="kk-bio-para">{ch.biography}</p>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

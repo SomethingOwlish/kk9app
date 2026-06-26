@@ -5,6 +5,7 @@ import {
   updateCharacterNow, updateCampaignNow, addLogEntry, clearCharacterLog,
 } from "./lib/db";
 import { advSettings } from "./lib/advancement";
+import { enrichPatch } from "./lib/derive";
 import { CAMPAIGN_ID } from "./lib/config";
 import { getPath, applyOverrides, canAdvance } from "./lib/appUtils";
 import "./styles/app.css";
@@ -62,20 +63,22 @@ export default function App({ user, signOut }) {
   const canAdv = activeChar ? canAdvance(activeChar, settings) : false;
 
   const save = useCallback((patch) => {
-    if (!activeId) return;
+    if (!activeId || !viewCh) return;
+    const enriched = enrichPatch(viewCh, patch);
     setOverridesCharId(activeId);
-    setOverrides(prev => ({ ...prev, ...patch }));
-    saveCharacterDebounced(CAMPAIGN_ID, activeId, patch, 500);
-  }, [activeId]);
+    setOverrides(prev => ({ ...prev, ...enriched }));
+    saveCharacterDebounced(CAMPAIGN_ID, activeId, enriched, 500);
+  }, [activeId, viewCh]);
   const openCard = useCallback((id) => {
     setLastSelectedCharId(id); setOverridesCharId(null); setOverrides({}); setEditing(false);
     navigate(`/card/${id}`);
   }, [navigate]);
-  const saveEdit = useCallback(async (patch) => {
-    if (!activeId) return;
+  const saveEdit = useCallback(async (rawPatch) => {
+    if (!activeId || !activeChar) return;
+    const patch = enrichPatch(activeChar, rawPatch);
     try { await updateCharacterNow(CAMPAIGN_ID, activeId, patch); setEditing(false); }
     catch (e) { alert("Не удалось сохранить: " + (e?.message || e)); }
-  }, [activeId]);
+  }, [activeId, activeChar]);
   const saveSettings = useCallback(async (patch) => {
     try { await updateCampaignNow(CAMPAIGN_ID, patch); navigate("/"); }
     catch (e) { alert("Не удалось сохранить настройки: " + (e?.message || e)); }
