@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
+import { derivePhysicalToughness, deriveEnergyMax } from "./derive";
 
 // Навык по имени — для подтягивания attr/categ при добавлении.
 const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
@@ -150,8 +151,8 @@ export async function clearCharacterLog(campaignId, characterId) {
 }
 
 export const derive = {
-  toughness: (ch) => 2 + Math.floor(ch.attributes.spirit.die / 2),
-  energyMax: (ch) => ch.age + ch.attributes.spirit.die,
+  toughness: derivePhysicalToughness,
+  energyMax: deriveEnergyMax,
   initiative: (ch) => ({
     agility: ch.attributes.agility.die,
     smarts: ch.attributes.smarts.die,
