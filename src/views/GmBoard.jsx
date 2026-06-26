@@ -1,88 +1,48 @@
-import { useState, useEffect, useRef } from "react";
-import {
-  watchParty, addToParty, watchGmMode, setGmMode,
-  updateCampaignDebounced,
-} from "../lib/db";
+import { useState, useEffect } from "react";
+import { addToParty, removeFromParty, saveCampaignDebounced, setGmModeActive, clearGmMode } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
 import PartyRow from "../components/PartyRow";
 
-export default function GmBoard({ campaign, characters, userUid, onOpen }) {
-  const [party, setParty] = useState([]);
-  const [gmMode, setGmModeState] = useState(null); // null | { active, uid }
-  const [busy, setBusy] = useState(false);
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar }) {
+  const [gameDate, setGameDate]   = useState(campaign?.gameDate   || "");
+  const [weather, setWeather]     = useState(campaign?.weather     || "");
+  const [worldNote, setWorldNote] = useState(campaign?.worldNote   || "");
 
-  // Local state for world-state fields (controlled inputs with debounced save).
-  const [gameDate, setGameDate]   = useState(campaign?.gameDate  ?? "");
-  const [weather, setWeather]     = useState(campaign?.weather   ?? "");
-  const [worldNote, setWorldNote] = useState(campaign?.worldNote ?? "");
+  useEffect(() => { if (campaign?.gameDate  != null) setGameDate(campaign.gameDate);   }, [campaign?.gameDate]);
+  useEffect(() => { if (campaign?.weather   != null) setWeather(campaign.weather);     }, [campaign?.weather]);
+  useEffect(() => { if (campaign?.worldNote != null) setWorldNote(campaign.worldNote); }, [campaign?.worldNote]);
 
-  // Sync once when campaign prop first arrives from Firestore.
-  const initRef = useRef(false);
-  useEffect(() => {
-    if (initRef.current || !campaign) return;
-    setGameDate(campaign.gameDate  ?? "");
-    setWeather(campaign.weather    ?? "");
-    setWorldNote(campaign.worldNote ?? "");
-    initRef.current = true;
-  }, [campaign]);
+  const isGmMode = !!gmModeData?.active;
+  const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
 
-  useEffect(() => watchParty(CAMPAIGN_ID, setParty), []);
-  useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeState), []);
-
-  const partyIds = new Set(party.map((c) => c.id));
-  const nonParty = characters.filter((c) => !partyIds.has(c.id) && !c.isNpc);
-
-  const isGmModeOn = gmMode?.active === true;
-
-  async function toggleGmMode() {
-    setBusy(true);
-    try { await setGmMode(CAMPAIGN_ID, userUid, !isGmModeOn); }
-    catch (e) { alert("Ошибка: " + (e?.message || e)); }
-    finally { setBusy(false); }
-  }
-
-  async function doAddToParty(charId) {
-    try { await addToParty(CAMPAIGN_ID, charId); }
-    catch (e) { alert("Ошибка: " + (e?.message || e)); }
-  }
-
-  function handleDateChange(v)    { setGameDate(v);   updateCampaignDebounced(CAMPAIGN_ID, { gameDate: v }); }
-  function handleWeatherChange(v) { setWeather(v);    updateCampaignDebounced(CAMPAIGN_ID, { weather: v }); }
-  function handleNoteChange(v)    { setWorldNote(v);  updateCampaignDebounced(CAMPAIGN_ID, { worldNote: v }); }
+  const save = (patch) => saveCampaignDebounced(CAMPAIGN_ID, patch);
 
   return (
     <div className="kk-board">
-      {/* GM Mode toggle */}
-      <div className="kk-board-section">
-        <div className="kk-h2">Режим ГМ</div>
-        <div className="kk-gmmode-row">
-          <div className="kk-gmmode-status">
-            {isGmModeOn
-              ? <span className="kk-gmmode-on">● Активен — интерфейс игроков заблокирован</span>
-              : <span className="kk-gmmode-off">○ Выключен</span>
-            }
-          </div>
-          <button
-            className={`kk-btn sm ${isGmModeOn ? "danger" : "primary"}`}
-            disabled={busy}
-            onClick={toggleGmMode}
-          >
-            {isGmModeOn ? "Выключить" : "Включить"}
-          </button>
+
+      <div className={`kk-board-gmmode ${isGmMode ? "on" : ""}`}>
+        <div className="kk-board-gmmode-info">
+          <span className="kk-board-gmmode-dot"/>
+          <span>{isGmMode ? "Режим ГМ активен — UI игроков заблокирован" : "Режим ГМ отключён"}</span>
         </div>
+        <button
+          className={`kk-btn sm ${isGmMode ? "danger" : "ghost"}`}
+          onClick={() => isGmMode ? clearGmMode(CAMPAIGN_ID) : setGmModeActive(CAMPAIGN_ID, userUid)}
+        >
+          {isGmMode ? "Отключить" : "Включить"}
+        </button>
       </div>
 
-      {/* World State */}
       <div className="kk-board-section">
-        <div className="kk-h2">Состояние мира</div>
-        <div className="kk-board-world">
+        <div className="kk-h2">Состояние кампании</div>
+        <div className="kk-form-grid" style={{ marginTop: 10 }}>
           <div className="kk-field">
-            <label>Дата (игровая)</label>
+            <label>Дата</label>
             <input
               className="kk-input"
               value={gameDate}
-              onChange={(e) => handleDateChange(e.target.value)}
-              placeholder="например: 15 октября, 1 год"
+              onChange={e => { setGameDate(e.target.value); save({ gameDate: e.target.value }); }}
+              placeholder="ДД.ММ.ГГГГ"
             />
           </div>
           <div className="kk-field">
@@ -90,60 +50,58 @@ export default function GmBoard({ campaign, characters, userUid, onOpen }) {
             <input
               className="kk-input"
               value={weather}
-              onChange={(e) => handleWeatherChange(e.target.value)}
-              placeholder="например: пасмурно, +7°C"
+              onChange={e => { setWeather(e.target.value); save({ weather: e.target.value }); }}
+              placeholder="описание погоды"
             />
           </div>
           <div className="kk-field kk-field-wide">
-            <label>Новость / заметка мира</label>
+            <label>Объявление для игроков</label>
             <textarea
               className="kk-input kk-textarea"
-              rows={3}
               value={worldNote}
-              onChange={(e) => handleNoteChange(e.target.value)}
-              placeholder="Краткая заметка, видная всем игрокам…"
+              onChange={e => { setWorldNote(e.target.value); save({ worldNote: e.target.value }); }}
+              rows={2}
+              placeholder="свободный текст, виден всем"
             />
           </div>
         </div>
       </div>
 
-      {/* Party */}
       <div className="kk-board-section">
-        <div className="kk-h2">
-          Партия
-          <span className="kk-count">{party.length}</span>
-        </div>
-        {party.length === 0 && (
-          <div className="kk-empty">Партия пуста. Добавьте персонажей ниже.</div>
-        )}
-        <div className="kk-party-rows">
-          {party.map((ch) => (
-            <PartyRow key={ch.id} ch={ch} onOpen={onOpen} />
-          ))}
-        </div>
+        <div className="kk-h2">Отряд <span className="kk-count">{partyMembers.length}</span></div>
+        {partyMembers.length === 0
+          ? <div className="kk-empty">Никого в отряде. Добавьте персонажей ниже.</div>
+          : <div className="kk-party-rows">
+              {partyMembers.map(ch => (
+                <PartyRow
+                  key={ch.id}
+                  ch={ch}
+                  campaignId={CAMPAIGN_ID}
+                  onOpen={() => onOpenChar(ch.id)}
+                  onRemove={() => removeFromParty(CAMPAIGN_ID, ch.id).catch(console.error)}
+                />
+              ))}
+            </div>
+        }
       </div>
 
-      {/* Non-party characters (add to party) */}
       {nonParty.length > 0 && (
         <div className="kk-board-section">
-          <div className="kk-h2">Добавить в партию</div>
-          <div className="kk-add-party-list">
-            {nonParty.map((ch) => {
-              const col = ch.faculty?.color || "#c8a14e";
-              return (
-                <div key={ch.id} className="kk-add-party-row" style={{ "--fac-color": col }}>
-                  <span className="kk-party-av xs">{(ch.name || "?").slice(0, 1)}</span>
-                  <span className="kk-add-party-name">{ch.name || "(без имени)"}</span>
-                  <span className="kk-add-party-sub">{ch.faculty?.name || "—"}</span>
-                  <button
-                    className="kk-btn sm primary"
-                    onClick={() => doAddToParty(ch.id)}
-                  >
-                    + Партия
-                  </button>
-                </div>
-              );
-            })}
+          <div className="kk-h2">Добавить в отряд</div>
+          <div className="kk-board-addlist">
+            {nonParty.map(ch => (
+              <button
+                key={ch.id}
+                className="kk-board-add-btn"
+                style={{ "--fac-color": ch.faculty?.color || "var(--kk-gold)" }}
+                onClick={() => addToParty(CAMPAIGN_ID, ch.id).catch(console.error)}
+              >
+                <span className="kk-board-add-av">{(ch.name || "?")[0]}</span>
+                <span className="kk-board-add-name">{ch.name || "без имени"}</span>
+                <span className="kk-board-add-sub">{ch.faculty?.name || "без факультета"}</span>
+                <span className="kk-board-add-plus">+</span>
+              </button>
+            ))}
           </div>
         </div>
       )}

@@ -1,76 +1,40 @@
-import { useState } from "react";
-import { addBennie, addExperience, addMoney, removeFromParty } from "../lib/db";
-import { CAMPAIGN_ID } from "../lib/config";
+import { useCallback } from "react";
+import { updateCharacterNow } from "../lib/db";
 
-export default function PartyRow({ ch, onOpen }) {
-  const [busy, setBusy] = useState(false);
-
-  const col = ch.faculty?.color || "#c8a14e";
-
-  async function act(fn) {
-    setBusy(true);
-    try { await fn(); } catch (e) { alert("Ошибка: " + (e?.message || e)); }
-    finally { setBusy(false); }
-  }
-
+export default function PartyRow({ ch, campaignId, onOpen, onRemove }) {
+  const col = ch.faculty?.color || "var(--kk-gold)";
   const physFilled = ch.health?.physical?.value ?? 0;
-  const menFilled  = ch.health?.mental?.value  ?? 0;
+  const mentFilled = ch.health?.mental?.value ?? 0;
+  const energyCur = ch.energy?.value ?? 0;
+  const energyMax = ch.energy?.max ?? 0;
+  const tension = ch.tension?.current ?? 0;
+
+  const quick = useCallback((patch) => {
+    updateCharacterNow(campaignId, ch.id, patch).catch(console.error);
+  }, [campaignId, ch.id]);
 
   return (
     <div className="kk-party-row" style={{ "--fac-color": col }}>
-      <div className="kk-party-row-left">
-        <button className="kk-party-av sm" onClick={() => onOpen(ch.id)}>
-          {(ch.name || "?").slice(0, 1)}
-        </button>
-        <div className="kk-party-row-info">
-          <button className="kk-party-row-name" onClick={() => onOpen(ch.id)}>
-            {ch.name || "(без имени)"}
-          </button>
-          <div className="kk-party-row-meta">
-            {ch.faculty?.name || "—"} · XP {ch.experience ?? 0} · {ch.money ?? 0}₽
-          </div>
-          <div className="kk-party-row-bars">
-            <span className="kk-pr-bar-label">Физ {physFilled}</span>
-            <span className="kk-pr-bar-label">Псих {menFilled}</span>
-            <span className="kk-pr-bar-label">
-              Энерг {ch.energy?.value ?? 0}/{ch.energy?.max ?? 0}
-            </span>
-          </div>
+      <button className="kk-party-row-av" onClick={onOpen} title="Открыть карточку">
+        {ch.portrait
+          ? <img src={ch.portrait} alt={ch.name}/>
+          : <span className="kk-portrait-ph">{(ch.name || "?")[0]}</span>}
+      </button>
+      <div className="kk-party-row-info" onClick={onOpen} style={{ cursor: "pointer" }}>
+        <div className="kk-party-row-name">{ch.name || "—"}</div>
+        <div className="kk-party-row-sub">{ch.faculty?.name || "без факультета"} · {ch.academyYear || "1"} курс</div>
+        <div className="kk-party-row-vitals">
+          <span title="Физический урон">❤ {physFilled}</span>
+          <span title="Ментальный урон">🧠 {mentFilled}</span>
+          <span title="Энергия">⚡ {energyCur}/{energyMax}</span>
+          {tension > 0 && <span title="Напряжение" className="kk-vital-tension">⚗ {tension}</span>}
         </div>
       </div>
-      <div className="kk-party-row-actions">
-        <button
-          className="kk-btn sm ghost"
-          disabled={busy}
-          onClick={() => act(() => addBennie(CAMPAIGN_ID, ch.id))}
-          title="Добавить бенни"
-        >
-          🎲+1
-        </button>
-        <button
-          className="kk-btn sm ghost"
-          disabled={busy}
-          onClick={() => act(() => addExperience(CAMPAIGN_ID, ch.id, 1))}
-          title="Добавить 1 опыт"
-        >
-          XP+1
-        </button>
-        <button
-          className="kk-btn sm ghost"
-          disabled={busy}
-          onClick={() => act(() => addMoney(CAMPAIGN_ID, ch.id, 10))}
-          title="Добавить 10 рублей"
-        >
-          ₽+10
-        </button>
-        <button
-          className="kk-btn sm danger"
-          disabled={busy}
-          onClick={() => act(() => removeFromParty(CAMPAIGN_ID, ch.id))}
-          title="Убрать из партии"
-        >
-          ✕
-        </button>
+      <div className="kk-party-row-acts">
+        <button className="kk-qa-btn" title="+ Бенни" onClick={() => quick({ bennies: Math.min(9, (ch.bennies ?? 0) + 1) })}>🎲</button>
+        <button className="kk-qa-btn" title="+ 1 ОП"  onClick={() => quick({ experience: (ch.experience ?? 0) + 1 })}>⭐</button>
+        <button className="kk-qa-btn" title="+ 10 ₽"  onClick={() => quick({ money: (ch.money ?? 0) + 10 })}>💰</button>
+        <button className="kk-qa-btn kk-qa-remove" title="Убрать из отряда" onClick={onRemove}>✕</button>
       </div>
     </div>
   );

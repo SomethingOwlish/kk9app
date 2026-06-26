@@ -40,7 +40,7 @@ export default function App({ user, signOut }) {
   const [lastSelectedCharId, setLastSelectedCharId] = useState(null);
   const [advancementConfig, setAdvancementConfig] = useState(null);
   const [advConfigReady, setAdvConfigReady] = useState(false);
-  const [gmModeData, setGmModeData] = useState(null); // null | { active, uid }
+  const [gmModeData, setGmModeData] = useState(null);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
@@ -117,14 +117,16 @@ export default function App({ user, signOut }) {
     else if (id === "card") { setEditing(false); navigate(activeId ? `/card/${activeId}` : "/"); }
     else if (id === "set" && isGM) navigate("/settings");
     else if (id === "scene") navigate("/scene");
-    else if (id === "board" && isGM) navigate("/board");
+    else if (id === "gm" && isGM) navigate("/board");
   }, [isGM, navigate, activeId]);
   const current = view === "portal" ? "portal"
     : view === "settings" ? "set"
     : view === "advance" ? "adv"
     : view === "scene" ? "scene"
-    : view === "board" ? "board" : "card";
+    : view === "board" ? "gm" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
+  const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
+  const partyMembers = useMemo(() => characters.filter(c => partyRefs.has(c.id)), [characters, partyRefs]);
   const cl = campaign !== null;
   return (
     <div className="kk-root">
@@ -141,7 +143,9 @@ export default function App({ user, signOut }) {
         {ready && cl && role === "player" && (!myChar || myChar.characterCreated === false) && (
           <CharacterCreationWizard user={user} myChar={myChar} campaign={campaign} />
         )}
+        {ready && cl && role === "player" && gmModeData?.active && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}
