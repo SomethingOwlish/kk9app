@@ -17,6 +17,8 @@ import CampaignSettings from "./components/CampaignSettings";
 import Menu from "./components/Menu";
 import PlayerPortal from "./views/PlayerPortal";
 import GmPortal from "./views/GmPortal";
+import ScenePlayerView from "./views/ScenePlayerView";
+import SceneManager from "./components/SceneManager";
 
 export default function App({ user, signOut }) {
   const navigate = useNavigate();
@@ -43,7 +45,8 @@ export default function App({ user, signOut }) {
   const view = /^\/card\/[^/]+\/advance$/.test(pathname) ? "advance"
     : /^\/card\/[^/]+\/log$/.test(pathname) ? "log"
     : /^\/card\//.test(pathname) ? "card"
-    : pathname === "/settings" ? "settings" : "portal";
+    : pathname === "/settings" ? "settings"
+    : pathname === "/scene" ? "scene" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
   const role = isAdmin ? actingAs : baseRole;
@@ -101,8 +104,12 @@ export default function App({ user, signOut }) {
     if (id === "portal") navigate("/");
     else if (id === "card") { setEditing(false); navigate(activeId ? `/card/${activeId}` : "/"); }
     else if (id === "set" && isGM) navigate("/settings");
+    else if (id === "scene") navigate("/scene");
   }, [isGM, navigate, activeId]);
-  const current = view === "portal" ? "portal" : (view === "settings" ? "set" : (view === "advance" ? "adv" : "card"));
+  const current = view === "portal" ? "portal"
+    : view === "settings" ? "set"
+    : view === "advance" ? "adv"
+    : view === "scene" ? "scene" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
   async function doCreate() {
     if (!newName.trim()) return;
@@ -136,6 +143,8 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
         {ready && cl && view === "portal" && role === "player" && myChar && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && isGM && <CampaignSettings campaign={campaign} onSave={saveSettings} onClose={() => navigate("/")}/>}
+        {ready && cl && view === "scene" && isGM && <SceneManager/>}
+        {ready && cl && view === "scene" && !isGM && <ScenePlayerView/>}
         {ready && view === "card" && viewCh && !editing && <CharacterCard ch={viewCh} save={save} isGM={isGM} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
