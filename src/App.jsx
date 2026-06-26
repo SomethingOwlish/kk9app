@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   watchCampaign, watchCharacterList, saveCharacterDebounced,
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
-  watchAdvancementConfig, applyAdvancement,
+  watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
 } from "./lib/db";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
@@ -84,9 +84,14 @@ export default function App({ user, signOut }) {
     try { await updateCharacterNow(CAMPAIGN_ID, activeId, patch); setEditing(false); }
     catch (e) { alert("Не удалось сохранить: " + (e?.message || e)); }
   }, [activeId, activeChar]);
-  const saveSettings = useCallback(async (patch) => {
-    try { await updateCampaignNow(CAMPAIGN_ID, patch); navigate("/"); }
-    catch (e) { alert("Не удалось сохранить настройки: " + (e?.message || e)); }
+  const saveSettings = useCallback(async ({ advancement, chargen }) => {
+    try {
+      await Promise.all([
+        saveAdvancementConfig(CAMPAIGN_ID, advancement),
+        updateCampaignNow(CAMPAIGN_ID, { chargen }),
+      ]);
+      navigate("/");
+    } catch (e) { alert("Не удалось сохранить настройки: " + (e?.message || e)); }
   }, [navigate]);
   const applyAdvance = useCallback(async (payload) => {
     if (!activeId) return;
@@ -130,7 +135,7 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
-        {ready && cl && view === "settings" && isGM && <CampaignSettings campaign={campaign} onSave={saveSettings} onClose={() => navigate("/")}/>}
+        {ready && cl && view === "settings" && isGM && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}
         {ready && cl && view === "scene" && !isGM && <ScenePlayerView/>}
         {ready && view === "card" && viewCh && !editing && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)}/>}
