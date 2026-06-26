@@ -1,15 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { addToParty, removeFromParty, saveCampaignDebounced, setGmModeActive, clearGmMode } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
 import PartyRow from "../components/PartyRow";
 
 export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar }) {
   const gameDate  = campaign?.gameDate  ?? "";
-  const [weather,   setWeather]   = useState(campaign?.weather   ?? "");
-  const [worldNote, setWorldNote] = useState(campaign?.worldNote ?? "");
-
-  useEffect(() => { setWeather(campaign?.weather   ?? ""); }, [campaign?.weather]);
-  useEffect(() => { setWorldNote(campaign?.worldNote ?? ""); }, [campaign?.worldNote]);
+  const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
+  const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
 
   const isGmMode = !!gmModeData?.active;
   const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
