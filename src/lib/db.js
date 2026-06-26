@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
-import { derivePhysicalToughness, deriveEnergyMax } from "./derive";
+import { derivePhysicalToughness, deriveEnergyMax, deriveTensionMax } from "./derive";
 
 // Навык по имени — для подтягивания attr/categ при добавлении.
 const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
@@ -59,40 +59,64 @@ export function saveCharacterDebounced(campaignId, characterId, patch, ms = 700)
 
 // ── Создание персонажа (чистая карточка + сид базовых навыков) ──
 export async function createCharacter(campaignId, characterId, { name, ownerUid, age = 15 }) {
+  const baseSkills = buildBaseSkills();
+  const baseAttrs = {
+    agility:   { die: 4, modifier: 0 },
+    smarts:    { die: 4, modifier: 0 },
+    spirit:    { die: 4, modifier: 0 },
+    endurance: { die: 4, modifier: 0 },
+    magic:     { die: 4, modifier: 0 },
+  };
+  const stub = { attributes: baseAttrs, skills: baseSkills, age };
+  const toughness = derivePhysicalToughness(stub);
+  const energyMax = deriveEnergyMax(stub);
+  const tensionMax = deriveTensionMax(stub);
+
   const ref = doc(db, "campaigns", campaignId, "characters", characterId);
   await setDoc(ref, {
     schemaVersion: SCHEMA_VERSION,
     ownerUid,
     type: "character",
+    characterCreated: false,
     name,
     portrait: "",
     age,
     gender: "",
+    birthplace: "",
+    dormitory: "",
+    height: "",
+    build: "",
+    allergies: "",
+    weaknesses: "",
+    biography: "",
     faculty: { id: null, name: "", key: "", color: "#c8a14e" },
     academyYear: "1",
     semester: 1,
-    attributes: {
-      agility:   { die: 4, modifier: 0 },
-      smarts:    { die: 4, modifier: 0 },
-      spirit:    { die: 4, modifier: 0 },
-      endurance: { die: 4, modifier: 0 },
-      magic:     { die: 4, modifier: 0 },
+    attributes: baseAttrs,
+    health: {
+      physical: { value: 0, toughness: toughness },
+      mental:   { value: 0 },
     },
-    health: { physical: { value: 0 }, mental: { value: 0 } },
-    energy: { value: 0 },
+    energy: { value: 0, max: energyMax },
+    tension: { current: 0, overcap: 0, energyPenalty: 0, max: tensionMax },
+    overflow_damage: 0,
     bennies: 3,
     money: 0,
     experience: 0,
     notes: "",
-    skills: buildBaseSkills(),     // массив
-    relations: [],                 // заглушка под вкладку «Связи»
+    activeSpells: [],
+    activeStatuses: [],
+    magicLevels: [],
+    customSkills: [],
+    languages: [],
+    skills: baseSkills,
+    relations: [],
     refs: { artifacts: [], companions: [], daemons: [], contacts: [] },
     createdAt: serverTimestamp(),
   });
-  // Секретный gm-док (напряжение + gm-заметки) — отдельно, под gm-only правило.
+  // private/gm — GM-only notes (tension moved to main doc per B-07)
   const gmRef = doc(db, "campaigns", campaignId, "characters", characterId, "private", "gm");
   await setDoc(gmRef, {
-    tension: { current: 0, overcap: 0, energyPenalty: 0 },
     gmNotes: "",
   });
   return characterId;

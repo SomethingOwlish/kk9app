@@ -41,11 +41,31 @@ export default function EditCard({ ch, onSave, onCancel }) {
 
   function commit() {
     onSave({
-      name: d.name, age: Number(d.age) || 0, academyYear: String(d.academyYear),
-      semester: Number(d.semester) || 1, faculty: d.faculty, attributes: d.attributes,
-      skills: d.skills, money: Number(d.money) || 0, experience: Number(d.experience) || 0,
+      name: d.name,
+      age: Number(d.age) || 0,
+      academyYear: String(d.academyYear),
+      semester: Number(d.semester) || 1,
+      gender: d.gender || "",
+      birthplace: d.birthplace || "",
+      dormitory: d.dormitory || "",
+      height: d.height || "",
+      build: d.build || "",
+      allergies: d.allergies || "",
+      weaknesses: d.weaknesses || "",
+      biography: d.biography || "",
+      faculty: d.faculty,
+      attributes: d.attributes,
+      skills: d.skills,
+      money: Number(d.money) || 0,
+      experience: Number(d.experience) || 0,
+      "tension.current": Number(d.tension?.current) || 0,
+      "tension.overcap": Number(d.tension?.overcap) || 0,
+      "tension.energyPenalty": Number(d.tension?.energyPenalty) || 0,
+      overflow_damage: Number(d.overflow_damage) || 0,
     });
   }
+
+  const tension = d.tension || { current: 0, overcap: 0, energyPenalty: 0, max: 0 };
 
   return (
     <div className="kk-edit">
@@ -71,6 +91,36 @@ export default function EditCard({ ch, onSave, onCancel }) {
           <label className="kk-field"><span>Деньги</span><input className="kk-input" type="number" value={d.money} onChange={e => set({ money: e.target.value })}/></label>
           <label className="kk-field"><span>Опыт</span><input className="kk-input" type="number" value={d.experience} onChange={e => set({ experience: e.target.value })}/></label>
         </div>
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Демография</h2>
+        <div className="kk-form-grid">
+          <label className="kk-field"><span>Пол</span><input className="kk-input" value={d.gender || ""} onChange={e => set({ gender: e.target.value })}/></label>
+          <label className="kk-field"><span>Место рождения</span><input className="kk-input" value={d.birthplace || ""} onChange={e => set({ birthplace: e.target.value })}/></label>
+          <label className="kk-field"><span>Общежитие</span><input className="kk-input" value={d.dormitory || ""} onChange={e => set({ dormitory: e.target.value })}/></label>
+          <label className="kk-field"><span>Рост</span><input className="kk-input" value={d.height || ""} onChange={e => set({ height: e.target.value })}/></label>
+          <label className="kk-field"><span>Телосложение</span><input className="kk-input" value={d.build || ""} onChange={e => set({ build: e.target.value })}/></label>
+          <label className="kk-field"><span>Аллергии</span><input className="kk-input" value={d.allergies || ""} onChange={e => set({ allergies: e.target.value })}/></label>
+          <label className="kk-field kk-field-wide"><span>Слабости</span><input className="kk-input" value={d.weaknesses || ""} onChange={e => set({ weaknesses: e.target.value })}/></label>
+        </div>
+        <div className="kk-form-col" style={{ marginTop: "10px" }}>
+          <label className="kk-field">
+            <span>Биография</span>
+            <textarea className="kk-input kk-textarea" rows={4} value={d.biography || ""} onChange={e => set({ biography: e.target.value })}/>
+          </label>
+        </div>
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Напряжение · Состояние</h2>
+        <div className="kk-form-grid">
+          <label className="kk-field"><span>Напряжение текущее</span><input className="kk-input" type="number" min={0} value={tension.current} onChange={e => setD(p => ({ ...p, tension: { ...p.tension, current: Number(e.target.value) || 0 } }))}/></label>
+          <label className="kk-field"><span>Перегруз</span><input className="kk-input" type="number" min={0} value={tension.overcap} onChange={e => setD(p => ({ ...p, tension: { ...p.tension, overcap: Number(e.target.value) || 0 } }))}/></label>
+          <label className="kk-field"><span>Штраф к Энергии</span><input className="kk-input" type="number" min={0} value={tension.energyPenalty} onChange={e => setD(p => ({ ...p, tension: { ...p.tension, energyPenalty: Number(e.target.value) || 0 } }))}/></label>
+          <label className="kk-field"><span>Переполнение урона</span><input className="kk-input" type="number" min={0} value={d.overflow_damage || 0} onChange={e => set({ overflow_damage: Number(e.target.value) || 0 })}/></label>
+        </div>
+        <p className="kk-note">Напряжение и перегруз — обычно меняются автоматически при бросках. Здесь ГМ может скорректировать вручную.</p>
       </section>
 
       <section className="kk-block">
