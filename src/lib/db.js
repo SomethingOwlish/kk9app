@@ -305,6 +305,7 @@ export async function setGmModeActive(campaignId, uid) {
 }
 export async function clearGmMode(campaignId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "presence", "gmMode"));
+}
 export async function setGmMode(campaignId, uid, active) {
   const ref = doc(db, "campaigns", campaignId, "presence", "gmMode");
   if (active) {
