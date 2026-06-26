@@ -10,6 +10,7 @@
 import {
   doc, collection, onSnapshot, setDoc, updateDoc, getDoc, serverTimestamp,
   addDoc, getDocs, query, orderBy, where, writeBatch, deleteDoc, limit, runTransaction,
+  arrayUnion, arrayRemove,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
@@ -262,6 +263,91 @@ export async function deactivateAllScenes(campaignId) {
 export async function saveChargenRequest(campaignId, charId, data) {
   const ref = doc(db, "campaigns", campaignId, "chargen_requests", charId);
   await setDoc(ref, { ...data, createdAt: serverTimestamp() });
+}
+
+// ── GM Board (B-11) ─────────────────────────────────────────
+// Party management: partyRefs[] on campaign document.
+export async function addToParty(campaignId, charId) {
+  const ref = doc(db, "campaigns", campaignId);
+  await updateDoc(ref, { partyRefs: arrayUnion(charId) });
+}
+export async function removeFromParty(campaignId, charId) {
+  const ref = doc(db, "campaigns", campaignId);
+  await updateDoc(ref, { partyRefs: arrayRemove(charId) });
+}
+
+// Combined party subscription: campaign (for partyRefs) + character list.
+// Calls cb with resolved party member documents each time either changes.
+export function watchParty(campaignId, cb) {
+  let partyRefs = [];
+  let characters = [];
+  function emit() {
+    const set = new Set(partyRefs);
+    cb(characters.filter((c) => set.has(c.id)));
+  }
+  const unsubCampaign = onSnapshot(doc(db, "campaigns", campaignId), (snap) => {
+    partyRefs = snap.exists() ? (snap.data().partyRefs || []) : [];
+    emit();
+  });
+  const unsubChars = onSnapshot(
+    collection(db, "campaigns", campaignId, "characters"),
+    (snap) => {
+      characters = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      emit();
+    }
+  );
+  return () => { unsubCampaign(); unsubChars(); };
+}
+
+// Debounced campaign field update (for date/weather/worldNote typing).
+const _campTimers = new Map();
+const _campPending = new Map();
+export function updateCampaignDebounced(campaignId, patch, ms = 700) {
+  _campPending.set(campaignId, { ...(_campPending.get(campaignId) || {}), ...patch });
+  clearTimeout(_campTimers.get(campaignId));
+  _campTimers.set(campaignId, setTimeout(() => {
+    const merged = _campPending.get(campaignId) || {};
+    _campPending.delete(campaignId);
+    updateDoc(doc(db, "campaigns", campaignId), merged).catch((e) =>
+      console.error("campaign save error", e)
+    );
+  }, ms));
+}
+
+// GM Mode broadcast via ephemeral presence document (resolves D-21).
+// Path: campaigns/{id}/presence/gmMode
+// Active: { active: true, uid, activatedAt }; inactive: document deleted.
+export function watchGmMode(campaignId, cb) {
+  const ref = doc(db, "campaigns", campaignId, "presence", "gmMode");
+  return onSnapshot(ref, (snap) => cb(snap.exists() ? snap.data() : null));
+}
+export async function setGmMode(campaignId, uid, active) {
+  const ref = doc(db, "campaigns", campaignId, "presence", "gmMode");
+  if (active) {
+    await setDoc(ref, { active: true, uid, activatedAt: serverTimestamp() });
+  } else {
+    await deleteDoc(ref);
+  }
+}
+
+// Quick GM actions on a party member.
+export async function addBennie(campaignId, charId) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  await updateDoc(ref, { bennies: (snap.data().bennies ?? 0) + 1 });
+}
+export async function addExperience(campaignId, charId, amount) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  await updateDoc(ref, { experience: (snap.data().experience ?? 0) + amount });
+}
+export async function addMoney(campaignId, charId, amount) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  await updateDoc(ref, { money: (snap.data().money ?? 0) + amount });
 }
 
 export const derive = {

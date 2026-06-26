@@ -4,6 +4,7 @@ import {
   watchCampaign, watchCharacterList, saveCharacterDebounced,
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
+  watchGmMode,
 } from "./lib/db";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
@@ -18,6 +19,7 @@ import CampaignSettings from "./components/CampaignSettings";
 import Menu from "./components/Menu";
 import PlayerPortal from "./views/PlayerPortal";
 import GmPortal from "./views/GmPortal";
+import GmBoard from "./views/GmBoard";
 import ScenePlayerView from "./views/ScenePlayerView";
 import SceneManager from "./components/SceneManager";
 import CharacterCreationWizard from "./components/CharacterCreationWizard";
@@ -38,10 +40,12 @@ export default function App({ user, signOut }) {
   const [lastSelectedCharId, setLastSelectedCharId] = useState(null);
   const [advancementConfig, setAdvancementConfig] = useState(null);
   const [advConfigReady, setAdvConfigReady] = useState(false);
+  const [gmModeData, setGmModeData] = useState(null); // null | { active, uid }
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
+  useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
 
   const cardMatch = pathname.match(/^\/card\/([^/]+)/);
   const urlCharId = cardMatch ? cardMatch[1] : null;
@@ -49,7 +53,8 @@ export default function App({ user, signOut }) {
     : /^\/card\/[^/]+\/log$/.test(pathname) ? "log"
     : /^\/card\//.test(pathname) ? "card"
     : pathname === "/settings" ? "settings"
-    : pathname === "/scene" ? "scene" : "portal";
+    : pathname === "/scene" ? "scene"
+    : pathname === "/board" ? "board" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
   const role = isAdmin ? actingAs : baseRole;
@@ -112,11 +117,13 @@ export default function App({ user, signOut }) {
     else if (id === "card") { setEditing(false); navigate(activeId ? `/card/${activeId}` : "/"); }
     else if (id === "set" && isGM) navigate("/settings");
     else if (id === "scene") navigate("/scene");
+    else if (id === "board" && isGM) navigate("/board");
   }, [isGM, navigate, activeId]);
   const current = view === "portal" ? "portal"
     : view === "settings" ? "set"
     : view === "advance" ? "adv"
-    : view === "scene" ? "scene" : "card";
+    : view === "scene" ? "scene"
+    : view === "board" ? "board" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
   const cl = campaign !== null;
   return (
@@ -139,12 +146,23 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}
         {ready && cl && view === "scene" && !isGM && <ScenePlayerView/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} userUid={user.uid} onOpen={openCard}/>}
         {ready && view === "card" && viewCh && !editing && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}
         {ready && (view === "card" || view === "advance" || view === "log") && !viewCh && <div className="kk-empty">Персонаж не выбран. Вернитесь на портал.</div>}
       </div>
+      {/* GM Mode overlay — blocks player UI when GM is managing the session */}
+      {gmModeData?.active && !isGM && (
+        <div className="kk-gmmode-overlay">
+          <div className="kk-gmmode-overlay-box">
+            <div className="kk-gmmode-overlay-icon">⚙</div>
+            <div className="kk-gmmode-overlay-title">ГМ управляет сессией</div>
+            <div className="kk-gmmode-overlay-sub">Подождите, пока ГМ завершит действие…</div>
+          </div>
+        </div>
+      )}
       <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs}/>
     </div>
   );

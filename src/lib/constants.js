@@ -37,9 +37,9 @@ export const MENU = [
   { id: "magic", label: "Магия" },
   { id: "log", label: "Лог сессий" },
   { id: "scene", label: "Сцена", on: true },
+  { id: "board", label: "Доска ГМ", gmOnly: true },
   { id: "shop", label: "Магазин" },
   { id: "journal", label: "Журнал кампании" },
-  { id: "gm", label: "Год Мод · ГМ" },
   { id: "print", label: "Печать карточки" },
   { id: "set", label: "Настройки" },
 ];
