@@ -9,10 +9,11 @@ const ATTR_LABELS = {
 };
 const ATTRS = ["agility", "smarts", "spirit", "endurance", "magic"];
 
-export default function StepAttributes({ attrDice, onChange, budget, maxDie }) {
-  const maxDieIdx = DIE_SCALE.indexOf(maxDie) < 0 ? DIE_SCALE.indexOf(12) : DIE_SCALE.indexOf(maxDie);
+export default function StepAttributes({ attrDice, onChange, budget, maxDie, attrSave, onAttrSave, attrToSkill }) {
+  const maxDieIdx = DIE_SCALE.indexOf(maxDie) < 0 ? DIE_SCALE.indexOf(8) : DIE_SCALE.indexOf(maxDie);
+  const effectiveBudget = budget - (attrSave ? 1 : 0);
   const spent = ATTRS.reduce((sum, a) => sum + DIE_SCALE.indexOf(attrDice[a]), 0);
-  const remaining = budget - spent;
+  const remaining = effectiveBudget - spent;
 
   function bump(attr, dir) {
     const cur = DIE_SCALE.indexOf(attrDice[attr]);
@@ -22,13 +23,18 @@ export default function StepAttributes({ attrDice, onChange, budget, maxDie }) {
     onChange({ ...attrDice, [attr]: DIE_SCALE[next] });
   }
 
+  const canSave = !attrSave && remaining > 0;
+
   return (
     <div className="kk-block">
       <h2 className="kk-h2">
         Атрибуты
-        <span className="kk-count">очков: {remaining} / {budget}</span>
+        <span className="kk-count">очков: {remaining} / {effectiveBudget}</span>
       </h2>
-      <p className="kk-wiz-hint">Распределите {budget} очков. Каждое очко повышает кубик атрибута на один шаг (d4→d6→d8→…).</p>
+      <p className="kk-wiz-hint">
+        Распределите {budget} очков. Каждое очко — один шаг кубика (d4→d6→d8→…).
+        Максимум d{maxDie} при создании.
+      </p>
       {ATTRS.map(attr => {
         const dieIdx = DIE_SCALE.indexOf(attrDice[attr]);
         return (
@@ -50,6 +56,20 @@ export default function StepAttributes({ attrDice, onChange, budget, maxDie }) {
           </div>
         );
       })}
+
+      <div className="kk-wiz-attr-save-row">
+        <button
+          className={`kk-btn sm${attrSave ? " primary" : " ghost"}`}
+          onClick={() => onAttrSave(!attrSave)}
+          disabled={!attrSave && !canSave}
+          title={attrSave ? "Отменить конвертацию" : `Потратить 1 очко атрибута → ${attrToSkill} очков навыков`}
+        >
+          {attrSave
+            ? `✓ +${attrToSkill} очков навыков (вернуть)`
+            : `Сохранить 1 очко → ${attrToSkill} оч. навыков`
+          }
+        </button>
+      </div>
     </div>
   );
 }

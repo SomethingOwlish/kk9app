@@ -1,31 +1,26 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  createCharacter, saveCharacterDebounced, updateCharacterNow,
-  setFaculty as dbSetFaculty,
+  createCharacter, saveCharacterDebounced, updateCharacterNow, saveChargenRequest,
 } from "../lib/db";
 import { enrichPatch } from "../lib/derive";
 import { CAMPAIGN_ID } from "../lib/config";
-import { SKILLS_DATA, buildBaseSkills } from "../lib/seed-skills";
+import { buildBaseSkills } from "../lib/seed-skills";
+import { skillPointsSpent, DEFAULT_BACKGROUNDS } from "../lib/chargen";
 import StepIdentity from "./wizard/StepIdentity";
-import StepFaculty from "./wizard/StepFaculty";
 import StepAttributes from "./wizard/StepAttributes";
 import StepSkills from "./wizard/StepSkills";
+import StepBackgrounds from "./wizard/StepBackgrounds";
 import StepReview from "./wizard/StepReview";
 
-const STEP_LABELS = ["Личность", "Факультет", "Атрибуты", "Навыки", "Итог"];
-const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map(s => [s.name, s]));
+const STEP_LABELS = ["Личность", "Атрибуты", "Навыки", "Бэкграунды", "Итог"];
 
-function mergeSkillsWithFaculty(baseSkills, fac) {
-  if (!fac) return baseSkills;
-  const have = new Set(baseSkills.map(s => s.name));
-  const additions = (fac.abilities || [])
-    .filter(n => !have.has(n))
-    .map(n => {
-      const ref = SKILL_BY_NAME[n];
-      return { name: n, attr: ref?.attr || "smarts", categ: ref?.categ || "learned", die: 4, modifier: -2 };
-    });
-  return [...baseSkills, ...additions];
+function parseBackgrounds(campaign) {
+  try {
+    const raw = campaign?.chargen?.backgrounds;
+    if (raw) return JSON.parse(raw);
+  } catch { /* fall through */ }
+  return DEFAULT_BACKGROUNDS;
 }
 
 export default function CharacterCreationWizard({ user, myChar, campaign }) {
@@ -35,26 +30,17 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
   const [initializing, setInitializing] = useState(myChar?.id == null);
   const [saving, setSaving] = useState(false);
 
+  // Step 0 — Identity (no dormitory per IMP-08)
   const [identity, setIdentity] = useState({
-    name: myChar?.name || "",
-    portrait: myChar?.portrait || "",
-    age: myChar?.age ?? 15,
-    gender: myChar?.gender || "",
+    name:       myChar?.name       || "",
+    portrait:   myChar?.portrait   || "",
+    age:        myChar?.age        ?? 15,
+    gender:     myChar?.gender     || "",
     birthplace: myChar?.birthplace || "",
-    dormitory: myChar?.dormitory || "",
-    height: myChar?.height || "",
+    height:     myChar?.height     || "",
   });
 
-  const [chosenFaculty, setChosenFaculty] = useState(
-    myChar?.faculty?.key
-      ? { key: myChar.faculty.key, name: myChar.faculty.name, color: myChar.faculty.color, abilities: [] }
-      : null
-  );
-
-  const [currentSkills, setCurrentSkills] = useState(
-    () => myChar?.skills?.length > 0 ? [...myChar.skills] : buildBaseSkills()
-  );
-
+  // Step 1 — Attributes
   const [attrDice, setAttrDice] = useState({
     agility:   myChar?.attributes?.agility?.die   ?? 4,
     smarts:    myChar?.attributes?.smarts?.die    ?? 4,
@@ -62,20 +48,51 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
     endurance: myChar?.attributes?.endurance?.die ?? 4,
     magic:     myChar?.attributes?.magic?.die     ?? 4,
   });
+  const [attrSave, setAttrSave] = useState(false);
 
+  // Step 2 — Skills: raises as {name: {die, modifier}}
+  const [currentSkills] = useState(
+    () => myChar?.skills?.length > 0 ? [...myChar.skills] : buildBaseSkills()
+  );
   const [skillRaises, setSkillRaises] = useState(() => {
     if (!myChar?.skills) return {};
     const result = {};
     for (const s of myChar.skills) {
-      if (s.die > 4) result[s.name] = s.die;
+      if (s.die > 4 || (s.modifier ?? -2) > -2) {
+        result[s.name] = { die: s.die, modifier: s.modifier ?? -2 };
+      }
     }
     return result;
   });
+  const [specCount, setSpecCount] = useState(0);
 
-  const attrBudget = campaign?.chargen?.points?.attributes ?? 5;
-  const skillBudget = campaign?.chargen?.points?.skills ?? 10;
-  const maxDie = campaign?.chargen?.maxDie ?? 12;
+  // Step 3 — Backgrounds
+  const [bgSelections, setBgSelections] = useState({});
 
+  // Chargen settings from campaign (FEAT-09 keys)
+  const attrBudget   = campaign?.chargen?.points?.attributes   ?? 5;
+  const skillBudget  = campaign?.chargen?.points?.skills        ?? 10;
+  const maxDie       = campaign?.chargen?.attr?.maxDie          ?? 8;   // BUG-04 fixed
+  const attrToSkill  = campaign?.chargen?.convert?.attrToSkill  ?? 5;
+  const specCost     = campaign?.chargen?.special?.cost         ?? 3;
+  const specMax      = campaign?.chargen?.special?.max          ?? 1;
+  const maxSave      = campaign?.chargen?.skills?.maxSave       ?? 2;
+  const backgrounds  = parseBackgrounds(campaign);
+
+  // Effective skill budget includes attrSave bonus
+  const effectiveSkillBudget = skillBudget + (attrSave ? attrToSkill : 0);
+
+  // Points spent on skills
+  const totalSkillSpent = currentSkills.reduce((sum, s) => {
+    const raise = skillRaises[s.name];
+    if (!raise) return sum;
+    return sum + skillPointsSpent(s.die, s.modifier, raise.die, raise.modifier);
+  }, 0);
+  const specTotalCost = specCount * specCost;
+  const skillRemaining = effectiveSkillBudget - totalSkillSpent - specTotalCost;
+  const skillSave = Math.min(Math.max(skillRemaining, 0), maxSave);
+
+  // Create character doc on first mount if no myChar
   useEffect(() => {
     if (charId) return;
     const newId = crypto.randomUUID();
@@ -84,27 +101,19 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
       .catch(e => console.error("wizard: createCharacter failed", e));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleIdentityChange = useCallback((patch) => {
-    setIdentity(prev => {
-      const next = { ...prev, ...patch };
-      if (charId) {
-        const stub = { attributes: { spirit: { die: attrDice.spirit } }, age: next.age, skills: [] };
-        saveCharacterDebounced(CAMPAIGN_ID, charId, enrichPatch(stub, patch));
-      }
-      return next;
-    });
-  }, [charId, attrDice.spirit]);
+  function saveIdentityDebounced(patch) {
+    if (!charId) return;
+    const stub = { attributes: { spirit: { die: attrDice.spirit } }, age: patch.age ?? identity.age, skills: [] };
+    saveCharacterDebounced(CAMPAIGN_ID, charId, enrichPatch(stub, patch));
+  }
 
-  const handleFacultyChoose = useCallback(async (fac) => {
-    setChosenFaculty(fac);
-    const merged = mergeSkillsWithFaculty(buildBaseSkills(), fac);
-    setCurrentSkills(merged);
-    if (charId) {
-      await dbSetFaculty(CAMPAIGN_ID, charId, fac, buildBaseSkills());
-    }
-  }, [charId]);
+  function handleIdentityChange(patch) {
+    const next = { ...identity, ...patch };
+    setIdentity(next);
+    saveIdentityDebounced(patch);
+  }
 
-  const handleAttrChange = useCallback((newDice) => {
+  function handleAttrChange(newDice) {
     setAttrDice(newDice);
     if (!charId) return;
     const attrs = {
@@ -116,22 +125,22 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
     };
     const stub = { attributes: attrs, age: identity.age, skills: currentSkills };
     saveCharacterDebounced(CAMPAIGN_ID, charId, enrichPatch(stub, { attributes: attrs }));
-  }, [charId, identity.age, currentSkills]);
+  }
 
-  const handleSkillRaiseChange = useCallback((newRaises) => {
+  function handleSkillRaiseChange(newRaises) {
     setSkillRaises(newRaises);
     if (!charId) return;
     const mergedSkills = currentSkills.map(s => {
-      const raisedDie = newRaises[s.name];
-      return raisedDie ? { ...s, die: raisedDie } : s;
+      const raise = newRaises[s.name];
+      return raise ? { ...s, die: raise.die, modifier: raise.modifier } : s;
     });
     const stub = { attributes: { spirit: { die: attrDice.spirit } }, age: identity.age, skills: mergedSkills };
     saveCharacterDebounced(CAMPAIGN_ID, charId, enrichPatch(stub, { skills: mergedSkills }));
-  }, [charId, currentSkills, attrDice.spirit, identity.age]);
+  }
 
   const finalSkills = currentSkills.map(s => {
-    const raisedDie = skillRaises[s.name];
-    return raisedDie ? { ...s, die: raisedDie } : s;
+    const raise = skillRaises[s.name];
+    return raise ? { ...s, die: raise.die, modifier: raise.modifier } : s;
   });
 
   async function handleConfirm() {
@@ -145,20 +154,33 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
         endurance: { die: attrDice.endurance, modifier: 0 },
         magic:     { die: attrDice.magic,     modifier: 0 },
       };
-      const stub = { attributes: attrs, age: Number(identity.age) || 15, skills: finalSkills };
+      const age = Number(identity.age) || 15;
+      const stub = { attributes: attrs, age, skills: finalSkills };
       const patch = {
-        name: identity.name.trim(),
-        portrait: identity.portrait,
-        age: Number(identity.age) || 15,
-        gender: identity.gender,
+        name:       identity.name.trim(),
+        portrait:   identity.portrait,
+        age,
+        gender:     identity.gender,
         birthplace: identity.birthplace,
-        dormitory: identity.dormitory,
-        height: identity.height,
+        height:     identity.height,
         attributes: attrs,
-        skills: finalSkills,
+        skills:     finalSkills,
         characterCreated: true,
       };
       await updateCharacterNow(CAMPAIGN_ID, charId, enrichPatch(stub, patch));
+
+      // Save GM requests if any
+      const chosenBgs = Object.entries(bgSelections)
+        .filter(([, v]) => v.selected)
+        .map(([key, v]) => ({ key, label: backgrounds.find(b => b.key === key)?.label || key, notes: v.notes || "" }));
+      if (specCount > 0 || chosenBgs.length > 0) {
+        await saveChargenRequest(CAMPAIGN_ID, charId, {
+          actorName:   identity.name.trim(),
+          specCount,
+          backgrounds: chosenBgs,
+        });
+      }
+
       navigate("/");
     } catch (e) {
       alert("Не удалось сохранить: " + (e?.message || e));
@@ -187,31 +209,49 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
       </div>
 
       <div className="kk-wizard-body">
-        {step === 0 && <StepIdentity data={identity} onChange={handleIdentityChange} />}
-        {step === 1 && <StepFaculty chosen={chosenFaculty} onChoose={handleFacultyChoose} />}
-        {step === 2 && (
+        {step === 0 && (
+          <StepIdentity data={identity} onChange={handleIdentityChange} />
+        )}
+        {step === 1 && (
           <StepAttributes
             attrDice={attrDice}
             onChange={handleAttrChange}
             budget={attrBudget}
             maxDie={maxDie}
+            attrSave={attrSave}
+            onAttrSave={setAttrSave}
+            attrToSkill={attrToSkill}
           />
         )}
-        {step === 3 && (
+        {step === 2 && (
           <StepSkills
             skills={currentSkills}
             skillRaises={skillRaises}
             onChange={handleSkillRaiseChange}
-            budget={skillBudget}
+            budget={effectiveSkillBudget}
             maxDie={maxDie}
+            attrDice={attrDice}
+            specCount={specCount}
+            onSpecCount={setSpecCount}
+            specCost={specCost}
+            specMax={specMax}
+          />
+        )}
+        {step === 3 && (
+          <StepBackgrounds
+            backgrounds={backgrounds}
+            bgBudget={skillSave}
+            selections={bgSelections}
+            onChange={setBgSelections}
           />
         )}
         {step === 4 && (
           <StepReview
             identity={identity}
-            faculty={chosenFaculty}
             attrDice={attrDice}
             skills={finalSkills}
+            specCount={specCount}
+            bgSelections={bgSelections}
             saving={saving}
             onConfirm={handleConfirm}
           />
@@ -225,11 +265,7 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
           </button>
         )}
         {step < STEP_LABELS.length - 1 && (
-          <button
-            className="kk-btn primary"
-            onClick={() => setStep(s => s + 1)}
-            disabled={step === 1 && !chosenFaculty}
-          >
+          <button className="kk-btn primary" onClick={() => setStep(s => s + 1)}>
             Далее →
           </button>
         )}

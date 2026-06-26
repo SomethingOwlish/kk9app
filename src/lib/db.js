@@ -242,6 +242,13 @@ export async function deactivateAllScenes(campaignId) {
   await batch.commit();
 }
 
+// ── Chargen requests (FEAT-10) — saved when wizard completes ────
+// Path: campaigns/{id}/chargen_requests/{charId}
+export async function saveChargenRequest(campaignId, charId, data) {
+  const ref = doc(db, "campaigns", campaignId, "chargen_requests", charId);
+  await setDoc(ref, { ...data, createdAt: serverTimestamp() });
+}
+
 export const derive = {
   toughness: derivePhysicalToughness,
   energyMax: deriveEnergyMax,
