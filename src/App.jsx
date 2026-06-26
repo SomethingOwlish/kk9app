@@ -129,9 +129,10 @@ export default function App({ user, signOut }) {
   return (
     <div className="kk-root">
       <div className="kk-bg" aria-hidden/>
+      <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню"><span/><span/><span/></button>
       <div className="kk-shell">
         <div className="kk-topbar">
-          <button className="kk-burger" onClick={() => setMenu(true)} aria-label="Меню"><span/><span/><span/></button>
+          <div className="kk-burger-placeholder" aria-hidden/>
           <button className="kk-logo" onClick={() => navigate("/")}>КК<span>9</span></button>
           {view !== "portal" && <button className="kk-back" onClick={() => { setEditing(false); navigate("/"); }}>← к порталу</button>}
         </div>
