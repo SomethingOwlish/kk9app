@@ -23,7 +23,7 @@ export default function EditCard({ ch, onSave, onCancel }) {
     const r = SKILL_BY_NAME[name];
     setD(p => ({ ...p, skills: [...p.skills, { name, attr: r?.attr || "smarts", categ: r?.categ || "learned", die: 4, modifier: -2 }] }));
   };
-  const pickFaculty = (f) => setD(p => ({ ...p, faculty: { id: null, name: f.name, key: f.key, color: f.color }, skills: mergeFacultySkills(p.skills, f) }));
+  const pickFaculty = (f) => setD(p => ({ ...p, faculty: { name: f.name, key: f.key, color: f.color }, skills: mergeFacultySkills(p.skills, f) }));
 
   const [cName, setCName] = useState("");
   const [cAttr, setCAttr] = useState("smarts");
