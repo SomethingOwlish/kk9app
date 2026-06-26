@@ -193,6 +193,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           {canAddNote && (
             <form className="kk-note-form" onSubmit={submitNote}>
               <input
+                id="note-input"
+                name="note"
                 className="kk-note-input"
                 type="text"
                 placeholder="Добавить заметку…"

@@ -2,7 +2,7 @@ import { DIE_SCALE } from "../../lib/advancement";
 import { nextUpCost, skillPointsSpent } from "../../lib/chargen";
 
 const ATTR_SHORT = {
-  agility: "Ловк", smarts: "Хитр", spirit: "Дух",
+  agility: "Ловк", smarts: "Смек", spirit: "Дух",
   endurance: "Выносл", magic: "Маг",
 };
 
