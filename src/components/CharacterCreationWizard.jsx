@@ -32,7 +32,7 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [charId, setCharId] = useState(myChar?.id || null);
-  const [initializing, setInitializing] = useState(!myChar?.id);
+  const [initializing, setInitializing] = useState(myChar?.id == null);
   const [saving, setSaving] = useState(false);
 
   const [identity, setIdentity] = useState({
@@ -77,7 +77,7 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
   const maxDie = campaign?.chargen?.maxDie ?? 12;
 
   useEffect(() => {
-    if (charId) { setInitializing(false); return; }
+    if (charId) return;
     const newId = crypto.randomUUID();
     createCharacter(CAMPAIGN_ID, newId, { name: "", ownerUid: user.uid })
       .then(() => { setCharId(newId); setInitializing(false); })
