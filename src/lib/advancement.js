@@ -1,6 +1,6 @@
 // ============================================================
 // КК9 — движок прокачки. Формулы 1:1 из advancement.mjs,
-// но цены берутся из настроек кампании (campaign.advancement),
+// но цены берутся из отдельного документа config/advancement,
 // а не из game.settings. Потолок атрибута на d20 = d20ModCap (по умолч. +5).
 // ============================================================
 
@@ -13,9 +13,9 @@ export const DEFAULT_ADVANCEMENT = {
   catMult: { common: 0.8, learned: 1.0, magic: 1.5, personal: 2.0 },
 };
 
-// Слить дефолты с настройками кампании.
-export function advSettings(campaign) {
-  const a = campaign?.advancement || {};
+// Слить дефолты с настройками прокачки (документ config/advancement).
+export function advSettings(advancementConfig) {
+  const a = advancementConfig || {};
   return {
     attr:   { ...DEFAULT_ADVANCEMENT.attr,   ...(a.attr || {}) },
     abil:   { ...DEFAULT_ADVANCEMENT.abil,   ...(a.abil || {}) },

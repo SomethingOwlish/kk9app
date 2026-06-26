@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   watchCampaign, watchCharacterList, createCharacter, saveCharacterDebounced,
-  updateCharacterNow, updateCampaignNow, addLogEntry, watchCharacterLog, clearCharacterLog, derive,
+  updateCharacterNow, addLogEntry, watchCharacterLog, clearCharacterLog, derive,
+  watchAdvancementConfig, saveAdvancementConfig, migrateAdvancementConfig,
 } from "./lib/db";
 import { CAMPAIGN_ID } from "./lib/config";
 import { FACULTIES } from "./lib/seed-faculties";
@@ -344,8 +345,8 @@ function EditCard({ch,onSave,onCancel}){
 }
 
 // ── Настройки кампании (ГМ) ─────────────────────────────────
-function CampaignSettings({campaign,onSave,onClose}){
-  const [d,setD]=useState(()=>advSettings(campaign));
+function CampaignSettings({advancementConfig,onSave,onClose}){
+  const [d,setD]=useState(()=>structuredClone(advancementConfig));
   const setIn=(g,k,v)=>setD(p=>({...p,[g]:{...p[g],[k]:v}}));
   const num=(v)=>{ const n=Number(v); return Number.isFinite(n)?n:0; };
   const Field=({label,group,k,step})=>(<label className="kk-field"><span>{label}</span>
@@ -355,7 +356,7 @@ function CampaignSettings({campaign,onSave,onClose}){
       <span className="kk-edit-title">Настройки кампании · прокачка</span>
       <div className="kk-edit-actions">
         <button className="kk-btn ghost" onClick={onClose}>Закрыть</button>
-        <button className="kk-btn primary" onClick={()=>onSave({advancement:d})}>Сохранить</button>
+        <button className="kk-btn primary" onClick={()=>onSave(d)}>Сохранить</button>
       </div>
     </div>
     <section className="kk-block"><h2 className="kk-h2">Атрибуты</h2>
@@ -371,7 +372,7 @@ function CampaignSettings({campaign,onSave,onClose}){
     </section>
     <div className="kk-edit-foot">
       <button className="kk-btn ghost" onClick={()=>setD(structuredClone(DEFAULT_ADVANCEMENT))}>Сбросить к дефолтам</button>
-      <button className="kk-btn primary" onClick={()=>onSave({advancement:d})}>Сохранить</button>
+      <button className="kk-btn primary" onClick={()=>onSave(d)}>Сохранить</button>
     </div>
   </div>);
 }
@@ -447,6 +448,8 @@ export default function App({user,signOut}){
   const [campaign,setCampaign]=useState(null);
   const [characters,setCharacters]=useState([]);
   const [ready,setReady]=useState(false);
+  // undefined = loading, null = doc doesn't exist yet, object = loaded
+  const [advancementConfig,setAdvancementConfig]=useState(undefined);
   const [menu,setMenu]=useState(false);
   const [editing,setEditing]=useState(false);
   const [overrides,setOverrides]=useState({});
@@ -462,6 +465,18 @@ export default function App({user,signOut}){
 
   useEffect(()=>watchCampaign(CAMPAIGN_ID,setCampaign),[]);
   useEffect(()=>watchCharacterList(CAMPAIGN_ID,(list)=>{ setCharacters(list); setReady(true); }),[]);
+  useEffect(()=>watchAdvancementConfig(CAMPAIGN_ID,setAdvancementConfig),[]);
+  // One-time migration: if config doc doesn't exist, copy from campaign.advancement or seed defaults.
+  useEffect(()=>{
+    if(campaign==null||advancementConfig!==null) return;
+    if(campaign.advancement){
+      migrateAdvancementConfig(CAMPAIGN_ID,campaign.advancement)
+        .catch(e=>console.error("advancement migration error",e));
+    } else {
+      saveAdvancementConfig(CAMPAIGN_ID,DEFAULT_ADVANCEMENT)
+        .catch(e=>console.error("advancement seed error",e));
+    }
+  },[campaign,advancementConfig]);
 
   // Derive view and active character ID from URL
   const cardMatch=pathname.match(/^\/card\/([^/]+)/);
@@ -477,7 +492,7 @@ export default function App({user,signOut}){
   const isAdmin=baseRole==="admin";
   const role=isAdmin?actingAs:baseRole;
   const isGM=role==="gm";
-  const settings=advSettings(campaign);
+  const settings=advSettings(advancementConfig??DEFAULT_ADVANCEMENT);
 
   const myChar=characters.find(c=>c.ownerUid===user.uid)||null;
   // GM: use charId from URL; fall back to lastSelectedCharId when URL has no charId
@@ -509,8 +524,8 @@ export default function App({user,signOut}){
     try{ await updateCharacterNow(CAMPAIGN_ID,activeId,patch); setEditing(false); }
     catch(e){ alert("Не удалось сохранить: "+(e?.message||e)); } },[activeId]);
 
-  const saveSettings=useCallback(async(patch)=>{
-    try{ await updateCampaignNow(CAMPAIGN_ID,patch); navigate("/"); }
+  const saveAdvancementSettings=useCallback(async(config)=>{
+    try{ await saveAdvancementConfig(CAMPAIGN_ID,config); navigate("/"); }
     catch(e){ alert("Не удалось сохранить настройки: "+(e?.message||e)); } },[navigate]);
 
   // Apply advancement: log first, then update (so crash during write is recoverable).
@@ -573,7 +588,7 @@ export default function App({user,signOut}){
       {ready && campaignLoaded && view==="portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={()=>navigate("/settings")} role={baseRole}/>}
       {ready && campaignLoaded && view==="portal" && role==="player" && myChar && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
 
-      {ready && campaignLoaded && view==="settings" && isGM && <CampaignSettings campaign={campaign} onSave={saveSettings} onClose={()=>navigate("/")}/>}
+      {ready && campaignLoaded && view==="settings" && isGM && <CampaignSettings advancementConfig={advancementConfig??DEFAULT_ADVANCEMENT} onSave={saveAdvancementSettings} onClose={()=>navigate("/")}/>}
 
       {ready && view==="card" && viewCh && !editing && <Card ch={viewCh} save={save} isGM={isGM} canAdv={canAdv} onEdit={()=>setEditing(true)} onAdvance={()=>navigate(`/card/${activeId}/advance`)} onLog={()=>navigate(`/card/${activeId}/log`)}/>}
       {ready && view==="card" && viewCh && editing && isGM && <EditCard ch={activeChar} onSave={saveEdit} onCancel={()=>setEditing(false)}/>}
