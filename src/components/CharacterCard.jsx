@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Tip from "./Tip";
 import Stat from "./Stat";
 import HealthTrack from "./HealthTrack";
@@ -13,7 +14,7 @@ const DEMO_FIELDS = [
   ["weaknesses", "Слабости"],
 ];
 
-export default function CharacterCard({ ch, save, isGM, canAdv, onEdit, onAdvance, onLog }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -26,6 +27,19 @@ export default function CharacterCard({ ch, save, isGM, canAdv, onEdit, onAdvanc
   const fac = ch.faculty || {};
   const hasBio = !!ch.biography;
   const demoFields = DEMO_FIELDS.filter(([k]) => ch[k]);
+  const isOwner = !!(user && ch.ownerUid && user.uid === ch.ownerUid);
+  const notes = Array.isArray(ch.notes) ? ch.notes : [];
+  const [noteText, setNoteText] = useState("");
+  const canAddNote = isOwner || isGM;
+  const showNotes = notes.length > 0 || canAddNote;
+
+  function submitNote(e) {
+    e.preventDefault();
+    const text = noteText.trim();
+    if (!text) return;
+    save({ notes: [...notes, { text, at: new Date().toISOString() }] });
+    setNoteText("");
+  }
 
   return (
     <div className="kk-card">
@@ -161,6 +175,35 @@ export default function CharacterCard({ ch, save, isGM, canAdv, onEdit, onAdvanc
             )}
           </div>
         </details>
+      )}
+
+      {showNotes && (
+        <section className="kk-block">
+          <h2 className="kk-h2">Заметки</h2>
+          {notes.length > 0 && (
+            <ul className="kk-notes-list">
+              {[...notes].reverse().map((n, i) => (
+                <li key={i} className="kk-note-item">
+                  <span className="kk-note-text">{n.text}</span>
+                  <span className="kk-note-at">{new Date(n.at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {canAddNote && (
+            <form className="kk-note-form" onSubmit={submitNote}>
+              <input
+                className="kk-note-input"
+                type="text"
+                placeholder="Добавить заметку…"
+                value={noteText}
+                onChange={e => setNoteText(e.target.value)}
+                maxLength={500}
+              />
+              <button className="kk-note-btn" type="submit" disabled={!noteText.trim()}>Добавить</button>
+            </form>
+          )}
+        </section>
       )}
     </div>
   );
