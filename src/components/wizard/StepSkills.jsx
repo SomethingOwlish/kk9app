@@ -17,7 +17,8 @@ export default function StepSkills({ skills, skillRaises, onChange, budget, maxD
     if (dir > 0 && remaining <= 0) return;
     const nextDie = DIE_SCALE[nextIdx];
     if (nextDie === skill.die) {
-      const { [skill.name]: _, ...rest } = skillRaises;
+      const rest = { ...skillRaises };
+      delete rest[skill.name];
       onChange(rest);
     } else {
       onChange({ ...skillRaises, [skill.name]: nextDie });
