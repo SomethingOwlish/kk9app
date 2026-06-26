@@ -41,3 +41,21 @@ npm run deploy
 ```
 
 Builds and pushes `dist/` to the `gh-pages` branch. Requires `gh-pages` package (already in devDependencies).
+
+## Firestore Security Rules
+
+Rules live in [`firestore.rules`](firestore.rules). Deploy them with the Firebase CLI:
+
+```bash
+npm install -g firebase-tools   # one-time install
+cp .firebaserc.example .firebaserc
+# edit .firebaserc → set your Firebase project ID
+firebase login
+firebase deploy --only firestore:rules
+```
+
+To test rules locally with the Firebase Emulator Suite:
+
+```bash
+firebase emulators:start --only firestore
+```
