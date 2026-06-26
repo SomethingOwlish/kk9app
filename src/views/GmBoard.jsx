@@ -1,16 +1,11 @@
-import { useState, useEffect } from "react";
 import { addToParty, removeFromParty, saveCampaignDebounced, setGmModeActive, clearGmMode } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
 import PartyRow from "../components/PartyRow";
 
 export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar }) {
-  const [gameDate, setGameDate]   = useState(campaign?.gameDate   || "");
-  const [weather, setWeather]     = useState(campaign?.weather     || "");
-  const [worldNote, setWorldNote] = useState(campaign?.worldNote   || "");
-
-  useEffect(() => { if (campaign?.gameDate  != null) setGameDate(campaign.gameDate);   }, [campaign?.gameDate]);
-  useEffect(() => { if (campaign?.weather   != null) setWeather(campaign.weather);     }, [campaign?.weather]);
-  useEffect(() => { if (campaign?.worldNote != null) setWorldNote(campaign.worldNote); }, [campaign?.worldNote]);
+  const gameDate  = campaign?.gameDate  ?? "";
+  const weather   = campaign?.weather   ?? "";
+  const worldNote = campaign?.worldNote ?? "";
 
   const isGmMode = !!gmModeData?.active;
   const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
@@ -41,7 +36,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
             <input
               className="kk-input"
               value={gameDate}
-              onChange={e => { setGameDate(e.target.value); save({ gameDate: e.target.value }); }}
+              onChange={e => save({ gameDate: e.target.value })}
               placeholder="ДД.ММ.ГГГГ"
             />
           </div>
@@ -50,7 +45,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
             <input
               className="kk-input"
               value={weather}
-              onChange={e => { setWeather(e.target.value); save({ weather: e.target.value }); }}
+              onChange={e => save({ weather: e.target.value })}
               placeholder="описание погоды"
             />
           </div>
@@ -59,7 +54,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
             <textarea
               className="kk-input kk-textarea"
               value={worldNote}
-              onChange={e => { setWorldNote(e.target.value); save({ worldNote: e.target.value }); }}
+              onChange={e => save({ worldNote: e.target.value })}
               rows={2}
               placeholder="свободный текст, виден всем"
             />
