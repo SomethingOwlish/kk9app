@@ -144,7 +144,7 @@ export default function App({ user, signOut }) {
         {ready && cl && role === "player" && (!myChar || myChar.characterCreated === false) && (
           <CharacterCreationWizard user={user} myChar={myChar} campaign={campaign} />
         )}
-        {ready && cl && role === "player" && gmModeData?.active && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
+        {ready && cl && role === "player" && gmModeData?.active && view !== "scene" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
@@ -158,7 +158,7 @@ export default function App({ user, signOut }) {
         {ready && (view === "card" || view === "advance" || view === "log") && !viewCh && <div className="kk-empty">Персонаж не выбран. Вернитесь на портал.</div>}
       </div>
       {/* GM Mode overlay — blocks player UI when GM is managing the session */}
-      {gmModeData?.active && !isGM && (
+      {gmModeData?.active && !isGM && view !== "scene" && (
         <div className="kk-gmmode-overlay">
           <div className="kk-gmmode-overlay-box">
             <div className="kk-gmmode-overlay-icon">⚙</div>
