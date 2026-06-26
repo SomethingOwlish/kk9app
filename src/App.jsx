@@ -150,12 +150,23 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}
         {ready && cl && view === "scene" && !isGM && <ScenePlayerView/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} userUid={user.uid} onOpen={openCard}/>}
         {ready && view === "card" && viewCh && !editing && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}
         {ready && (view === "card" || view === "advance" || view === "log") && !viewCh && <div className="kk-empty">Персонаж не выбран. Вернитесь на портал.</div>}
       </div>
+      {/* GM Mode overlay — blocks player UI when GM is managing the session */}
+      {gmModeData?.active && !isGM && (
+        <div className="kk-gmmode-overlay">
+          <div className="kk-gmmode-overlay-box">
+            <div className="kk-gmmode-overlay-icon">⚙</div>
+            <div className="kk-gmmode-overlay-title">ГМ управляет сессией</div>
+            <div className="kk-gmmode-overlay-sub">Подождите, пока ГМ завершит действие…</div>
+          </div>
+        </div>
+      )}
       <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs}/>
     </div>
   );

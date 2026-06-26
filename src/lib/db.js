@@ -305,6 +305,33 @@ export async function setGmModeActive(campaignId, uid) {
 }
 export async function clearGmMode(campaignId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "presence", "gmMode"));
+export async function setGmMode(campaignId, uid, active) {
+  const ref = doc(db, "campaigns", campaignId, "presence", "gmMode");
+  if (active) {
+    await setDoc(ref, { active: true, uid, activatedAt: serverTimestamp() });
+  } else {
+    await deleteDoc(ref);
+  }
+}
+
+// Quick GM actions on a party member.
+export async function addBennie(campaignId, charId) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  await updateDoc(ref, { bennies: (snap.data().bennies ?? 0) + 1 });
+}
+export async function addExperience(campaignId, charId, amount) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  await updateDoc(ref, { experience: (snap.data().experience ?? 0) + amount });
+}
+export async function addMoney(campaignId, charId, amount) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  await updateDoc(ref, { money: (snap.data().money ?? 0) + amount });
 }
 
 export const derive = {
