@@ -4,6 +4,7 @@ import {
   watchCampaign, watchCharacterList, saveCharacterDebounced,
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
+  watchGmMode,
 } from "./lib/db";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
@@ -18,6 +19,7 @@ import CampaignSettings from "./components/CampaignSettings";
 import Menu from "./components/Menu";
 import PlayerPortal from "./views/PlayerPortal";
 import GmPortal from "./views/GmPortal";
+import GmBoard from "./views/GmBoard";
 import ScenePlayerView from "./views/ScenePlayerView";
 import SceneManager from "./components/SceneManager";
 import CharacterCreationWizard from "./components/CharacterCreationWizard";
@@ -38,10 +40,12 @@ export default function App({ user, signOut }) {
   const [lastSelectedCharId, setLastSelectedCharId] = useState(null);
   const [advancementConfig, setAdvancementConfig] = useState(null);
   const [advConfigReady, setAdvConfigReady] = useState(false);
+  const [gmModeData, setGmModeData] = useState(null);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
+  useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
 
   const cardMatch = pathname.match(/^\/card\/([^/]+)/);
   const urlCharId = cardMatch ? cardMatch[1] : null;
@@ -49,7 +53,8 @@ export default function App({ user, signOut }) {
     : /^\/card\/[^/]+\/log$/.test(pathname) ? "log"
     : /^\/card\//.test(pathname) ? "card"
     : pathname === "/settings" ? "settings"
-    : pathname === "/scene" ? "scene" : "portal";
+    : pathname === "/scene" ? "scene"
+    : pathname === "/board" ? "board" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
   const role = isAdmin ? actingAs : baseRole;
@@ -112,12 +117,16 @@ export default function App({ user, signOut }) {
     else if (id === "card") { setEditing(false); navigate(activeId ? `/card/${activeId}` : "/"); }
     else if (id === "set" && isGM) navigate("/settings");
     else if (id === "scene") navigate("/scene");
+    else if (id === "gm" && isGM) navigate("/board");
   }, [isGM, navigate, activeId]);
   const current = view === "portal" ? "portal"
     : view === "settings" ? "set"
     : view === "advance" ? "adv"
-    : view === "scene" ? "scene" : "card";
+    : view === "scene" ? "scene"
+    : view === "board" ? "gm" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
+  const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
+  const partyMembers = useMemo(() => characters.filter(c => partyRefs.has(c.id)), [characters, partyRefs]);
   const cl = campaign !== null;
   return (
     <div className="kk-root">
@@ -134,7 +143,9 @@ export default function App({ user, signOut }) {
         {ready && cl && role === "player" && (!myChar || myChar.characterCreated === false) && (
           <CharacterCreationWizard user={user} myChar={myChar} campaign={campaign} />
         )}
+        {ready && cl && role === "player" && gmModeData?.active && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}

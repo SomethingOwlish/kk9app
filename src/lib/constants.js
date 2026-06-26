@@ -39,7 +39,7 @@ export const MENU = [
   { id: "scene", label: "Сцена", on: true },
   { id: "shop", label: "Магазин" },
   { id: "journal", label: "Журнал кампании" },
-  { id: "gm", label: "Год Мод · ГМ" },
+  { id: "gm", label: "ГМ Борд" },
   { id: "print", label: "Печать карточки" },
   { id: "set", label: "Настройки" },
 ];

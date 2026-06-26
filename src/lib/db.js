@@ -10,6 +10,7 @@
 import {
   doc, collection, onSnapshot, setDoc, updateDoc, getDoc, serverTimestamp,
   addDoc, getDocs, query, orderBy, where, writeBatch, deleteDoc, limit, runTransaction,
+  arrayUnion, arrayRemove,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
@@ -262,6 +263,48 @@ export async function deactivateAllScenes(campaignId) {
 export async function saveChargenRequest(campaignId, charId, data) {
   const ref = doc(db, "campaigns", campaignId, "chargen_requests", charId);
   await setDoc(ref, { ...data, createdAt: serverTimestamp() });
+}
+
+// ── Debounced campaign save ──────────────────────────────────
+const _campTimers = new Map();
+const _campPending = new Map();
+export function saveCampaignDebounced(campaignId, patch, ms = 700) {
+  _campPending.set(campaignId, { ...(_campPending.get(campaignId) || {}), ...patch });
+  clearTimeout(_campTimers.get(campaignId));
+  _campTimers.set(campaignId, setTimeout(() => {
+    const merged = _campPending.get(campaignId) || {};
+    _campPending.delete(campaignId);
+    updateDoc(doc(db, "campaigns", campaignId), merged).catch((e) => console.error("camp save error", e));
+  }, ms));
+}
+
+// ── GM Board — party management (B-11) ──────────────────────
+export function watchParty(campaignId, cb) {
+  let _refs = [];
+  let _chars = [];
+  const emit = () => { const s = new Set(_refs); cb(_chars.filter(c => s.has(c.id))); };
+  const u1 = watchCampaign(campaignId, (camp) => { _refs = camp?.partyRefs || []; emit(); });
+  const u2 = watchCharacterList(campaignId, (chars) => { _chars = chars; emit(); });
+  return () => { u1(); u2(); };
+}
+export async function addToParty(campaignId, charId) {
+  await updateDoc(doc(db, "campaigns", campaignId), { partyRefs: arrayUnion(charId) });
+}
+export async function removeFromParty(campaignId, charId) {
+  await updateDoc(doc(db, "campaigns", campaignId), { partyRefs: arrayRemove(charId) });
+}
+
+// ── GM Mode broadcast — ephemeral presence doc (D-21) ───────
+// Path: campaigns/{id}/presence/gmMode
+export function watchGmMode(campaignId, cb) {
+  const ref = doc(db, "campaigns", campaignId, "presence", "gmMode");
+  return onSnapshot(ref, (snap) => cb(snap.exists() ? snap.data() : null));
+}
+export async function setGmModeActive(campaignId, uid) {
+  await setDoc(doc(db, "campaigns", campaignId, "presence", "gmMode"), { active: true, uid });
+}
+export async function clearGmMode(campaignId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "presence", "gmMode"));
 }
 
 export const derive = {
