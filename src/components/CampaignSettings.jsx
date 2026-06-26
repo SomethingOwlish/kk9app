@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { advSettings, DEFAULT_ADVANCEMENT } from "../lib/advancement";
 import { DEFAULT_BACKGROUNDS } from "../lib/chargen";
 
@@ -36,8 +36,6 @@ function parseChargen(campaign) {
 export default function CampaignSettings({ campaign, advancementConfig, onSave, onClose }) {
   const [d, setD] = useState(() => advSettings(advancementConfig));
   const [cg, setCg] = useState(() => parseChargen(campaign));
-
-  useEffect(() => { setD(advSettings(advancementConfig)); }, [advancementConfig]);
 
   const setIn = (g, k, v) => setD(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
   const setCgIn = (g, k, v) => setCg(p => ({ ...p, [g]: { ...p[g], [k]: v } }));

@@ -37,10 +37,11 @@ export default function App({ user, signOut }) {
   const [actingAs, setActingAs] = useState("player");
   const [lastSelectedCharId, setLastSelectedCharId] = useState(null);
   const [advancementConfig, setAdvancementConfig] = useState(null);
+  const [advConfigReady, setAdvConfigReady] = useState(false);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
-  useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, setAdvancementConfig), []);
+  useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
 
   const cardMatch = pathname.match(/^\/card\/([^/]+)/);
   const urlCharId = cardMatch ? cardMatch[1] : null;
@@ -135,7 +136,7 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
-        {ready && cl && view === "settings" && isGM && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
+        {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}
         {ready && cl && view === "scene" && !isGM && <ScenePlayerView/>}
         {ready && view === "card" && viewCh && !editing && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)}/>}
