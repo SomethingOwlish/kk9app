@@ -1,0 +1,123 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    // Returns the caller's role string from the campaign's members map,
+    // or null if the user is not in the map.
+    function getRole(campaignId) {
+      return get(/databases/$(database)/documents/campaigns/$(campaignId))
+               .data.members[request.auth.uid];
+    }
+
+    // True when the caller is authenticated via a non-anonymous provider (D-02).
+    function isNotAnonymous() {
+      return request.auth != null
+          && request.auth.token.firebase.sign_in_provider != "anonymous";
+    }
+
+    // True when the caller is a recognised campaign member (any role).
+    function isMember(campaignId) {
+      return isNotAnonymous()
+          && getRole(campaignId) in ["gm", "admin", "player", "demo"];
+    }
+
+    // True when the caller holds a privileged campaign role.
+    function isGMOrAdmin(campaignId) {
+      return isNotAnonymous()
+          && getRole(campaignId) in ["gm", "admin"];
+    }
+
+    // ── Campaign document ────────────────────────────────────────────────────
+
+    match /campaigns/{campaignId} {
+      allow read:  if isMember(campaignId);
+      allow write: if isGMOrAdmin(campaignId);
+
+      // ── Characters ────────────────────────────────────────────────────────
+
+      match /characters/{charId} {
+        allow read: if isMember(campaignId);
+        // Players may write only their own character document and may not
+        // change ownerUid (which would transfer write access to another user).
+        allow write: if isGMOrAdmin(campaignId)
+                     || (isNotAnonymous()
+                         && getRole(campaignId) == "player"
+                         && resource.data.ownerUid == request.auth.uid
+                         && request.resource.data.ownerUid == request.auth.uid);
+
+        // GM-only private sub-document (gmNotes — D-04).
+        match /private/{doc} {
+          allow read, write: if isGMOrAdmin(campaignId);
+        }
+
+        // Advancement log entries — GM read/write only.
+        match /log/{logId} {
+          allow read, write: if isGMOrAdmin(campaignId);
+        }
+      }
+
+      // ── Scenes (B-08) ─────────────────────────────────────────────────────
+
+      match /scenes/{sceneId} {
+        allow read:  if isMember(campaignId);
+        allow write: if isGMOrAdmin(campaignId);
+      }
+
+      // ── Campaign config (B-05 — advancement cost document lives here) ─────
+
+      match /config/{configId} {
+        allow read:  if isMember(campaignId);
+        allow write: if isGMOrAdmin(campaignId);
+      }
+
+      // ── Journal streams (B-13) ────────────────────────────────────────────
+      // Three streams: campaign (public), worldNews (public), gmPrivate (GM).
+      // Exact collection structure finalised in B-13; path uses the stream
+      // name as the first wildcard segment.
+      //
+      // IMPORTANT: Firestore grants access if ANY matching rule allows it, so
+      // gmPrivate must NOT have a separate broader rule that would bypass it.
+      // The single rule below encodes both cases in one expression.
+
+      match /journal/{stream}/{pageId} {
+        allow read: if (stream != "gmPrivate" && isMember(campaignId))
+                    || isGMOrAdmin(campaignId);
+        allow write: if isGMOrAdmin(campaignId);
+      }
+
+      // ── GM presence document (D-21 — gmModeActive ephemeral doc) ──────────
+
+      match /presence/{presenceId} {
+        allow read:  if isMember(campaignId);
+        allow write: if isGMOrAdmin(campaignId);
+      }
+
+      // ── Roll log (B-18) ───────────────────────────────────────────────────
+
+      match /rolls/{rollId} {
+        allow read:   if isMember(campaignId);
+        allow create: if isMember(campaignId);
+        allow update, delete: if isGMOrAdmin(campaignId);
+      }
+
+      // ── Items collection (B-14 — rules to be extended there) ─────────────
+      // Base read/write rule; B-14 will add the player-purchase exception for
+      // shop transfers (D-22 no-approval path).
+
+      match /items/{itemId} {
+        allow read:  if isMember(campaignId);
+        allow write: if isGMOrAdmin(campaignId);
+      }
+
+      // ── Shops (B-19) ──────────────────────────────────────────────────────
+
+      match /shops/{shopId} {
+        allow read:  if isMember(campaignId);
+        allow write: if isGMOrAdmin(campaignId);
+      }
+    }
+  }
+}
