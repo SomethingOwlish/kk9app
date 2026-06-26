@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   watchCampaign, watchCharacterList, saveCharacterDebounced,
-  updateCharacterNow, updateCampaignNow, addLogEntry, clearCharacterLog,
+  updateCharacterNow, updateCampaignNow, clearCharacterLog,
+  watchAdvancementConfig, applyAdvancement,
 } from "./lib/db";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
@@ -35,9 +36,11 @@ export default function App({ user, signOut }) {
   const [overridesCharId, setOverridesCharId] = useState(null);
   const [actingAs, setActingAs] = useState("player");
   const [lastSelectedCharId, setLastSelectedCharId] = useState(null);
+  const [advancementConfig, setAdvancementConfig] = useState(null);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
+  useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, setAdvancementConfig), []);
 
   const cardMatch = pathname.match(/^\/card\/([^/]+)/);
   const urlCharId = cardMatch ? cardMatch[1] : null;
@@ -50,7 +53,7 @@ export default function App({ user, signOut }) {
   const isAdmin = baseRole === "admin";
   const role = isAdmin ? actingAs : baseRole;
   const isGM = role === "gm";
-  const settings = advSettings(campaign);
+  const settings = advSettings(advancementConfig);
   const myChar = characters.find(c => c.ownerUid === user.uid) || null;
   const activeId = isGM ? (urlCharId || lastSelectedCharId) : myChar?.id;
   const activeChar = characters.find(c => c.id === activeId) || null;
@@ -85,11 +88,10 @@ export default function App({ user, signOut }) {
     try { await updateCampaignNow(CAMPAIGN_ID, patch); navigate("/"); }
     catch (e) { alert("Не удалось сохранить настройки: " + (e?.message || e)); }
   }, [navigate]);
-  const applyAdvance = useCallback(async ({ attributes, skills, spent, changes, newExperience }) => {
+  const applyAdvance = useCallback(async (payload) => {
     if (!activeId) return;
     try {
-      await addLogEntry(CAMPAIGN_ID, activeId, { type: "advancement", spent, changes });
-      await updateCharacterNow(CAMPAIGN_ID, activeId, { attributes, skills, experience: newExperience });
+      await applyAdvancement(CAMPAIGN_ID, activeId, payload);
       navigate(`/card/${activeId}`);
     } catch (e) { alert("Не удалось применить прокачку: " + (e?.message || e)); }
   }, [activeId, navigate]);

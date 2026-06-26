@@ -9,7 +9,7 @@
 // ============================================================
 import {
   doc, collection, onSnapshot, setDoc, updateDoc, getDoc, serverTimestamp,
-  addDoc, getDocs, query, orderBy, where, writeBatch, deleteDoc, limit,
+  addDoc, getDocs, query, orderBy, where, writeBatch, deleteDoc, limit, runTransaction,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
@@ -183,6 +183,21 @@ export async function clearCharacterLog(campaignId, characterId) {
   const batch = writeBatch(db);
   snap.docs.forEach((d) => batch.delete(d.ref));
   await batch.commit();
+}
+
+// Atomic advancement apply: log entry + character update in one transaction.
+// Validates server-side XP to prevent double-spend on concurrent tabs.
+export async function applyAdvancement(campaignId, characterId, { attributes, skills, spent, changes, newExperience }) {
+  const charRef = doc(db, "campaigns", campaignId, "characters", characterId);
+  const logRef = doc(collection(db, "campaigns", campaignId, "characters", characterId, "log"));
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(charRef);
+    if (!snap.exists()) throw new Error("Персонаж не найден");
+    const serverXp = snap.data().experience ?? 0;
+    if (serverXp < spent) throw new Error(`Недостаточно опыта (сервер: ${serverXp}, нужно: ${spent})`);
+    tx.set(logRef, { type: "advancement", spent, changes, at: serverTimestamp() });
+    tx.update(charRef, { attributes, skills, experience: newExperience });
+  });
 }
 
 // ── Настройки прокачки (отдельный документ per D-26) ────────
