@@ -9,7 +9,7 @@
 // ============================================================
 import {
   doc, collection, onSnapshot, setDoc, updateDoc, serverTimestamp,
-  addDoc, getDocs, query, orderBy, writeBatch, deleteField,
+  addDoc, getDocs, query, orderBy, where, writeBatch, deleteField, deleteDoc, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
@@ -189,6 +189,52 @@ export async function migrateAdvancementConfig(campaignId, oldAdvancement) {
   const ref = doc(db, "campaigns", campaignId, "config", "advancement");
   await setDoc(ref, oldAdvancement);
   await updateDoc(doc(db, "campaigns", campaignId), { advancement: deleteField() });
+}
+
+// ── Scene system (B-08) ─────────────────────────────────────
+// Schema: { title, background, text, isActive, createdAt }
+export function watchScenes(campaignId, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "scenes"),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+export function watchActiveScene(campaignId, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "scenes"),
+    where("isActive", "==", true),
+    limit(1),
+  );
+  return onSnapshot(q, (snap) => cb(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() }));
+}
+export async function createScene(campaignId, data) {
+  const ref = collection(db, "campaigns", campaignId, "scenes");
+  return addDoc(ref, { ...data, isActive: false, createdAt: serverTimestamp() });
+}
+export async function updateScene(campaignId, sceneId, data) {
+  await updateDoc(doc(db, "campaigns", campaignId, "scenes", sceneId), data);
+}
+export async function deleteScene(campaignId, sceneId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "scenes", sceneId));
+}
+// Batch: deactivate all currently-active scenes, then activate the target.
+export async function activateScene(campaignId, sceneId) {
+  const activeSnap = await getDocs(
+    query(collection(db, "campaigns", campaignId, "scenes"), where("isActive", "==", true)),
+  );
+  const batch = writeBatch(db);
+  activeSnap.docs.forEach((d) => batch.update(d.ref, { isActive: false }));
+  batch.update(doc(db, "campaigns", campaignId, "scenes", sceneId), { isActive: true });
+  await batch.commit();
+}
+export async function deactivateAllScenes(campaignId) {
+  const activeSnap = await getDocs(
+    query(collection(db, "campaigns", campaignId, "scenes"), where("isActive", "==", true)),
+  );
+  const batch = writeBatch(db);
+  activeSnap.docs.forEach((d) => batch.update(d.ref, { isActive: false }));
+  await batch.commit();
 }
 
 export const derive = {

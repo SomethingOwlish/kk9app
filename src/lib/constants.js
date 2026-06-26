@@ -36,7 +36,7 @@ export const MENU = [
   { id: "gear", label: "Снаряжение" },
   { id: "magic", label: "Магия" },
   { id: "log", label: "Лог сессий" },
-  { id: "scene", label: "Сцена" },
+  { id: "scene", label: "Сцена", on: true },
   { id: "shop", label: "Магазин" },
   { id: "journal", label: "Журнал кампании" },
   { id: "gm", label: "Год Мод · ГМ" },
