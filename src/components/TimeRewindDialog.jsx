@@ -25,7 +25,6 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
     try {
       const res = await applyTimeRewind(CAMPAIGN_ID, proposals, days, campaign.gameDate);
       setResults(res);
-      // Write campaign journal entry (non-critical)
       addJournalPage(CAMPAIGN_ID, "campaign", {
         title: `Тайм-ревинд: +${days} дн.`,
         body: proposals.map(p =>
@@ -117,56 +116,10 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
             </div>
             <div className="kk-modal-foot">
               <button className="kk-btn primary sm" onClick={onClose}>Закрыть</button>
-        {step === 1 && (
-          <div className="kk-modal-body">
-            <div className="kk-rewind-preview">
-              {partyMembers.map(ch => {
-                const p = proposals[ch.id];
-                if (!p) return null;
-                const totalXp = p.idleXp + p.semesterBonus;
-                const noChanges = totalXp === 0 && p.moneyDelta === 0
-                  && p.energyRestore === 0 && p.healthRegen === 0
-                  && p.mentalRegen === 0 && p.tensionReduce === 0;
-                return (
-                  <div key={ch.id} className="kk-rewind-char">
-                    <div
-                      className="kk-rewind-char-name"
-                      style={{ "--fac-color": ch.faculty?.color || "var(--kk-gold)" }}
-                    >
-                      {ch.name || "—"}
-                    </div>
-                    <div className="kk-rewind-tags">
-                      {totalXp > 0 && (
-                        <span className="kk-rtag xp">
-                          +{totalXp} ОП{p.semesterBonus > 0 ? ` (+${p.semesterBonus} каникулы)` : ""}
-                        </span>
-                      )}
-                      {p.moneyDelta > 0 && <span className="kk-rtag money">+{p.moneyDelta} ₴</span>}
-                      {p.moneyDelta < 0 && <span className="kk-rtag money neg">{p.moneyDelta} ₴</span>}
-                      {p.energyRestore > 0 && <span className="kk-rtag energy">⚡ → макс</span>}
-                      {p.healthRegen > 0 && <span className="kk-rtag health">❤ −{p.healthRegen}</span>}
-                      {p.mentalRegen > 0 && <span className="kk-rtag health">🧠 −{p.mentalRegen}</span>}
-                      {p.tensionReduce > 0 && <span className="kk-rtag tension">⚗ −{p.tensionReduce}</span>}
-                      {p.sb1 && <span className="kk-rtag break">Каникулы 1</span>}
-                      {p.sb2 && <span className="kk-rtag break">Каникулы 2</span>}
-                      {noChanges && <span className="kk-rtag none">без изменений</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="kk-rewind-newdate">
-              Новая дата: <strong>{newDate}</strong>
-            </div>
-            {error && <div className="kk-error" style={{ marginTop: 8 }}>{error}</div>}
-            <div className="kk-modal-actions">
-              <button className="kk-btn ghost" onClick={() => setStep(0)}>← Назад</button>
-              <button className="kk-btn primary" onClick={handleApply} disabled={applying}>
-                {applying ? "Применяем…" : "Применить"}
-              </button>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
