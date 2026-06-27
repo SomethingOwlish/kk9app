@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FACULTIES } from "../lib/seed-faculties";
 import { SKILLS_DATA } from "../lib/seed-skills";
 import { DICE, ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_LABEL, SKILL_BY_NAME } from "../lib/constants";
 import { getGmNotes, saveGmNotes } from "../lib/db";
+import { uploadPortrait, validatePortraitFile } from "../lib/storage";
 
 function mergeFacultySkills(skills, fac) {
   const have = new Set(skills.map(s => s.name));
@@ -17,6 +18,10 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
   const [d, setD] = useState(() => structuredClone(ch));
   const [gmNotes, setGmNotes] = useState("");
   const [gmNotesLoading, setGmNotesLoading] = useState(true);
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState("");
 
   useEffect(() => {
     getGmNotes(campaignId, ch.id).then(text => {
@@ -24,6 +29,25 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
       setGmNotesLoading(false);
     }).catch(() => setGmNotesLoading(false));
   }, [campaignId, ch.id]);
+
+  async function handlePortraitFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validatePortraitFile(file);
+    if (err) { setUploadError(err); return; }
+    setUploadError("");
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      const url = await uploadPortrait(file, campaignId, ch.id, setUploadProgress);
+      setD(p => ({ ...p, portrait: url }));
+    } catch (e) {
+      setUploadError("Ошибка загрузки: " + e.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const set = (patch) => setD(p => ({ ...p, ...patch }));
   const setAttr = (k, f, v) => setD(p => ({ ...p, attributes: { ...p.attributes, [k]: { ...p.attributes[k], [f]: v } } }));
   const setSkill = (i, f, v) => setD(p => { const sk = [...p.skills]; sk[i] = { ...sk[i], [f]: v }; return { ...p, skills: sk }; });
@@ -53,6 +77,7 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
     saveGmNotes(campaignId, ch.id, gmNotes).catch(e => console.error("gmNotes save", e));
     onSave({
       name: d.name,
+      portrait: d.portrait || "",
       age: Number(d.age) || 0,
       academyYear: String(d.academyYear),
       semester: Number(d.semester) || 1,
@@ -90,6 +115,27 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
 
       <section className="kk-block">
         <h2 className="kk-h2">Профиль</h2>
+        <div className="kk-portrait-upload" style={{ marginBottom: 12 }}>
+          {d.portrait && (
+            <img
+              className="kk-portrait-preview"
+              src={d.portrait}
+              alt="портрет"
+              onError={e => { e.target.style.display = "none"; }}
+            />
+          )}
+          <div className="kk-portrait-controls">
+            <button type="button" className="kk-btn ghost sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
+              {uploading ? `Загрузка… ${uploadProgress}%` : "Загрузить файл"}
+            </button>
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" style={{ display: "none" }} onChange={handlePortraitFile}/>
+          </div>
+          {uploadError && <p className="kk-error" style={{ margin: "4px 0 0" }}>{uploadError}</p>}
+          <label className="kk-field" style={{ marginTop: 6 }}>
+            <span>URL портрета</span>
+            <input className="kk-input" value={d.portrait || ""} onChange={e => set({ portrait: e.target.value })} placeholder="https://…" disabled={uploading}/>
+          </label>
+        </div>
         <div className="kk-form-grid">
           <label className="kk-field"><span>Имя</span><input className="kk-input" value={d.name} onChange={e => set({ name: e.target.value })}/></label>
           <label className="kk-field"><span>Возраст</span><input className="kk-input" type="number" value={d.age} onChange={e => set({ age: e.target.value })}/></label>
