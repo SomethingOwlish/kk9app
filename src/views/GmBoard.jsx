@@ -8,7 +8,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
-  const [showRewind, setShowRewind] = useState(false);
+  const [rewindOpen, setRewindOpen] = useState(false);
 
   // Time rewind campaign settings (local state mirrors Firestore, saved debounced)
   const [idleExpPerDay,        setIdleExpPerDay]        = useState(() => campaign?.idleExpPerDay        ?? 5);
