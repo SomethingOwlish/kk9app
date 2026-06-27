@@ -14,7 +14,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
   const [idleExpPerDay,        setIdleExpPerDay]        = useState(() => campaign?.idleExpPerDay        ?? 5);
   const [graduateDailyExpense, setGraduateDailyExpense] = useState(() => campaign?.graduateDailyExpense ?? 0);
   const [salaryByGrade,        setSalaryByGrade]        = useState(() => campaign?.salaryByGrade        ?? {});
-  const [rewindSettingsOpen,   setRewindSettingsOpen]   = useState(false);
+  const [rewindSettingsOpen,   setRewindSettingsOpen]   = useState(true);
 
   const isGmMode = !!gmModeData?.active;
   const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
