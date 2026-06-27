@@ -3,7 +3,7 @@ import { FACULTIES } from "../lib/seed-faculties";
 import { SKILLS_DATA } from "../lib/seed-skills";
 import { DICE, ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_LABEL, SKILL_BY_NAME } from "../lib/constants";
 import { getGmNotes, saveGmNotes } from "../lib/db";
-import { uploadPortrait, validatePortraitFile } from "../lib/storage";
+import { resizePortrait, validatePortraitFile } from "../lib/storage";
 
 function mergeFacultySkills(skills, fac) {
   const have = new Set(skills.map(s => s.name));
@@ -20,7 +20,6 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
   const [gmNotesLoading, setGmNotesLoading] = useState(true);
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState("");
 
   useEffect(() => {
@@ -32,17 +31,17 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
 
   async function handlePortraitFile(e) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     const err = validatePortraitFile(file);
     if (err) { setUploadError(err); return; }
     setUploadError("");
     setUploading(true);
-    setUploadProgress(0);
     try {
-      const url = await uploadPortrait(file, campaignId, ch.id, setUploadProgress);
-      setD(p => ({ ...p, portrait: url }));
+      const dataUrl = await resizePortrait(file);
+      setD(p => ({ ...p, portrait: dataUrl }));
     } catch (e) {
-      setUploadError("Ошибка загрузки: " + e.message);
+      setUploadError("Ошибка: " + e.message);
     } finally {
       setUploading(false);
     }
@@ -126,7 +125,7 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
           )}
           <div className="kk-portrait-controls">
             <button type="button" className="kk-btn ghost sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
-              {uploading ? `Загрузка… ${uploadProgress}%` : "Загрузить файл"}
+              {uploading ? "Обработка…" : "Загрузить файл"}
             </button>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" style={{ display: "none" }} onChange={handlePortraitFile}/>
           </div>
