@@ -134,6 +134,7 @@ export default function App({ user, signOut }) {
     else if (id === "scene") navigate("/scene");
     else if (id === "gm" && isGM) navigate("/board");
     else if (id === "journal") navigate("/journal");
+    else if (id === "print" && activeId) navigate(`/print/${activeId}`);
   }, [isGM, navigate, activeId]);
   const current = view === "portal" ? "portal"
     : view === "settings" ? "set"
@@ -157,7 +158,7 @@ export default function App({ user, signOut }) {
         </div>
         {(!ready || !cl) && <div className="kk-load">Загрузка кампании…</div>}
         {ready && cl && !baseRole && <div className="kk-empty">Вы не участник этой кампании. Попросите ГМа добавить ваш UID в <code>members</code>.</div>}
-        {ready && cl && role === "demo" && <div className="kk-empty">Режим демонстрации. Модуль ещё не готов — права заложены, функции добавим позже.</div>}
+        {ready && cl && role === "demo" && <ScenePlayerView/>}
         {ready && cl && role === "player" && (!myChar || myChar.characterCreated === false) && (
           <CharacterCreationWizard user={user} myChar={myChar} campaign={campaign} />
         )}
@@ -182,6 +183,7 @@ export default function App({ user, signOut }) {
             <div className="kk-gmmode-overlay-icon">⚙</div>
             <div className="kk-gmmode-overlay-title">ГМ управляет сессией</div>
             <div className="kk-gmmode-overlay-sub">Подождите, пока ГМ завершит действие…</div>
+            <button className="kk-back" onClick={() => navigate("/")}>← к порталу</button>
           </div>
         </div>
       )}
