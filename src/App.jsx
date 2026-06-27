@@ -92,13 +92,18 @@ export default function App({ user, signOut }) {
     try { await updateCharacterNow(CAMPAIGN_ID, activeId, patch); setEditing(false); }
     catch (e) { alert("Не удалось сохранить: " + (e?.message || e)); }
   }, [activeId, activeChar]);
-  const saveSettings = useCallback(async ({ advancement, chargen, rewind }) => {
+  const saveSettings = useCallback(async ({ advancement, chargen, rewind, journalArchiveThreshold }) => {
     try {
       const campaignPatch = { chargen };
       if (rewind) {
         campaignPatch.idleExpPerDay        = rewind.idleExpPerDay;
         campaignPatch.graduateDailyExpense = rewind.graduateDailyExpense;
         campaignPatch.salaryByGrade        = rewind.salaryByGrade;
+        campaignPatch.semesterBreak1       = rewind.semesterBreak1;
+        campaignPatch.semesterBreak2       = rewind.semesterBreak2;
+      }
+      if (journalArchiveThreshold != null) {
+        campaignPatch.journalArchiveThreshold = journalArchiveThreshold;
       }
       await Promise.all([
         saveAdvancementConfig(CAMPAIGN_ID, advancement),
@@ -156,8 +161,8 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && role === "player" && gmModeData?.active && view === "card" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
-        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard}/>}
-        {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")}/>}
+        {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}
