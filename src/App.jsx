@@ -4,7 +4,7 @@ import {
   watchCampaign, watchCharacterList, saveCharacterDebounced,
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
-  watchGmMode,
+  watchGmMode, watchStatuses,
 } from "./lib/db";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
@@ -42,11 +42,13 @@ export default function App({ user, signOut }) {
   const [advancementConfig, setAdvancementConfig] = useState(null);
   const [advConfigReady, setAdvConfigReady] = useState(false);
   const [gmModeData, setGmModeData] = useState(null);
+  const [campaignStatuses, setCampaignStatuses] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
   useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
+  useEffect(() => watchStatuses(CAMPAIGN_ID, setCampaignStatuses), []);
 
   const cardMatch = pathname.match(/^\/card\/([^/]+)/);
   const urlCharId = cardMatch ? cardMatch[1] : null;
@@ -164,10 +166,10 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
-        {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")}/>}
+        {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses}/>}
         {ready && cl && view === "scene" && isGM && <SceneManager/>}
         {ready && cl && view === "scene" && !isGM && <ScenePlayerView/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}
