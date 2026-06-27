@@ -66,13 +66,12 @@ export default function JournalView({ isGM }) {
   const [editing, setEditing] = useState(null);
 
   const visibleStreams = isGM ? STREAMS : STREAMS.filter(s => !s.gmOnly);
+  // Clamp stream to a visible stream without calling setState inside an effect.
+  const effectiveStream = visibleStreams.some(s => s.id === stream) ? stream : "campaign";
 
   useEffect(() => {
-    setPages([]);
-    const cur = STREAMS.find(s => s.id === stream);
-    if (cur?.gmOnly && !isGM) { setStream("campaign"); return; }
-    return watchJournalPages(CAMPAIGN_ID, stream, setPages);
-  }, [stream, isGM]);
+    return watchJournalPages(CAMPAIGN_ID, effectiveStream, setPages);
+  }, [effectiveStream]);
 
   const handleAdd = async ({ title, body }) => {
     await addJournalPage(CAMPAIGN_ID, stream, { title, body });
