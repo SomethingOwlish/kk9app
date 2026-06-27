@@ -525,3 +525,10 @@
 .kk-portrait-upload{display:flex;flex-direction:column;gap:6px;}
 .kk-portrait-preview{width:88px;height:88px;object-fit:cover;border-radius:var(--kk-r);border:1px solid var(--kk-line);background:var(--kk-stone);}
 .kk-portrait-controls{display:flex;align-items:center;gap:8px;}
+
+/* ── Portrait click-to-change (B-37 UX) ─────────────────────── */
+.kk-portrait--editable{cursor:pointer;position:relative;}
+.kk-portrait-overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);color:#fff;font-size:18px;opacity:0;transition:opacity .15s;border-radius:var(--kk-r);}
+.kk-portrait--editable:hover .kk-portrait-overlay{opacity:1;}
+.kk-portrait--uploading .kk-portrait-overlay{opacity:1;}
+.kk-portrait-err{font-size:12px;color:var(--kk-danger);margin:4px 0 0;max-width:88px;}
