@@ -8,7 +8,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
-  const [rewindOpen, setRewindOpen] = useState(false);
+  const [showRewind, setShowRewind] = useState(false);
 
   const isGmMode = !!gmModeData?.active;
   const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
@@ -33,10 +33,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
       </div>
 
       <div className="kk-board-section">
-        <div className="kk-h2">
-          Состояние кампании
-          <button className="kk-btn ghost sm" onClick={() => setRewindOpen(true)}>⏪ Тайм-ревинд</button>
-        </div>
+        <div className="kk-h2">Состояние кампании</div>
         <div className="kk-form-grid" style={{ marginTop: 10 }}>
           <div className="kk-field">
             <label>Дата</label>
@@ -116,13 +113,6 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
         </div>
       )}
 
-      {rewindOpen && (
-        <TimeRewindDialog
-          campaign={campaign}
-          partyMembers={partyMembers}
-          onClose={() => setRewindOpen(false)}
-        />
-      )}
     </div>
 
     {showRewind && (
