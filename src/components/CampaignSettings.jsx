@@ -33,9 +33,18 @@ function parseChargen(campaign) {
   };
 }
 
+function parseRewind(campaign) {
+  return {
+    idleExpPerDay:        campaign?.idleExpPerDay        ?? 5,
+    graduateDailyExpense: campaign?.graduateDailyExpense ?? 0,
+    salaryByGrade:        campaign?.salaryByGrade        ?? {},
+  };
+}
+
 export default function CampaignSettings({ campaign, advancementConfig, onSave, onClose }) {
   const [d, setD] = useState(() => advSettings(advancementConfig));
   const [cg, setCg] = useState(() => parseChargen(campaign));
+  const [rw, setRw] = useState(() => parseRewind(campaign));
 
   const setIn = (g, k, v) => setD(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
   const setCgIn = (g, k, v) => setCg(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
@@ -48,7 +57,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   );
 
   function handleSave() {
-    onSave({ advancement: d, chargen: cg });
+    onSave({ advancement: d, chargen: cg, rewind: rw });
   }
 
   return (
@@ -122,6 +131,35 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
           {field("Личные", "catMult", "personal", 0.1)}
         </div>
       </section>
+      <section className="kk-block">
+        <h2 className="kk-h2">Тайм-ревинд</h2>
+        <p className="kk-note">Начисляется автоматически при тайм-ревинде за каждый прошедший день.</p>
+        <div className="kk-form-grid">
+          <SettingsField
+            label="Опыт в день (простой)"
+            step={0.5}
+            value={rw.idleExpPerDay}
+            onChange={e => setRw(p => ({ ...p, idleExpPerDay: Number(e.target.value) || 0 }))}
+          />
+          <SettingsField
+            label="Расходы выпускника/день (₴)"
+            value={rw.graduateDailyExpense}
+            onChange={e => setRw(p => ({ ...p, graduateDailyExpense: Number(e.target.value) || 0 }))}
+          />
+          {[1, 2, 3, 4].map(grade => (
+            <SettingsField
+              key={grade}
+              label={`Стипендия ${grade} курс (₴/день)`}
+              value={rw.salaryByGrade[grade] ?? 0}
+              onChange={e => setRw(p => ({
+                ...p,
+                salaryByGrade: { ...p.salaryByGrade, [String(grade)]: Number(e.target.value) || 0 },
+              }))}
+            />
+          ))}
+        </div>
+      </section>
+
       <div className="kk-edit-foot">
         <button className="kk-btn ghost" onClick={() => { setD(structuredClone(DEFAULT_ADVANCEMENT)); setCg(structuredClone(DEFAULT_CHARGEN)); }}>Сбросить к дефолтам</button>
         <button className="kk-btn primary" onClick={handleSave}>Сохранить</button>
