@@ -33,7 +33,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const demoFields = DEMO_FIELDS.filter(([k]) => ch[k]);
   const isOwner = !!(user && ch.ownerUid && user.uid === ch.ownerUid);
   const notes = Array.isArray(ch.notes) ? ch.notes : [];
-  const [noteText, setNoteText] = useState("");
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteBody, setNoteBody] = useState("");
   const canAddNote = isOwner || isGM;
   const [statusEditorOpen, setStatusEditorOpen] = useState(false);
   const [viewingStatus, setViewingStatus] = useState(null);
@@ -42,10 +43,20 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
 
   function submitNote(e) {
     e.preventDefault();
-    const text = noteText.trim();
-    if (!text) return;
-    save({ notes: [...notes, { text, at: new Date().toISOString() }] });
-    setNoteText("");
+    const title = noteTitle.trim();
+    if (!title) return;
+    save({ notes: [...notes, { title, body: noteBody.trim(), at: new Date().toISOString(), uid: user?.uid ?? "" }] });
+    setNoteTitle("");
+    setNoteBody("");
+  }
+
+  function deleteNote(idx) {
+    save({ notes: notes.filter((_, i) => i !== idx) });
+  }
+
+  function noteDisplayTitle(n) {
+    if (n.title) return n.title;
+    return n.text ? n.text.slice(0, 40) + (n.text.length > 40 ? "…" : "") : "(без заголовка)";
   }
 
   return (
@@ -222,28 +233,53 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         <section className="kk-block">
           <h2 className="kk-h2">Заметки</h2>
           {notes.length > 0 && (
-            <ul className="kk-notes-list">
-              {[...notes].reverse().map((n, i) => (
-                <li key={i} className="kk-note-item">
-                  <span className="kk-note-text">{n.text}</span>
-                  <span className="kk-note-at">{new Date(n.at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="kk-notes-list">
+              {[...notes].reverse().map((n, i) => {
+                const origIdx = notes.length - 1 - i;
+                const canDelete = isGM || (user && n.uid === user.uid);
+                const dateStr = new Date(n.at).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+                return (
+                  <details key={origIdx} className="kk-note-item">
+                    <summary className="kk-note-summary">
+                      <span className="kk-note-title">{noteDisplayTitle(n)}</span>
+                      <span className="kk-note-at">{dateStr}</span>
+                      {canDelete && (
+                        <button
+                          className="kk-note-del"
+                          type="button"
+                          onClick={e => { e.preventDefault(); deleteNote(origIdx); }}
+                          aria-label="Удалить заметку"
+                        >✕</button>
+                      )}
+                    </summary>
+                    {(n.body || n.text) && (
+                      <p className="kk-note-body">{n.body || n.text}</p>
+                    )}
+                  </details>
+                );
+              })}
+            </div>
           )}
           {canAddNote && (
             <form className="kk-note-form" onSubmit={submitNote}>
               <input
-                id="note-input"
-                name="note"
                 className="kk-note-input"
                 type="text"
-                placeholder="Добавить заметку…"
-                value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                maxLength={500}
+                placeholder="Заголовок заметки *"
+                value={noteTitle}
+                onChange={e => setNoteTitle(e.target.value)}
+                maxLength={200}
+                required
               />
-              <button className="kk-note-btn" type="submit" disabled={!noteText.trim()}>Добавить</button>
+              <textarea
+                className="kk-note-input kk-note-body-input"
+                placeholder="Текст (необязательно)"
+                value={noteBody}
+                onChange={e => setNoteBody(e.target.value)}
+                maxLength={2000}
+                rows={2}
+              />
+              <button className="kk-note-btn" type="submit" disabled={!noteTitle.trim()}>Добавить</button>
             </form>
           )}
         </section>
