@@ -360,6 +360,7 @@ export function buildTimeRewindProposals(partyMembers, days, campaign) {
 function _advanceDate(gameDate, days) {
   if (!gameDate) return null;
   const d = new Date(gameDate);
+  if (isNaN(d.getTime())) return null;
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
@@ -399,13 +400,16 @@ export async function applyTimeRewind(campaignId, proposals, days, currentGameDa
 // Streams: "campaign" | "worldNews" | "gmPrivate"
 // Path: campaigns/{id}/journal/{stream}/pages/{pageId}
 export function watchJournalPages(campaignId, stream, cb) {
+  // No compound filter: avoids requiring a composite Firestore index.
+  // isArchived filtering is done client-side.
   const q = query(
     collection(db, "campaigns", campaignId, "journal", stream, "pages"),
-    where("isArchived", "==", false),
     orderBy("createdAt", "desc"),
   );
   return onSnapshot(q, (snap) => {
-    const pages = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const pages = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((p) => !p.isArchived);
     cb(pages);
     // Auto-archive when active page count exceeds threshold
     const threshold = 20;

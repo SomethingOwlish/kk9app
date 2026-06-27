@@ -8,8 +8,9 @@ function fmt(n) {
 }
 
 export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
-  const [step, setStep] = useState(1); // 1=days, 2=review, 3=done
+  const [step, setStep] = useState(1);
   const [days, setDays] = useState(1);
+  const [worldNewsText, setWorldNewsText] = useState("");
   const [proposals, setProposals] = useState([]);
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -31,6 +32,12 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
           `${p.name}: опыт ${fmt(p.xpDelta)}, деньги ${fmt(p.moneyDelta)}, напряжение ${fmt(p.tensionDelta)}`
         ).join("\n"),
       }).catch(() => {});
+      if (worldNewsText.trim()) {
+        addJournalPage(CAMPAIGN_ID, "worldNews", {
+          title: `Новости (тайм-ревинд +${days} дн.)`,
+          body: worldNewsText.trim(),
+        }).catch(() => {});
+      }
       setStep(3);
     } catch (e) {
       alert("Ошибка тайм-ревинда: " + (e?.message || e));
@@ -62,6 +69,16 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
               <button className="kk-step" onClick={() => setDays(d => d + 1)}>+</button>
               <span className="kk-modal-days-label">дн.</span>
             </div>
+            <div className="kk-field" style={{ marginTop: 12 }}>
+              <label>Мировые новости (необязательно)</label>
+              <textarea
+                className="kk-input kk-textarea"
+                rows={4}
+                placeholder="Что произошло в мире за это время…"
+                value={worldNewsText}
+                onChange={e => setWorldNewsText(e.target.value)}
+              />
+            </div>
             {partyMembers.length === 0 && <div className="kk-modal-warn">В отряде нет персонажей.</div>}
             <div className="kk-modal-foot">
               <button className="kk-btn ghost sm" onClick={onClose}>Отмена</button>
@@ -77,7 +94,7 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
               <div className="kk-rw-header">
                 <span>Персонаж</span>
                 <span title="Опыт">XP</span>
-                <span title="Деньги">₽</span>
+                <span title="Деньги">₴</span>
                 <span title="Напряжение">Напр</span>
                 <span>Энерг</span>
                 <span>HP</span>
@@ -93,6 +110,9 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
                 </div>
               ))}
             </div>
+            {worldNewsText.trim() && (
+              <p className="kk-modal-hint" style={{ marginTop: 8 }}>Мировые новости будут записаны в журнал.</p>
+            )}
             <div className="kk-modal-foot">
               <button className="kk-btn ghost sm" onClick={() => setStep(1)}>← Назад</button>
               <button className="kk-btn primary sm" disabled={busy} onClick={apply}>
