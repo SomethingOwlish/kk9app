@@ -7,13 +7,32 @@ function fmt(n) {
   return n > 0 ? `+${n}` : `${n}`;
 }
 
+function daysBetween(from, to) {
+  const a = new Date(from);
+  const b = new Date(to);
+  if (isNaN(a) || isNaN(b)) return 0;
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+function addDays(dateStr, days) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d)) return "";
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
+  const currentDate = campaign?.gameDate ?? "";
   const [step, setStep] = useState(1);
-  const [days, setDays] = useState(1);
-  const [worldNewsText, setWorldNewsText] = useState("");
+  const [targetDate, setTargetDate] = useState(() => addDays(currentDate, 1));
+  const [worldNewsTitle, setWorldNewsTitle] = useState("");
+  const [worldNewsText, setWorldNewsText]   = useState("");
   const [proposals, setProposals] = useState([]);
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
+
+  const days = daysBetween(currentDate, targetDate);
 
   const buildProposals = () => {
     const p = buildTimeRewindProposals(partyMembers, days, campaign);
@@ -24,17 +43,18 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
   const apply = async () => {
     setBusy(true);
     try {
-      const res = await applyTimeRewind(CAMPAIGN_ID, proposals, days, campaign.gameDate);
+      // applyTimeRewind uses targetDate directly instead of computing from days
+      const res = await applyTimeRewind(CAMPAIGN_ID, proposals, days, currentDate, targetDate);
       setResults(res);
       addJournalPage(CAMPAIGN_ID, "campaign", {
-        title: `Тайм-ревинд: +${days} дн.`,
+        title: `Тайм-ревинд: ${currentDate} → ${targetDate}`,
         body: proposals.map(p =>
           `${p.name}: опыт ${fmt(p.xpDelta)}, деньги ${fmt(p.moneyDelta)}, напряжение ${fmt(p.tensionDelta)}`
         ).join("\n"),
       }).catch(() => {});
       if (worldNewsText.trim()) {
         addJournalPage(CAMPAIGN_ID, "worldNews", {
-          title: `Новости (тайм-ревинд +${days} дн.)`,
+          title: worldNewsTitle.trim() || `Новости (${targetDate})`,
           body: worldNewsText.trim(),
         }).catch(() => {});
       }
@@ -56,21 +76,44 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
 
         {step === 1 && (
           <div className="kk-modal-body">
-            <p className="kk-modal-hint">Сколько дней прошло с последней сессии?</p>
-            <div className="kk-modal-days-row">
-              <button className="kk-step" onClick={() => setDays(d => Math.max(1, d - 1))}>−</button>
-              <input
-                className="kk-input kk-modal-days-input"
-                type="number"
-                min={1}
-                value={days}
-                onChange={e => setDays(Math.max(1, parseInt(e.target.value) || 1))}
-              />
-              <button className="kk-step" onClick={() => setDays(d => d + 1)}>+</button>
-              <span className="kk-modal-days-label">дн.</span>
+            <div className="kk-form-grid">
+              <div className="kk-field">
+                <label>Текущая дата</label>
+                <input className="kk-input" type="date" value={currentDate} readOnly/>
+              </div>
+              <div className="kk-field">
+                <label>Новая дата</label>
+                <input
+                  className="kk-input"
+                  type="date"
+                  value={targetDate}
+                  min={currentDate || undefined}
+                  onChange={e => setTargetDate(e.target.value)}
+                />
+              </div>
             </div>
+            {days > 0 && (
+              <p className="kk-modal-hint" style={{ marginTop: 8 }}>
+                Пройдёт дней: <b>{days}</b>
+              </p>
+            )}
+            {days === 0 && targetDate && (
+              <p className="kk-modal-hint kk-warn" style={{ marginTop: 8 }}>
+                Новая дата должна быть позже текущей.
+              </p>
+            )}
+
             <div className="kk-field" style={{ marginTop: 12 }}>
-              <label>Мировые новости (необязательно)</label>
+              <label>Мировые новости — заголовок (необязательно)</label>
+              <input
+                className="kk-input"
+                placeholder={`Новости (${targetDate || "дата"})`}
+                value={worldNewsTitle}
+                onChange={e => setWorldNewsTitle(e.target.value)}
+              />
+            </div>
+            <div className="kk-field" style={{ marginTop: 8 }}>
+              <label>Мировые новости — текст (необязательно)</label>
               <textarea
                 className="kk-input kk-textarea"
                 rows={4}
@@ -79,17 +122,26 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
                 onChange={e => setWorldNewsText(e.target.value)}
               />
             </div>
+
             {partyMembers.length === 0 && <div className="kk-modal-warn">В отряде нет персонажей.</div>}
             <div className="kk-modal-foot">
               <button className="kk-btn ghost sm" onClick={onClose}>Отмена</button>
-              <button className="kk-btn primary sm" disabled={partyMembers.length === 0} onClick={buildProposals}>Далее →</button>
+              <button
+                className="kk-btn primary sm"
+                disabled={partyMembers.length === 0 || days === 0}
+                onClick={buildProposals}
+              >
+                Далее →
+              </button>
             </div>
           </div>
         )}
 
         {step === 2 && (
           <div className="kk-modal-body">
-            <p className="kk-modal-hint">Изменения за <b>{days}</b> дн.:</p>
+            <p className="kk-modal-hint">
+              Изменения за <b>{days}</b> дн. ({currentDate} → {targetDate}):
+            </p>
             <div className="kk-rw-table">
               <div className="kk-rw-header">
                 <span>Персонаж</span>
@@ -111,7 +163,9 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
               ))}
             </div>
             {worldNewsText.trim() && (
-              <p className="kk-modal-hint" style={{ marginTop: 8 }}>Мировые новости будут записаны в журнал.</p>
+              <p className="kk-modal-hint" style={{ marginTop: 8 }}>
+                Мировые новости будут записаны в журнал.
+              </p>
             )}
             <div className="kk-modal-foot">
               <button className="kk-btn ghost sm" onClick={() => setStep(1)}>← Назад</button>
@@ -124,7 +178,7 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
 
         {step === 3 && (
           <div className="kk-modal-body">
-            <p className="kk-modal-hint">Тайм-ревинд завершён.</p>
+            <p className="kk-modal-hint">Тайм-ревинд завершён. Новая дата: <b>{targetDate}</b></p>
             <div className="kk-rw-results">
               {results.map(r => (
                 <div key={r.charId} className={`kk-rw-result ${r.ok ? "ok" : "fail"}`}>
@@ -139,7 +193,6 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
