@@ -50,6 +50,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   const [d, setD] = useState(() => advSettings(advancementConfig));
   const [cg, setCg] = useState(() => parseChargen(campaign));
   const [rw, setRw] = useState(() => parseRewind(campaign));
+  const [journalThreshold, setJournalThreshold] = useState(() => campaign?.journalArchiveThreshold ?? 20);
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
   const [editingStatus, setEditingStatus] = useState(null);
@@ -225,6 +226,18 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
             За неделю простоя: {(rw.idleExpPerDay * 7).toFixed(1)} опыта
           </p>
         )}
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Журнал</h2>
+        <p className="kk-note">После достижения лимита старые записи автоматически архивируются.</p>
+        <div className="kk-form-grid">
+          <SettingsField
+            label="Лимит страниц до архивации"
+            value={journalThreshold}
+            onChange={e => setJournalThreshold(Number(e.target.value) || 20)}
+          />
+        </div>
       </section>
 
       <section className="kk-block">
