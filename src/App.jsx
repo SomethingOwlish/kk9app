@@ -21,7 +21,6 @@ import PlayerPortal from "./views/PlayerPortal";
 import GmPortal from "./views/GmPortal";
 import GmBoard from "./views/GmBoard";
 import ScenePlayerView from "./views/ScenePlayerView";
-import SceneManager from "./components/SceneManager";
 import CharacterCreationWizard from "./components/CharacterCreationWizard";
 import JournalView from "./views/JournalView";
 
@@ -146,6 +145,16 @@ export default function App({ user, signOut }) {
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
   const partyMembers = useMemo(() => characters.filter(c => partyRefs.has(c.id)), [characters, partyRefs]);
   const cl = campaign !== null;
+  if (view === "scene" && ready && cl) {
+    return (
+      <div className="kk-root">
+        <div className="kk-bg" aria-hidden/>
+        <ScenePlayerView isGM={isGM} onBack={() => navigate("/")}/>
+        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs}/>
+      </div>
+    );
+  }
+
   return (
     <div className="kk-root">
       <div className="kk-bg" aria-hidden/>
@@ -168,8 +177,6 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses}/>}
-        {ready && cl && view === "scene" && isGM && <SceneManager/>}
-        {ready && cl && view === "scene" && !isGM && <ScenePlayerView/>}
         {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
