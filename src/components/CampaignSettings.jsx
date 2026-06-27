@@ -241,18 +241,6 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
       </section>
 
       <section className="kk-block">
-        <h2 className="kk-h2">Журнал</h2>
-        <p className="kk-note">После достижения лимита старые записи автоматически архивируются.</p>
-        <div className="kk-form-grid">
-          <SettingsField
-            label="Лимит страниц до архивации"
-            value={journalThreshold}
-            onChange={e => setJournalThreshold(Number(e.target.value) || 20)}
-          />
-        </div>
-      </section>
-
-      <section className="kk-block">
         <h2 className="kk-h2">Статусы</h2>
         <p className="kk-note">Библиотека статусов кампании. Загрузите стандартный набор или создайте свои.</p>
         <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
