@@ -7,7 +7,7 @@ import StatusEditor from "./StatusEditor";
 import StatusCard from "./StatusCard";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus } from "../lib/db";
-import { uploadPortrait, validatePortraitFile } from "../lib/storage";
+import { resizePortrait, validatePortraitFile } from "../lib/storage";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
 
 const DEMO_FIELDS = [
@@ -60,8 +60,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
     setPortraitError("");
     setPortraitUploading(true);
     try {
-      const url = await uploadPortrait(file, campaignId, ch.id);
-      save({ portrait: url });
+      const dataUrl = await resizePortrait(file);
+      save({ portrait: dataUrl });
     } catch (e) {
       setPortraitError("Ошибка: " + e.message);
     } finally {

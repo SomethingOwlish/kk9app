@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { uploadPortrait, validatePortraitFile } from "../../lib/storage";
+import { resizePortrait, validatePortraitFile } from "../../lib/storage";
 
 const GENDER_OPTIONS = [
   { value: "m",  label: "М" },
@@ -7,28 +7,26 @@ const GENDER_OPTIONS = [
   { value: "nb", label: "Нонбинари" },
 ];
 
-// Props: data, onChange, campaignId, charId
-export default function StepIdentity({ data, onChange, campaignId, charId }) {
+export default function StepIdentity({ data, onChange }) {
   const fileRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [processing, setProcessing] = useState(false);
   const [uploadError, setUploadError] = useState("");
 
   async function handleFileChange(e) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     const err = validatePortraitFile(file);
     if (err) { setUploadError(err); return; }
     setUploadError("");
-    setUploading(true);
-    setProgress(0);
+    setProcessing(true);
     try {
-      const url = await uploadPortrait(file, campaignId, charId, setProgress);
-      onChange({ portrait: url });
+      const dataUrl = await resizePortrait(file);
+      onChange({ portrait: dataUrl });
     } catch (e) {
-      setUploadError("Ошибка загрузки: " + e.message);
+      setUploadError("Ошибка: " + e.message);
     } finally {
-      setUploading(false);
+      setProcessing(false);
     }
   }
 
@@ -60,10 +58,10 @@ export default function StepIdentity({ data, onChange, campaignId, charId }) {
             <button
               type="button"
               className="kk-btn"
-              disabled={uploading}
+              disabled={processing}
               onClick={() => fileRef.current?.click()}
             >
-              {uploading ? `Загрузка… ${progress}%` : "Загрузить файл"}
+              {processing ? "Обработка…" : "Загрузить файл"}
             </button>
             <input
               ref={fileRef}
@@ -81,7 +79,7 @@ export default function StepIdentity({ data, onChange, campaignId, charId }) {
           value={data.portrait}
           onChange={e => onChange({ portrait: e.target.value })}
           placeholder="https://…"
-          disabled={uploading}
+          disabled={processing}
         />
       </div>
 
