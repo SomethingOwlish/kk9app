@@ -5,6 +5,7 @@ import {
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
   watchGmMode, watchStatuses, seedStatuses, watchNpcs,
+  watchItemsByOwner, createItem, deleteItem,
 } from "./lib/db";
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
@@ -44,12 +45,17 @@ export default function App({ user, signOut }) {
   const [gmModeData, setGmModeData] = useState(null);
   const [campaignStatuses, setCampaignStatuses] = useState([]);
   const [npcs, setNpcs] = useState([]);
+  const [activeItems, setActiveItems] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
   useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
   useEffect(() => watchNpcs(CAMPAIGN_ID, setNpcs), []);
+  useEffect(() => {
+    if (!activeId) { setActiveItems([]); return; }
+    return watchItemsByOwner(CAMPAIGN_ID, activeId, setActiveItems);
+  }, [activeId]);
   useEffect(() => watchStatuses(CAMPAIGN_ID, (statuses) => {
     setCampaignStatuses(statuses);
     if (statuses.length === 0) seedStatuses(CAMPAIGN_ID, STATUSES_DATA).catch(console.error);
@@ -133,6 +139,13 @@ export default function App({ user, signOut }) {
       navigate(`/card/${activeId}`);
     } catch (e) { alert("Не удалось применить прокачку: " + (e?.message || e)); }
   }, [activeId, navigate]);
+  const onCreateItem = useCallback(async (data) => {
+    if (!activeId) return;
+    await createItem(CAMPAIGN_ID, { ...data, ownerCharacterId: activeId });
+  }, [activeId]);
+  const onDeleteItem = useCallback(async (itemId) => {
+    await deleteItem(CAMPAIGN_ID, itemId);
+  }, []);
   const clearLog = useCallback(async () => {
     if (!activeId) return;
     try { await clearCharacterLog(CAMPAIGN_ID, activeId); }
@@ -195,7 +208,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses}/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}
