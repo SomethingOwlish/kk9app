@@ -36,6 +36,32 @@ function parseChargen(campaign) {
   };
 }
 
+function parseExtra(campaign) {
+  return {
+    tension: {
+      overflowThreshold:  campaign?.tension?.overflowThreshold  ?? 5,
+      overcapPenalty:     campaign?.tension?.overcapPenalty     ?? 10,
+      failureThreshold:   campaign?.tension?.failureThreshold   ?? 3,
+      heavyAbilityWeight: campaign?.tension?.heavyAbilityWeight ?? 2,
+      heavyAbilities:     campaign?.tension?.heavyAbilities     ?? "",
+      lightAbilities:     campaign?.tension?.lightAbilities     ?? "",
+    },
+    shop: {
+      defaultItemPrice: campaign?.shop?.defaultItemPrice ?? 100,
+      defaultShopId:    campaign?.shop?.defaultShopId    ?? "",
+    },
+    scene: {
+      allowPlayerEmotions: campaign?.scene?.allowPlayerEmotions ?? false,
+    },
+    combat: {
+      allowGlobalOvercap: campaign?.combat?.allowGlobalOvercap ?? false,
+    },
+    magic: {
+      aoeEnergyCostMultiplier: campaign?.magic?.aoeEnergyCostMultiplier ?? 1.5,
+    },
+  };
+}
+
 function parseRewind(campaign) {
   return {
     idleExpPerDay:        campaign?.idleExpPerDay        ?? 5,
@@ -50,6 +76,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   const [d, setD] = useState(() => advSettings(advancementConfig));
   const [cg, setCg] = useState(() => parseChargen(campaign));
   const [rw, setRw] = useState(() => parseRewind(campaign));
+  const [ex, setEx] = useState(() => parseExtra(campaign));
   const [journalThreshold, setJournalThreshold] = useState(() => campaign?.journalArchiveThreshold ?? 20);
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
@@ -98,7 +125,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   );
 
   function handleSave() {
-    onSave({ advancement: d, chargen: cg, rewind: rw, journalArchiveThreshold: journalThreshold });
+    onSave({ advancement: d, chargen: cg, rewind: rw, journalArchiveThreshold: journalThreshold, extra: ex });
   }
 
   return (
@@ -237,6 +264,47 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
             value={journalThreshold}
             onChange={e => setJournalThreshold(Number(e.target.value) || 20)}
           />
+        </div>
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Напряжение</h2>
+        <p className="kk-note">Пороги и модификаторы системы напряжения.</p>
+        <div className="kk-form-grid">
+          <SettingsField label="Порог оверкапа" value={ex.tension.overflowThreshold} onChange={e => setEx(p => ({ ...p, tension: { ...p.tension, overflowThreshold: Number(e.target.value) || 0 } }))}/>
+          <SettingsField label="Штраф при оверкапе" value={ex.tension.overcapPenalty} onChange={e => setEx(p => ({ ...p, tension: { ...p.tension, overcapPenalty: Number(e.target.value) || 0 } }))}/>
+          <SettingsField label="Порог провала" value={ex.tension.failureThreshold} onChange={e => setEx(p => ({ ...p, tension: { ...p.tension, failureThreshold: Number(e.target.value) || 0 } }))}/>
+          <SettingsField label="Вес тяжёлых способностей" step={0.5} value={ex.tension.heavyAbilityWeight} onChange={e => setEx(p => ({ ...p, tension: { ...p.tension, heavyAbilityWeight: Number(e.target.value) || 0 } }))}/>
+        </div>
+        <label className="kk-field" style={{ marginTop: 8, flexDirection: "column", alignItems: "flex-start" }}>
+          <span>Тяжёлые способности (через запятую; пусто = TENSION_ABILITIES)</span>
+          <input className="kk-input" value={ex.tension.heavyAbilities} onChange={e => setEx(p => ({ ...p, tension: { ...p.tension, heavyAbilities: e.target.value } }))} placeholder="Телекинез, Огненный шар…"/>
+        </label>
+        <label className="kk-field" style={{ marginTop: 8, flexDirection: "column", alignItems: "flex-start" }}>
+          <span>Лёгкие способности (через запятую)</span>
+          <input className="kk-input" value={ex.tension.lightAbilities} onChange={e => setEx(p => ({ ...p, tension: { ...p.tension, lightAbilities: e.target.value } }))} placeholder="Восприятие, Убеждение…"/>
+        </label>
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Магазин и бой</h2>
+        <div className="kk-form-grid">
+          <SettingsField label="Цена по умолчанию (₴)" value={ex.shop.defaultItemPrice} onChange={e => setEx(p => ({ ...p, shop: { ...p.shop, defaultItemPrice: Number(e.target.value) || 0 } }))}/>
+          <SettingsField label="Коэф. AoE заклинаний" step={0.1} value={ex.magic.aoeEnergyCostMultiplier} onChange={e => setEx(p => ({ ...p, magic: { ...p.magic, aoeEnergyCostMultiplier: Number(e.target.value) || 1 } }))}/>
+        </div>
+        <label className="kk-field" style={{ marginTop: 8, flexDirection: "column", alignItems: "flex-start" }}>
+          <span>ID основного магазина (виден игрокам)</span>
+          <input className="kk-input" value={ex.shop.defaultShopId} onChange={e => setEx(p => ({ ...p, shop: { ...p.shop, defaultShopId: e.target.value } }))} placeholder="firestore doc id"/>
+        </label>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <label className="kk-field kk-field--cb">
+            <input type="checkbox" checked={ex.combat.allowGlobalOvercap} onChange={e => setEx(p => ({ ...p, combat: { ...p.combat, allowGlobalOvercap: e.target.checked } }))}/>
+            <span>Разрешить глобальный оверкап урона</span>
+          </label>
+          <label className="kk-field kk-field--cb">
+            <input type="checkbox" checked={ex.scene.allowPlayerEmotions} onChange={e => setEx(p => ({ ...p, scene: { ...p.scene, allowPlayerEmotions: e.target.checked } }))}/>
+            <span>Игрок может управлять эмоцией портрета</span>
+          </label>
         </div>
       </section>
 

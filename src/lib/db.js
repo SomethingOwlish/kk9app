@@ -533,6 +533,37 @@ export function collectStatusModifiers(activeStatuses = [], context = {}) {
   return { modifier, dieChange, successModifier };
 }
 
+// ── NPC Sheet (B-29) ────────────────────────────────────────
+export function watchNpcs(campaignId, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "characters"),
+    where("isNpc", "==", true)
+  );
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+export async function createNpc(campaignId, { name = "Новый НПС" } = {}) {
+  const ref = doc(collection(db, "campaigns", campaignId, "characters"));
+  await setDoc(ref, {
+    isNpc: true,
+    name,
+    attributes: {
+      agility:   { die: 6, mod: 0 },
+      smarts:    { die: 6, mod: 0 },
+      spirit:    { die: 6, mod: 0 },
+      endurance: { die: 6, mod: 0 },
+    },
+    skills: [],
+    health: { physical: { value: 0, toughness: 4 } },
+    overflow_damage: 0,
+    activeStatuses: [],
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+export async function deleteNpc(campaignId, charId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "characters", charId));
+}
+
 export const derive = {
   toughness: derivePhysicalToughness,
   energyMax: deriveEnergyMax,

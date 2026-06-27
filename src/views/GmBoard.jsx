@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { addToParty, removeFromParty, saveCampaignDebounced, setGmModeActive, clearGmMode } from "../lib/db";
+import { addToParty, removeFromParty, saveCampaignDebounced, setGmModeActive, clearGmMode, createNpc } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
 import PartyRow from "../components/PartyRow";
 import TimeRewindDialog from "../components/TimeRewindDialog";
+import NpcSheet from "./NpcSheet";
 
-export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings }) {
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], campaignStatuses = [] }) {
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
   const [rewindOpen, setRewindOpen] = useState(false);
+  const [openNpcId, setOpenNpcId] = useState(null);
+  const openNpc = openNpcId ? npcs.find(n => n.id === openNpcId) : null;
 
   const isGmMode = !!gmModeData?.active;
   const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
@@ -119,7 +122,39 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
           </div>
         </div>
       )}
+      <div className="kk-board-section">
+        <div className="kk-board-section-head">
+          <div className="kk-h2">НПС <span className="kk-count">{npcs.length}</span></div>
+          <button
+            className="kk-btn sm"
+            onClick={() => createNpc(CAMPAIGN_ID).then(id => setOpenNpcId(id)).catch(console.error)}
+          >
+            + Добавить НПС
+          </button>
+        </div>
+        {npcs.length === 0
+          ? <div className="kk-empty">Нет НПС. Нажмите «+ Добавить НПС» чтобы создать.</div>
+          : <div className="kk-board-addlist">
+              {npcs.map(n => (
+                <button key={n.id} className="kk-board-add-btn" onClick={() => setOpenNpcId(n.id)}>
+                  <span className="kk-board-add-av">{(n.name || "?")[0]}</span>
+                  <span className="kk-board-add-name">{n.name || "без имени"}</span>
+                  <span className="kk-board-add-sub">НПС</span>
+                </button>
+              ))}
+            </div>
+        }
+      </div>
     </div>
+
+    {openNpc && (
+      <NpcSheet
+        npc={openNpc}
+        campaignId={CAMPAIGN_ID}
+        campaignStatuses={campaignStatuses}
+        onClose={() => setOpenNpcId(null)}
+      />
+    )}
 
     {rewindOpen && (
       <TimeRewindDialog
