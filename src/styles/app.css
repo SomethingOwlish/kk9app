@@ -506,3 +506,18 @@
 
 /* ── Danger button variant ─────────────────────────────────── */
 .kk-btn.danger{background:var(--kk-danger-dim);border-color:var(--kk-danger);color:var(--kk-text);} .kk-btn.danger:hover{background:var(--kk-danger);}
+
+/* ── NPC Sheet (B-29) ───────────────────────────────────────── */
+.kk-npcsheet-overlay{position:fixed;inset:0;z-index:950;display:flex;align-items:center;justify-content:center;background:rgba(10,7,4,.65);backdrop-filter:blur(4px);}
+.kk-npcsheet{background:var(--kk-surface);border:1px solid var(--kk-line);border-radius:var(--kk-r);width:min(560px,94vw);max-height:90vh;display:flex;flex-direction:column;overflow-y:auto;}
+.kk-npcsheet-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 10px;border-bottom:1px solid var(--kk-line-soft);}
+.kk-npcsheet-name{flex:1;font-size:17px;font-family:var(--kk-font-d);margin-right:8px;}
+.kk-npcsheet-section{padding:14px 18px;border-bottom:1px solid var(--kk-line-soft);}
+.kk-npcsheet-attrs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+.kk-npcsheet-attr{display:flex;flex-direction:column;gap:4px;}
+.kk-npcsheet-attr label{font-size:12px;color:var(--kk-text-dim);}
+.kk-npcsheet-attr select,.kk-npcsheet-attr input{font-size:13px;}
+.kk-npcsheet-mod{width:70px;}
+.kk-npcsheet-footer{display:flex;align-items:center;gap:8px;padding:12px 18px;margin-top:auto;}
+.kk-npcsheet-confirm-label{font-size:13px;color:var(--kk-danger);flex:1;}
+.kk-h3{font-size:14px;font-family:var(--kk-font-d);color:var(--kk-gold);letter-spacing:.04em;margin-bottom:6px;}
