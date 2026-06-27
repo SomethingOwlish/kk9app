@@ -38,6 +38,8 @@ function parseRewind(campaign) {
     idleExpPerDay:        campaign?.idleExpPerDay        ?? 5,
     graduateDailyExpense: campaign?.graduateDailyExpense ?? 0,
     salaryByGrade:        campaign?.salaryByGrade        ?? {},
+    semesterBreak1:       campaign?.semesterBreak1       ?? "",
+    semesterBreak2:       campaign?.semesterBreak2       ?? "",
   };
 }
 
@@ -45,6 +47,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   const [d, setD] = useState(() => advSettings(advancementConfig));
   const [cg, setCg] = useState(() => parseChargen(campaign));
   const [rw, setRw] = useState(() => parseRewind(campaign));
+  const [journalThreshold, setJournalThreshold] = useState(() => campaign?.journalArchiveThreshold ?? 20);
 
   const setIn = (g, k, v) => setD(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
   const setCgIn = (g, k, v) => setCg(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
@@ -57,7 +60,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   );
 
   function handleSave() {
-    onSave({ advancement: d, chargen: cg, rewind: rw });
+    onSave({ advancement: d, chargen: cg, rewind: rw, journalArchiveThreshold: journalThreshold });
   }
 
   return (
@@ -158,10 +161,49 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
             />
           ))}
         </div>
+        <div className="kk-form-grid" style={{ marginTop: 12 }}>
+          <label className="kk-field">
+            <span>Каникулы 1 (ММ-ДД)</span>
+            <input
+              className="kk-input sm"
+              type="text"
+              placeholder="01-15"
+              value={rw.semesterBreak1}
+              onChange={e => setRw(p => ({ ...p, semesterBreak1: e.target.value }))}
+            />
+          </label>
+          <label className="kk-field">
+            <span>Каникулы 2 (ММ-ДД)</span>
+            <input
+              className="kk-input sm"
+              type="text"
+              placeholder="06-01"
+              value={rw.semesterBreak2}
+              onChange={e => setRw(p => ({ ...p, semesterBreak2: e.target.value }))}
+            />
+          </label>
+        </div>
+        {rw.idleExpPerDay > 0 && (
+          <p className="kk-note" style={{ marginTop: 8 }}>
+            За неделю простоя: {(rw.idleExpPerDay * 7).toFixed(1)} опыта
+          </p>
+        )}
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Журнал</h2>
+        <p className="kk-note">После достижения лимита старые записи автоматически архивируются.</p>
+        <div className="kk-form-grid">
+          <SettingsField
+            label="Лимит страниц до архивации"
+            value={journalThreshold}
+            onChange={e => setJournalThreshold(Number(e.target.value) || 20)}
+          />
+        </div>
       </section>
 
       <div className="kk-edit-foot">
-        <button className="kk-btn ghost" onClick={() => { setD(structuredClone(DEFAULT_ADVANCEMENT)); setCg(structuredClone(DEFAULT_CHARGEN)); }}>Сбросить к дефолтам</button>
+        <button className="kk-btn ghost" onClick={() => { setD(structuredClone(DEFAULT_ADVANCEMENT)); setCg(structuredClone(DEFAULT_CHARGEN)); setJournalThreshold(20); }}>Сбросить к дефолтам</button>
         <button className="kk-btn primary" onClick={handleSave}>Сохранить</button>
       </div>
     </div>

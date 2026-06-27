@@ -59,19 +59,20 @@ function PageForm({ initial, onSave, onCancel }) {
   );
 }
 
-export default function JournalView({ isGM }) {
+export default function JournalView({ isGM, campaign }) {
   const [stream, setStream] = useState("campaign");
   const [pages, setPages] = useState([]);
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState(null);
 
+  const archiveThreshold = campaign?.journalArchiveThreshold ?? 20;
   const visibleStreams = isGM ? STREAMS : STREAMS.filter(s => !s.gmOnly);
   // Clamp stream to a visible stream without calling setState inside an effect.
   const effectiveStream = visibleStreams.some(s => s.id === stream) ? stream : "campaign";
 
   useEffect(() => {
-    return watchJournalPages(CAMPAIGN_ID, effectiveStream, setPages);
-  }, [effectiveStream]);
+    return watchJournalPages(CAMPAIGN_ID, effectiveStream, setPages, archiveThreshold);
+  }, [effectiveStream, archiveThreshold]);
 
   const handleAdd = async ({ title, body }) => {
     await addJournalPage(CAMPAIGN_ID, stream, { title, body });

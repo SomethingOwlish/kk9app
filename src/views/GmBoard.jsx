@@ -4,7 +4,7 @@ import { CAMPAIGN_ID } from "../lib/config";
 import PartyRow from "../components/PartyRow";
 import TimeRewindDialog from "../components/TimeRewindDialog";
 
-export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar }) {
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings }) {
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
@@ -18,6 +18,13 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
   return (
     <>
     <div className="kk-board">
+
+      <div className="kk-board-topbar">
+        <div className="kk-h2">ГМ Борд</div>
+        {onSettings && (
+          <button className="kk-btn ghost sm" onClick={onSettings}>⚙ Настройки</button>
+        )}
+      </div>
 
       <div className={`kk-board-gmmode ${isGmMode ? "on" : ""}`}>
         <div className="kk-board-gmmode-info">
