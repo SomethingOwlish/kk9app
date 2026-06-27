@@ -395,3 +395,23 @@
 .kk-rewind-newdate strong{color:var(--kk-gold);}
 .kk-board-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .kk-error{font-size:13px;color:var(--kk-danger);padding:8px 12px;background:color-mix(in srgb,var(--kk-danger) 10%,transparent);border-radius:var(--kk-r-sm);}
+
+/* ── Status Effects (B-27) ─────────────────────────────────── */
+.kk-status-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:28px;}
+.kk-status-chip{position:relative;display:inline-flex;align-items:center;gap:3px;font-size:18px;cursor:default;padding:2px 4px;border-radius:6px;background:var(--kk-stone);border:1px solid var(--kk-line-soft);transition:border-color .15s;}
+.kk-status-chip:hover{border-color:var(--kk-gold);}
+.kk-status-remove{position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:var(--kk-danger);color:#fff;font-size:9px;display:grid;place-items:center;opacity:0;transition:opacity .15s;border:none;cursor:pointer;padding:0;line-height:1;}
+.kk-status-chip:hover .kk-status-remove{opacity:1;}
+.kk-status-add{font-size:16px;width:28px;height:28px;border-radius:6px;border:1px dashed var(--kk-line-soft);background:none;color:var(--kk-text-faint);cursor:pointer;display:grid;place-items:center;transition:border-color .15s,color .15s;}
+.kk-status-add:hover{border-color:var(--kk-gold);color:var(--kk-gold);}
+.kk-empty-sm{font-size:12px;color:var(--kk-text-faint);padding:4px 0;}
+.kk-status-modal .kk-modal-body{gap:10px;}
+.kk-status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;}
+.kk-status-pick{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line-soft);background:var(--kk-stone);cursor:pointer;transition:border-color .15s,background .15s;}
+.kk-status-pick:hover{border-color:var(--kk-gold-dim);background:var(--kk-surface);}
+.kk-status-pick.active{border-color:var(--kk-gold);background:color-mix(in srgb,var(--kk-gold) 10%,transparent);}
+.kk-status-pick.applied{opacity:.55;}
+.kk-status-pick-icon{font-size:22px;}
+.kk-status-pick-name{font-size:10px;color:var(--kk-text-dim);text-align:center;line-height:1.2;}
+.kk-status-pick-badge{position:absolute;top:4px;right:4px;font-size:9px;color:var(--kk-gold);}
+
