@@ -506,3 +506,8 @@
 
 /* ── Danger button variant ─────────────────────────────────── */
 .kk-btn.danger{background:var(--kk-danger-dim);border-color:var(--kk-danger);color:var(--kk-text);} .kk-btn.danger:hover{background:var(--kk-danger);}
+
+/* ── Portrait upload (B-37) ─────────────────────────────────── */
+.kk-portrait-upload{display:flex;flex-direction:column;gap:6px;}
+.kk-portrait-preview{width:88px;height:88px;object-fit:cover;border-radius:var(--kk-r);border:1px solid var(--kk-line);background:var(--kk-stone);}
+.kk-portrait-controls{display:flex;align-items:center;gap:8px;}
