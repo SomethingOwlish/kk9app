@@ -16,6 +16,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
   const save = (patch) => saveCampaignDebounced(CAMPAIGN_ID, patch);
 
   return (
+    <>
     <div className="kk-board">
 
       <div className={`kk-board-gmmode ${isGmMode ? "on" : ""}`}>
@@ -67,7 +68,17 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
       </div>
 
       <div className="kk-board-section">
-        <div className="kk-h2">Отряд <span className="kk-count">{partyMembers.length}</span></div>
+        <div className="kk-board-section-head">
+          <div className="kk-h2">Отряд <span className="kk-count">{partyMembers.length}</span></div>
+          <button
+            className="kk-btn sm"
+            onClick={() => setShowRewind(true)}
+            disabled={partyMembers.length === 0 || !campaign?.gameDate}
+            title="Тайм-ревинд"
+          >
+            ↺ Тайм-ревинд
+          </button>
+        </div>
         {partyMembers.length === 0
           ? <div className="kk-empty">Никого в отряде. Добавьте персонажей ниже.</div>
           : <div className="kk-party-rows">
@@ -113,5 +124,14 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
         />
       )}
     </div>
+
+    {showRewind && (
+      <TimeRewindDialog
+        campaign={campaign}
+        partyMembers={partyMembers}
+        onClose={() => setShowRewind(false)}
+      />
+    )}
+    </>
   );
 }
