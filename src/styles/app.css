@@ -299,6 +299,12 @@
 .kk-qa-btn{width:30px;height:30px;border-radius:7px;border:1px solid var(--kk-line);font-size:14px;display:grid;place-items:center;color:var(--kk-text-dim);}
 .kk-qa-btn:hover{border-color:var(--kk-gold);color:var(--kk-gold);}
 .kk-qa-remove{border-color:transparent;font-size:11px;} .kk-qa-remove:hover{border-color:var(--kk-danger);color:var(--kk-danger);}
+.kk-qa-modal-overlay{position:fixed;inset:0;z-index:950;display:flex;align-items:center;justify-content:center;background:rgba(10,7,4,.6);backdrop-filter:blur(3px);}
+.kk-qa-modal{background:var(--kk-surface);border:1px solid var(--kk-line);border-radius:var(--kk-r);padding:20px 24px;min-width:240px;display:flex;flex-direction:column;gap:12px;}
+.kk-qa-modal-title{font-family:var(--kk-font-d);font-size:16px;color:var(--kk-text);}
+.kk-qa-modal-input{text-align:center;font-size:22px;font-family:var(--kk-font-d);}
+.kk-qa-modal-hint{font-size:11px;color:var(--kk-text-dim);text-align:center;}
+.kk-qa-modal-btns{display:flex;gap:8px;justify-content:flex-end;}
 .kk-board-addlist{display:flex;flex-direction:column;gap:6px;}
 .kk-board-add-btn{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line-soft);background:var(--kk-surface);font-size:13px;color:var(--kk-text-dim);text-align:left;transition:border-color .12s;}
 .kk-board-add-btn:hover{border-color:var(--fac-color);color:var(--kk-text);}
