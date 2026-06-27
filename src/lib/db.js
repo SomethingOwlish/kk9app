@@ -335,6 +335,103 @@ export async function addMoney(campaignId, charId, amount) {
   await updateDoc(ref, { money: (snap.data().money ?? 0) + amount });
 }
 
+// ── Time Rewind (B-12) ───────────────────────────────────────
+// Computes per-character proposals for N idle days.
+export function buildTimeRewindProposals(partyMembers, days, campaign) {
+  return partyMembers.map((ch) => {
+    const idleXp = Math.round((campaign.idleExpPerDay ?? 5) * days);
+    const salary = campaign.salaryByGrade?.[ch.academyYear] ?? 0;
+    const graduateExpense = Math.round((campaign.graduateDailyExpense ?? 0) * days);
+    const moneyDelta = salary - graduateExpense;
+    const tensionReduction = Math.min(ch.tension?.current ?? 0, days);
+    return {
+      charId: ch.id,
+      name: ch.name || "—",
+      xpDelta: idleXp,
+      moneyDelta,
+      energyTo: ch.energy?.max ?? 0,
+      healthPhysTo: 0,
+      healthMentTo: 0,
+      tensionDelta: -tensionReduction,
+    };
+  });
+}
+
+function _advanceDate(gameDate, days) {
+  if (!gameDate) return null;
+  const d = new Date(gameDate);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Applies time rewind independently per character (D-20: partial failure OK).
+// Returns array of { charId, ok, error }.
+export async function applyTimeRewind(campaignId, proposals, days, currentGameDate) {
+  const results = await Promise.allSettled(
+    proposals.map(({ charId, xpDelta, moneyDelta, energyTo, healthPhysTo, healthMentTo, tensionDelta }) => {
+      const ref = doc(db, "campaigns", campaignId, "characters", charId);
+      return getDoc(ref).then((snap) => {
+        if (!snap.exists()) throw new Error("not found");
+        const ch = snap.data();
+        return updateDoc(ref, {
+          experience: (ch.experience ?? 0) + xpDelta,
+          money: (ch.money ?? 0) + moneyDelta,
+          "energy.value": energyTo,
+          "health.physical.value": healthPhysTo,
+          "health.mental.value": healthMentTo,
+          "tension.current": Math.max(0, (ch.tension?.current ?? 0) + tensionDelta),
+        });
+      });
+    })
+  );
+  const newDate = _advanceDate(currentGameDate, days);
+  if (newDate) {
+    await updateDoc(doc(db, "campaigns", campaignId), { gameDate: newDate });
+  }
+  return proposals.map((p, i) => ({
+    charId: p.charId,
+    ok: results[i].status === "fulfilled",
+    error: results[i].reason?.message,
+  }));
+}
+
+// ── Journal (B-13) ───────────────────────────────────────────
+// Streams: "campaign" | "worldNews" | "gmPrivate"
+// Path: campaigns/{id}/journal/{stream}/pages/{pageId}
+export function watchJournalPages(campaignId, stream, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "journal", stream, "pages"),
+    where("isArchived", "==", false),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(q, (snap) => {
+    const pages = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cb(pages);
+    // Auto-archive when active page count exceeds threshold
+    const threshold = 20;
+    if (pages.length > threshold) {
+      const batch = writeBatch(db);
+      pages.slice(threshold).forEach((p) => {
+        batch.update(doc(db, "campaigns", campaignId, "journal", stream, "pages", p.id), { isArchived: true });
+      });
+      batch.commit().catch(console.error);
+    }
+  });
+}
+
+export async function addJournalPage(campaignId, stream, { title, body }) {
+  const ref = collection(db, "campaigns", campaignId, "journal", stream, "pages");
+  return addDoc(ref, { title, body: body ?? "", isArchived: false, createdAt: serverTimestamp() });
+}
+
+export async function editJournalPage(campaignId, stream, pageId, { title, body }) {
+  await updateDoc(doc(db, "campaigns", campaignId, "journal", stream, "pages", pageId), { title, body });
+}
+
+export async function deleteJournalPage(campaignId, stream, pageId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "journal", stream, "pages", pageId));
+}
+
 export const derive = {
   toughness: derivePhysicalToughness,
   energyMax: deriveEnergyMax,
