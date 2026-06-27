@@ -335,6 +335,54 @@ export async function addMoney(campaignId, charId, amount) {
   await updateDoc(ref, { money: (snap.data().money ?? 0) + amount });
 }
 
+// ── Time Rewind (B-12) ──────────────────────────────────────
+// Applies per-character proposals and advances campaign gameDate.
+// Each character is updated independently — partial failure is acceptable (D-20).
+export async function applyTimeRewind(campaignId, partyMembers, proposals, newDate, days) {
+  for (const ch of partyMembers) {
+    const p = proposals[ch.id];
+    if (!p) continue;
+    const ref = doc(db, "campaigns", campaignId, "characters", ch.id);
+    try {
+      const patch = {};
+      const xpGain = p.idleXp + p.semesterBonus;
+      if (xpGain > 0) patch.experience = (ch.experience ?? 0) + xpGain;
+      if (p.moneyDelta !== 0) patch.money = Math.max(0, (ch.money ?? 0) + p.moneyDelta);
+      // Restore energy to max
+      patch["energy.value"] = ch.energy?.max ?? ch.energy?.value ?? 0;
+      if (p.healthRegen > 0) {
+        patch["health.physical.value"] = Math.max(0, (ch.health?.physical?.value ?? 0) - p.healthRegen);
+      }
+      if (p.mentalRegen > 0) {
+        patch["health.mental.value"] = Math.max(0, (ch.health?.mental?.value ?? 0) - p.mentalRegen);
+      }
+      if (p.tensionReduce > 0) {
+        const newTension = Math.max(0, (ch.tension?.current ?? 0) - p.tensionReduce);
+        patch["tension.current"] = newTension;
+        if (newTension <= 0) {
+          patch["tension.overcap"] = 0;
+          patch["tension.energyPenalty"] = 0;
+        }
+      }
+      // Status counter tick — decrement durationRemaining, remove expired statuses
+      if (ch.activeStatuses?.length > 0) {
+        const ticked = ch.activeStatuses
+          .map(s => s.durationMode === "counter"
+            ? { ...s, durationRemaining: Math.max(0, (s.durationRemaining ?? 1) - days) }
+            : s)
+          .filter(s => !(s.durationMode === "counter" && (s.durationRemaining ?? 0) <= 0));
+        patch.activeStatuses = ticked;
+      }
+      await updateDoc(ref, patch);
+    } catch (e) {
+      console.error(`TimeRewind: skip char ${ch.id}:`, e);
+    }
+  }
+  if (newDate) {
+    await updateDoc(doc(db, "campaigns", campaignId), { gameDate: newDate });
+  }
+}
+
 export const derive = {
   toughness: derivePhysicalToughness,
   energyMax: deriveEnergyMax,
