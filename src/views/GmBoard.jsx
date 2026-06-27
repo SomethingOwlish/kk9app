@@ -2,11 +2,13 @@ import { useState } from "react";
 import { addToParty, removeFromParty, saveCampaignDebounced, setGmModeActive, clearGmMode } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
 import PartyRow from "../components/PartyRow";
+import TimeRewindDialog from "../components/TimeRewindDialog";
 
 export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar }) {
   const gameDate  = campaign?.gameDate  ?? "";
-  const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
-  const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
+  const [weather,    setWeather]    = useState(() => campaign?.weather   ?? "");
+  const [worldNote,  setWorldNote]  = useState(() => campaign?.worldNote ?? "");
+  const [showRewind, setShowRewind] = useState(false);
 
   const isGmMode = !!gmModeData?.active;
   const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
@@ -14,6 +16,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
   const save = (patch) => saveCampaignDebounced(CAMPAIGN_ID, patch);
 
   return (
+    <>
     <div className="kk-board">
 
       <div className={`kk-board-gmmode ${isGmMode ? "on" : ""}`}>
@@ -62,7 +65,17 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
       </div>
 
       <div className="kk-board-section">
-        <div className="kk-h2">Отряд <span className="kk-count">{partyMembers.length}</span></div>
+        <div className="kk-board-section-head">
+          <div className="kk-h2">Отряд <span className="kk-count">{partyMembers.length}</span></div>
+          <button
+            className="kk-btn sm"
+            onClick={() => setShowRewind(true)}
+            disabled={partyMembers.length === 0 || !campaign?.gameDate}
+            title="Тайм-ревинд"
+          >
+            ↺ Тайм-ревинд
+          </button>
+        </div>
         {partyMembers.length === 0
           ? <div className="kk-empty">Никого в отряде. Добавьте персонажей ниже.</div>
           : <div className="kk-party-rows">
@@ -100,5 +113,14 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
         </div>
       )}
     </div>
+
+    {showRewind && (
+      <TimeRewindDialog
+        campaign={campaign}
+        partyMembers={partyMembers}
+        onClose={() => setShowRewind(false)}
+      />
+    )}
+    </>
   );
 }
