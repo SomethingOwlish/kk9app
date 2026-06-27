@@ -464,23 +464,75 @@ export async function deleteJournalPage(campaignId, stream, pageId) {
 }
 
 // ── Status Effects (B-27) ────────────────────────────────────
-// Applies a status instance to character.activeStatuses[] (arrayUnion).
+// Status DEFINITIONS subcollection: campaigns/{id}/statuses/{statusId}
+// Status INSTANCES on characters: character.activeStatuses[]
+
+export function watchStatuses(campaignId, cb) {
+  const ref = collection(db, "campaigns", campaignId, "statuses");
+  return onSnapshot(ref, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+export async function createStatus(campaignId, data) {
+  const ref = collection(db, "campaigns", campaignId, "statuses");
+  return addDoc(ref, { ...data, createdAt: serverTimestamp() });
+}
+export async function updateStatus(campaignId, statusId, data) {
+  await updateDoc(doc(db, "campaigns", campaignId, "statuses", statusId), data);
+}
+export async function deleteStatus(campaignId, statusId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "statuses", statusId));
+}
+// Seeds statuses from STATUSES_DATA if collection is empty.
+export async function seedStatuses(campaignId, statusesData) {
+  const ref = collection(db, "campaigns", campaignId, "statuses");
+  const snap = await getDocs(ref);
+  if (!snap.empty) return snap.docs.length; // already seeded
+  const batch = writeBatch(db);
+  statusesData.forEach((s) => {
+    batch.set(doc(ref), { ...s, createdAt: serverTimestamp() });
+  });
+  await batch.commit();
+  return statusesData.length;
+}
+
+// Applies a status instance to character.activeStatuses[].
+// Instance includes: { _uid, definitionId, name, durationMode, durationRemaining, effects[], source }
 export async function applyStatus(campaignId, charId, instance) {
   const ref = doc(db, "campaigns", campaignId, "characters", charId);
   await updateDoc(ref, { activeStatuses: arrayUnion(instance) });
 }
 
 // Removes a specific status instance from character.activeStatuses[].
+// Must pass the exact same object that was stored (arrayRemove uses deep equality).
 export async function removeStatus(campaignId, charId, instance) {
   const ref = doc(db, "campaigns", campaignId, "characters", charId);
   await updateDoc(ref, { activeStatuses: arrayRemove(instance) });
 }
 
-// Collects roll_modifier statuses and returns their summed modifier value.
-export function collectStatusModifiers(activeStatuses = []) {
-  return activeStatuses
-    .filter(s => s.type === "roll_modifier" && typeof s.value === "number")
-    .reduce((sum, s) => sum + s.value, 0);
+// Returns summed numeric roll modifier for a given attribute/context from all active statuses.
+// context: { attribute: "agility"|"smarts"|"spirit"|"endurance"|"magic"|"initiative"|null }
+export function collectStatusModifiers(activeStatuses = [], context = {}) {
+  let modifier = 0;
+  let dieChange = 0;
+  let successModifier = 0;
+  for (const inst of activeStatuses) {
+    for (const eff of (inst.effects || [])) {
+      if (!eff.enabled || eff.type !== "roll_modifier") continue;
+      const rm = eff.roll_modifier || {};
+      const hits = rm.target_all
+        || (context.attribute === "agility"    && rm.target_agility)
+        || (context.attribute === "smarts"     && rm.target_smarts)
+        || (context.attribute === "spirit"     && rm.target_spirit)
+        || (context.attribute === "endurance"  && rm.target_endurance)
+        || (context.attribute === "magic"      && rm.target_magic)
+        || (context.attribute === "initiative" && (rm.target_initiative || rm.target_agility || rm.target_smarts));
+      if (hits) {
+        modifier        += rm.modifier        ?? 0;
+        dieChange       += rm.die_change      ?? 0;
+        successModifier += rm.success_modifier ?? 0;
+      }
+    }
+  }
+  return { modifier, dieChange, successModifier };
 }
 
 export const derive = {

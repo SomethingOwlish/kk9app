@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { advSettings, DEFAULT_ADVANCEMENT } from "../lib/advancement";
 import { DEFAULT_BACKGROUNDS } from "../lib/chargen";
+import { seedStatuses, createStatus } from "../lib/db";
+import { STATUSES_DATA } from "../lib/seed-statuses";
+import StatusCard from "./StatusCard";
 
 const DIE_OPTIONS = [4, 6, 8, 10, 12];
 
@@ -41,10 +44,45 @@ function parseRewind(campaign) {
   };
 }
 
-export default function CampaignSettings({ campaign, advancementConfig, onSave, onClose }) {
+export default function CampaignSettings({ campaign, advancementConfig, onSave, onClose, campaignId, campaignStatuses = [] }) {
   const [d, setD] = useState(() => advSettings(advancementConfig));
   const [cg, setCg] = useState(() => parseChargen(campaign));
   const [rw, setRw] = useState(() => parseRewind(campaign));
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState("");
+  const [editingStatus, setEditingStatus] = useState(null);
+  const [creating, setCreating] = useState(false);
+
+  async function handleSeedStatuses() {
+    if (!campaignId) return;
+    setSeeding(true); setSeedMsg("");
+    try {
+      const count = await seedStatuses(campaignId, STATUSES_DATA);
+      setSeedMsg(count === STATUSES_DATA.length
+        ? `Загружено ${count} статусов.`
+        : `Уже загружено (${campaignStatuses.length} статусов в базе).`);
+    } catch (e) { setSeedMsg("Ошибка: " + e.message); }
+    finally { setSeeding(false); }
+  }
+
+  async function handleCreateStatus() {
+    if (!campaignId) return;
+    setCreating(true);
+    try {
+      await createStatus(campaignId, {
+        name: "Новый статус",
+        status_types: [],
+        duration: { mode: "time", value: 1, auto_reduce: false },
+        effects: [],
+        progresses: false,
+        progress_every: 1,
+        progress_into_names: [],
+        description: "",
+        removal_instruction: "",
+      });
+    } catch (e) { alert("Ошибка: " + e.message); }
+    finally { setCreating(false); }
+  }
 
   const setIn = (g, k, v) => setD(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
   const setCgIn = (g, k, v) => setCg(p => ({ ...p, [g]: { ...p[g], [k]: v } }));
@@ -159,6 +197,48 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
           ))}
         </div>
       </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Статусы</h2>
+        <p className="kk-note">Библиотека статусов кампании. Загрузите стандартный набор или создайте свои.</p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button className="kk-btn" onClick={handleSeedStatuses} disabled={seeding}>
+            {seeding ? "Загрузка…" : `Загрузить стандартные (${STATUSES_DATA.length})`}
+          </button>
+          <button className="kk-btn" onClick={handleCreateStatus} disabled={creating}>
+            {creating ? "…" : "+ Новый статус"}
+          </button>
+          {seedMsg && <span className="kk-note" style={{ margin: 0 }}>{seedMsg}</span>}
+        </div>
+
+        {campaignStatuses.length > 0 && (
+          <div className="kk-status-def-list">
+            {[...campaignStatuses].sort((a, b) => a.name.localeCompare(b.name, "ru")).map(s => (
+              <div key={s.id} className="kk-status-def-row" onClick={() => setEditingStatus(s)}>
+                <span className="kk-status-def-name">{s.name}</span>
+                <span className="kk-status-def-dur">
+                  {s.duration?.mode === "time" ? "время" : s.duration?.mode === "charges" ? `${s.duration.value} зарядов` : `${s.duration.value} раундов`}
+                </span>
+                {s.effects?.length > 0 && (
+                  <span className="kk-status-def-efx">{s.effects.length} эфф.</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {campaignStatuses.length === 0 && (
+          <div className="kk-empty-sm">Статусы не загружены. Нажмите «Загрузить стандартные».</div>
+        )}
+      </section>
+
+      {editingStatus && (
+        <StatusCard
+          status={editingStatus}
+          campaignId={campaignId}
+          isGM={true}
+          onClose={() => setEditingStatus(null)}
+        />
+      )}
 
       <div className="kk-edit-foot">
         <button className="kk-btn ghost" onClick={() => { setD(structuredClone(DEFAULT_ADVANCEMENT)); setCg(structuredClone(DEFAULT_CHARGEN)); }}>Сбросить к дефолтам</button>

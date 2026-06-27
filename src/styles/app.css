@@ -415,3 +415,70 @@
 .kk-status-pick-name{font-size:10px;color:var(--kk-text-dim);text-align:center;line-height:1.2;}
 .kk-status-pick-badge{position:absolute;top:4px;right:4px;font-size:9px;color:var(--kk-gold);}
 
+
+/* ── Status chip names (B-27) ──────────────────────────────── */
+.kk-status-chip{cursor:pointer;}
+.kk-status-chip-name{font-size:12px;font-weight:500;color:var(--kk-text);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;}
+
+/* ── Modal backdrop (shared by StatusCard and StatusEditor) ── */
+.kk-modal-backdrop{position:fixed;inset:0;z-index:950;background:rgba(10,7,4,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;}
+
+/* ── StatusCard modal ─────────────────────────────────────── */
+.kk-sc-modal{background:var(--kk-surface);border:1px solid var(--kk-line);border-radius:var(--kk-r);width:min(520px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
+.kk-sc-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--kk-line-soft);}
+.kk-sc-name{font-family:var(--kk-font-d);font-size:17px;font-weight:600;}
+.kk-sc-close{font-size:16px;color:var(--kk-text-dim);padding:4px 8px;border-radius:6px;} .kk-sc-close:hover{color:var(--kk-gold);}
+.kk-sc-body{padding:16px 18px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;}
+.kk-sc-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--kk-text-faint);margin-bottom:3px;}
+.kk-sc-duration{font-size:13px;color:var(--kk-text-dim);}
+.kk-sc-types{display:flex;flex-wrap:wrap;gap:4px;}
+.kk-sc-type-tag{font-size:11px;padding:2px 8px;border-radius:4px;background:var(--kk-stone);border:1px solid var(--kk-line-soft);color:var(--kk-text-dim);}
+.kk-sc-effects{display:flex;flex-direction:column;gap:5px;}
+.kk-sc-effect{padding:7px 10px;border-radius:var(--kk-r-sm);border-left:3px solid var(--kk-line-soft);background:var(--kk-stone);display:flex;flex-direction:column;gap:2px;}
+.kk-sc-effect--roll_modifier{border-left-color:var(--kk-gold-dim);}
+.kk-sc-effect--health{border-left-color:var(--kk-danger-dim);}
+.kk-sc-effect--energy{border-left-color:#2d6a4f;}
+.kk-sc-effect--tension{border-left-color:var(--kk-tension);}
+.kk-sc-effect--off{opacity:.45;}
+.kk-sc-eff-type{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--kk-text-faint);}
+.kk-sc-eff-off{font-size:11px;color:var(--kk-text-faint);}
+.kk-sc-eff-body{font-size:13px;color:var(--kk-text-dim);}
+.kk-sc-progress,.kk-sc-duration{font-size:13px;color:var(--kk-text-dim);}
+.kk-sc-desc p,.kk-sc-removal p{font-size:13px;color:var(--kk-text-dim);margin:4px 0 0;line-height:1.55;}
+.kk-sc-removal{padding:8px 10px;border-radius:var(--kk-r-sm);background:color-mix(in srgb,var(--kk-gold) 6%,transparent);border:1px solid var(--kk-gold-dim);}
+.kk-sc-field{display:flex;flex-direction:column;gap:4px;font-size:13px;}
+.kk-sc-field span:first-child{color:var(--kk-text-faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.kk-sc-field--cb{flex-direction:row;align-items:center;gap:6px;}
+.kk-sc-dur-row{display:flex;flex-wrap:wrap;gap:10px;}
+.kk-sc-edit-note{font-size:11px;color:var(--kk-text-faint);}
+.kk-sc-edit-actions{display:flex;justify-content:space-between;gap:8px;margin-top:4px;}
+
+/* ── StatusEditor modal ────────────────────────────────────── */
+.kk-se-modal{background:var(--kk-surface);border:1px solid var(--kk-line);border-radius:var(--kk-r);width:min(480px,94vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
+.kk-se-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:1px solid var(--kk-line-soft);}
+.kk-se-title{font-family:var(--kk-font-d);font-size:17px;font-weight:600;}
+.kk-se-search{border-radius:0;border-left:none;border-right:none;border-top:none;margin:0;width:100%;border-bottom:1px solid var(--kk-line-soft);}
+.kk-se-list{overflow-y:auto;max-height:320px;display:flex;flex-direction:column;}
+.kk-se-empty{padding:18px;font-size:13px;color:var(--kk-text-faint);text-align:center;}
+.kk-se-item{display:flex;align-items:center;gap:8px;padding:9px 16px;cursor:pointer;transition:background .12s;border-bottom:1px solid var(--kk-line-soft);}
+.kk-se-item:hover{background:var(--kk-stone);}
+.kk-se-item--sel{background:color-mix(in srgb,var(--kk-gold) 10%,transparent);}
+.kk-se-item--active{opacity:.65;}
+.kk-se-item-name{flex:1;font-size:13px;}
+.kk-se-item-dur{font-size:11px;color:var(--kk-text-faint);}
+.kk-se-item-badge{font-size:10px;color:var(--kk-gold);padding:1px 6px;border-radius:4px;border:1px solid var(--kk-gold-dim);}
+.kk-se-footer{padding:12px 16px;border-top:1px solid var(--kk-line-soft);display:flex;flex-direction:column;gap:8px;}
+.kk-se-desc{font-size:12px;color:var(--kk-text-faint);margin:0;line-height:1.5;}
+.kk-se-apply{width:100%;}
+
+/* ── Status definitions list in Settings ───────────────────── */
+.kk-status-def-list{display:flex;flex-direction:column;gap:2px;max-height:400px;overflow-y:auto;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r-sm);}
+.kk-status-def-row{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;transition:background .12s;border-bottom:1px solid var(--kk-line-soft);}
+.kk-status-def-row:last-child{border-bottom:none;}
+.kk-status-def-row:hover{background:var(--kk-stone);}
+.kk-status-def-name{flex:1;font-size:13px;}
+.kk-status-def-dur{font-size:11px;color:var(--kk-text-faint);}
+.kk-status-def-efx{font-size:10px;color:var(--kk-gold-dim);padding:1px 6px;border-radius:4px;background:var(--kk-stone);}
+
+/* ── Danger button variant ─────────────────────────────────── */
+.kk-btn.danger{background:var(--kk-danger-dim);border-color:var(--kk-danger);color:var(--kk-text);} .kk-btn.danger:hover{background:var(--kk-danger);}

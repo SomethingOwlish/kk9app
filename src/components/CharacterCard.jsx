@@ -4,6 +4,7 @@ import Stat from "./Stat";
 import HealthTrack from "./HealthTrack";
 import StatusBar from "./StatusBar";
 import StatusEditor from "./StatusEditor";
+import StatusCard from "./StatusCard";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus } from "../lib/db";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
@@ -17,7 +18,7 @@ const DEMO_FIELDS = [
   ["weaknesses", "Слабости"],
 ];
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId, campaignStatuses = [] }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -35,6 +36,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const [noteText, setNoteText] = useState("");
   const canAddNote = isOwner || isGM;
   const [statusEditorOpen, setStatusEditorOpen] = useState(false);
+  const [viewingStatus, setViewingStatus] = useState(null);
   const activeStatuses = Array.isArray(ch.activeStatuses) ? ch.activeStatuses : [];
   const showNotes = notes.length > 0 || canAddNote;
 
@@ -131,15 +133,30 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           isGM={isGM}
           onRemove={(s) => campaignId && removeStatus(campaignId, ch.id, s).catch(console.error)}
           onAdd={() => setStatusEditorOpen(true)}
+          onView={(s) => {
+            // Resolve to definition if possible (for full effects/description data)
+            const def = campaignStatuses.find(d => d.id === s.definitionId || d.name === s.name);
+            setViewingStatus(def || s);
+          }}
         />
-        {activeStatuses.length === 0 && !isGM && <div className="kk-empty-sm">Нет активных статусов</div>}
+        {activeStatuses.length === 0 && <div className="kk-empty-sm">Нет активных статусов</div>}
       </section>
 
       {statusEditorOpen && (
         <StatusEditor
+          campaignStatuses={campaignStatuses}
           activeStatuses={activeStatuses}
           onApply={(instance) => campaignId && applyStatus(campaignId, ch.id, instance).catch(console.error)}
           onClose={() => setStatusEditorOpen(false)}
+        />
+      )}
+
+      {viewingStatus && (
+        <StatusCard
+          status={viewingStatus}
+          campaignId={campaignId}
+          isGM={isGM}
+          onClose={() => setViewingStatus(null)}
         />
       )}
 
