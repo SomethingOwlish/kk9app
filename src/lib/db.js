@@ -239,15 +239,31 @@ export async function updateScene(campaignId, sceneId, data) {
 export async function deleteScene(campaignId, sceneId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "scenes", sceneId));
 }
-// Batch: deactivate all currently-active scenes, then activate the target.
+// Batch: deactivate all currently-active scenes, activate target, clear scene-duration statuses from party.
 export async function activateScene(campaignId, sceneId) {
-  const activeSnap = await getDocs(
-    query(collection(db, "campaigns", campaignId, "scenes"), where("isActive", "==", true)),
-  );
+  const [activeSnap, campaignSnap] = await Promise.all([
+    getDocs(query(collection(db, "campaigns", campaignId, "scenes"), where("isActive", "==", true))),
+    getDoc(doc(db, "campaigns", campaignId)),
+  ]);
   const batch = writeBatch(db);
   activeSnap.docs.forEach((d) => batch.update(d.ref, { isActive: false }));
   batch.update(doc(db, "campaigns", campaignId, "scenes", sceneId), { isActive: true });
   await batch.commit();
+
+  // Clear durationMode=scene statuses from all party characters.
+  const partyIds = campaignSnap.data()?.partyRefs || [];
+  if (partyIds.length > 0) {
+    await Promise.allSettled(partyIds.map(async (charId) => {
+      const ref = doc(db, "campaigns", campaignId, "characters", charId);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return;
+      const statuses = snap.data().activeStatuses || [];
+      const cleared = statuses.filter(s => s.durationMode !== "scene");
+      if (cleared.length !== statuses.length) {
+        await updateDoc(ref, { activeStatuses: cleared });
+      }
+    }));
+  }
 }
 export async function deactivateAllScenes(campaignId) {
   const activeSnap = await getDocs(
@@ -376,6 +392,14 @@ export async function applyTimeRewind(campaignId, proposals, days, currentGameDa
       return getDoc(ref).then((snap) => {
         if (!snap.exists()) throw new Error("not found");
         const ch = snap.data();
+        // Tick counter-duration statuses: decrement durationRemaining, remove at 0.
+        const statuses = ch.activeStatuses || [];
+        const tickedStatuses = statuses
+          .map(s => s.durationMode === "counter" && s.durationRemaining != null
+            ? { ...s, durationRemaining: s.durationRemaining - 1 }
+            : s)
+          .filter(s => !(s.durationMode === "counter" && (s.durationRemaining ?? 1) <= 0));
+
         return updateDoc(ref, {
           experience: (ch.experience ?? 0) + xpDelta,
           money: (ch.money ?? 0) + moneyDelta,
@@ -383,6 +407,7 @@ export async function applyTimeRewind(campaignId, proposals, days, currentGameDa
           "health.physical.value": healthPhysTo,
           "health.mental.value": healthMentTo,
           "tension.current": Math.max(0, (ch.tension?.current ?? 0) + tensionDelta),
+          activeStatuses: tickedStatuses,
         });
       });
     })
@@ -434,6 +459,26 @@ export async function editJournalPage(campaignId, stream, pageId, { title, body 
 
 export async function deleteJournalPage(campaignId, stream, pageId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "journal", stream, "pages", pageId));
+}
+
+// ── Status Effects (B-27) ────────────────────────────────────
+// Applies a status instance to character.activeStatuses[] (arrayUnion).
+export async function applyStatus(campaignId, charId, instance) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  await updateDoc(ref, { activeStatuses: arrayUnion(instance) });
+}
+
+// Removes a specific status instance from character.activeStatuses[].
+export async function removeStatus(campaignId, charId, instance) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  await updateDoc(ref, { activeStatuses: arrayRemove(instance) });
+}
+
+// Collects roll_modifier statuses and returns their summed modifier value.
+export function collectStatusModifiers(activeStatuses = []) {
+  return activeStatuses
+    .filter(s => s.type === "roll_modifier" && typeof s.value === "number")
+    .reduce((sum, s) => sum + s.value, 0);
 }
 
 export const derive = {

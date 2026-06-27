@@ -2,7 +2,10 @@ import { useState } from "react";
 import Tip from "./Tip";
 import Stat from "./Stat";
 import HealthTrack from "./HealthTrack";
+import StatusBar from "./StatusBar";
+import StatusEditor from "./StatusEditor";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
+import { applyStatus, removeStatus } from "../lib/db";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
 
 const DEMO_FIELDS = [
@@ -14,7 +17,7 @@ const DEMO_FIELDS = [
   ["weaknesses", "Слабости"],
 ];
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -31,6 +34,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const notes = Array.isArray(ch.notes) ? ch.notes : [];
   const [noteText, setNoteText] = useState("");
   const canAddNote = isOwner || isGM;
+  const [statusEditorOpen, setStatusEditorOpen] = useState(false);
+  const activeStatuses = Array.isArray(ch.activeStatuses) ? ch.activeStatuses : [];
   const showNotes = notes.length > 0 || canAddNote;
 
   function submitNote(e) {
@@ -118,6 +123,25 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           )}
         </div>
       </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Статусы</h2>
+        <StatusBar
+          statuses={activeStatuses}
+          isGM={isGM}
+          onRemove={(s) => campaignId && removeStatus(campaignId, ch.id, s).catch(console.error)}
+          onAdd={() => setStatusEditorOpen(true)}
+        />
+        {activeStatuses.length === 0 && !isGM && <div className="kk-empty-sm">Нет активных статусов</div>}
+      </section>
+
+      {statusEditorOpen && (
+        <StatusEditor
+          activeStatuses={activeStatuses}
+          onApply={(instance) => campaignId && applyStatus(campaignId, ch.id, instance).catch(console.error)}
+          onClose={() => setStatusEditorOpen(false)}
+        />
+      )}
 
       <section className="kk-block">
         <h2 className="kk-h2">Атрибуты</h2>
