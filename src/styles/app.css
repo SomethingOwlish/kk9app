@@ -521,3 +521,7 @@
 .kk-npcsheet-footer{display:flex;align-items:center;gap:8px;padding:12px 18px;margin-top:auto;}
 .kk-npcsheet-confirm-label{font-size:13px;color:var(--kk-danger);flex:1;}
 .kk-h3{font-size:14px;font-family:var(--kk-font-d);color:var(--kk-gold);letter-spacing:.04em;margin-bottom:6px;}
+/* ── Portrait upload (B-37) ─────────────────────────────────── */
+.kk-portrait-upload{display:flex;flex-direction:column;gap:6px;}
+.kk-portrait-preview{width:88px;height:88px;object-fit:cover;border-radius:var(--kk-r);border:1px solid var(--kk-line);background:var(--kk-stone);}
+.kk-portrait-controls{display:flex;align-items:center;gap:8px;}
