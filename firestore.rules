@@ -133,6 +133,14 @@ service cloud.firestore {
         allow read:   if isGMOrAdmin(campaignId);
         allow create: if isMember(campaignId);
       }
+
+      // ── Status definitions (B-27) ─────────────────────────────────────────
+      // All members can read the status library; only GM/admin can write.
+
+      match /statuses/{statusId} {
+        allow read:  if isMember(campaignId);
+        allow write: if isGMOrAdmin(campaignId);
+      }
     }
   }
 }
