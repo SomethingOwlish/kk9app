@@ -92,11 +92,17 @@ export default function App({ user, signOut }) {
     try { await updateCharacterNow(CAMPAIGN_ID, activeId, patch); setEditing(false); }
     catch (e) { alert("Не удалось сохранить: " + (e?.message || e)); }
   }, [activeId, activeChar]);
-  const saveSettings = useCallback(async ({ advancement, chargen }) => {
+  const saveSettings = useCallback(async ({ advancement, chargen, rewind }) => {
     try {
+      const campaignPatch = { chargen };
+      if (rewind) {
+        campaignPatch.idleExpPerDay        = rewind.idleExpPerDay;
+        campaignPatch.graduateDailyExpense = rewind.graduateDailyExpense;
+        campaignPatch.salaryByGrade        = rewind.salaryByGrade;
+      }
       await Promise.all([
         saveAdvancementConfig(CAMPAIGN_ID, advancement),
-        updateCampaignNow(CAMPAIGN_ID, { chargen }),
+        updateCampaignNow(CAMPAIGN_ID, campaignPatch),
       ]);
       navigate("/");
     } catch (e) { alert("Не удалось сохранить настройки: " + (e?.message || e)); }

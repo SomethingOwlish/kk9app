@@ -88,7 +88,7 @@ service cloud.firestore {
       // gmPrivate must NOT have a separate broader rule that would bypass it.
       // The single rule below encodes both cases in one expression.
 
-      match /journal/{stream}/{pageId} {
+      match /journal/{stream}/pages/{pageId} {
         allow read: if (stream != "gmPrivate" && isMember(campaignId))
                     || isGMOrAdmin(campaignId);
         allow write: if isGMOrAdmin(campaignId);

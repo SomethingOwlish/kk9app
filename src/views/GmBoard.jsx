@@ -10,35 +10,10 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
   const [rewindOpen, setRewindOpen] = useState(false);
 
-  // Time rewind campaign settings (local state mirrors Firestore, saved debounced)
-  const [idleExpPerDay,        setIdleExpPerDay]        = useState(() => campaign?.idleExpPerDay        ?? 5);
-  const [graduateDailyExpense, setGraduateDailyExpense] = useState(() => campaign?.graduateDailyExpense ?? 0);
-  const [salaryByGrade,        setSalaryByGrade]        = useState(() => campaign?.salaryByGrade        ?? {});
-  const [rewindSettingsOpen,   setRewindSettingsOpen]   = useState(false);
-
   const isGmMode = !!gmModeData?.active;
   const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
 
   const save = (patch) => saveCampaignDebounced(CAMPAIGN_ID, patch);
-
-  const saveIdleExp = (val) => {
-    const n = Math.max(0, parseFloat(val) || 0);
-    setIdleExpPerDay(n);
-    save({ idleExpPerDay: n });
-  };
-
-  const saveGraduateExpense = (val) => {
-    const n = Math.max(0, parseFloat(val) || 0);
-    setGraduateDailyExpense(n);
-    save({ graduateDailyExpense: n });
-  };
-
-  const saveSalary = (grade, val) => {
-    const n = Math.max(0, parseInt(val) || 0);
-    const updated = { ...salaryByGrade, [grade]: n };
-    setSalaryByGrade(updated);
-    save({ salaryByGrade: updated });
-  };
 
   return (
     <>
@@ -87,52 +62,6 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
             />
           </div>
         </div>
-      </div>
-
-      <div className="kk-board-section">
-        <div className="kk-board-section-head">
-          <div className="kk-h2">Настройки тайм-ревинда</div>
-          <button className="kk-btn ghost sm" onClick={() => setRewindSettingsOpen(o => !o)}>
-            {rewindSettingsOpen ? "Скрыть" : "Показать"}
-          </button>
-        </div>
-        {rewindSettingsOpen && (
-          <div className="kk-form-grid" style={{ marginTop: 10 }}>
-            <div className="kk-field">
-              <label>Опыт в день (простой)</label>
-              <input
-                className="kk-input"
-                type="number"
-                min={0}
-                step={0.5}
-                value={idleExpPerDay}
-                onChange={e => saveIdleExp(e.target.value)}
-              />
-            </div>
-            <div className="kk-field">
-              <label>Расходы выпускника/день (₴)</label>
-              <input
-                className="kk-input"
-                type="number"
-                min={0}
-                value={graduateDailyExpense}
-                onChange={e => saveGraduateExpense(e.target.value)}
-              />
-            </div>
-            {[1, 2, 3, 4].map(grade => (
-              <div className="kk-field" key={grade}>
-                <label>Стипендия {grade} курс (₴/день)</label>
-                <input
-                  className="kk-input"
-                  type="number"
-                  min={0}
-                  value={salaryByGrade[grade] ?? 0}
-                  onChange={e => saveSalary(String(grade), e.target.value)}
-                />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="kk-board-section">
@@ -187,7 +116,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
 
     {rewindOpen && (
       <TimeRewindDialog
-        campaign={{ ...campaign, idleExpPerDay, graduateDailyExpense, salaryByGrade }}
+        campaign={campaign}
         partyMembers={partyMembers}
         onClose={() => setRewindOpen(false)}
       />

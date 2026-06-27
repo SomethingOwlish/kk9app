@@ -367,7 +367,9 @@ function _advanceDate(gameDate, days) {
 
 // Applies time rewind independently per character (D-20: partial failure OK).
 // Returns array of { charId, ok, error }.
-export async function applyTimeRewind(campaignId, proposals, days, currentGameDate) {
+// targetDate: explicit new game date string (YYYY-MM-DD); takes precedence over
+// computing it from currentGameDate+days, which avoids rounding/timezone issues.
+export async function applyTimeRewind(campaignId, proposals, days, currentGameDate, targetDate) {
   const results = await Promise.allSettled(
     proposals.map(({ charId, xpDelta, moneyDelta, energyTo, healthPhysTo, healthMentTo, tensionDelta }) => {
       const ref = doc(db, "campaigns", campaignId, "characters", charId);
@@ -385,7 +387,7 @@ export async function applyTimeRewind(campaignId, proposals, days, currentGameDa
       });
     })
   );
-  const newDate = _advanceDate(currentGameDate, days);
+  const newDate = targetDate || _advanceDate(currentGameDate, days);
   if (newDate) {
     await updateDoc(doc(db, "campaigns", campaignId), { gameDate: newDate });
   }
