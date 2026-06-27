@@ -150,6 +150,11 @@ export default function App({ user, signOut }) {
       <div className="kk-root">
         <div className="kk-bg" aria-hidden/>
         <ScenePlayerView isGM={isGM} onBack={() => navigate("/")}/>
+        {!isGM && (
+          <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню">
+            <span/><span/><span/>
+          </button>
+        )}
         <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs}/>
       </div>
     );
