@@ -6,12 +6,12 @@
   --kk-r:10px;--kk-r-sm:7px;--kk-tension:#9b59b6;--kk-font-d:'Playfair Display',Georgia,serif;--kk-font-b:'Golos Text',system-ui,sans-serif;
   position:relative;min-height:100vh;color:var(--kk-text);font-family:var(--kk-font-b);background:var(--kk-bg);
   -webkit-font-smoothing:antialiased;line-height:1.45;overflow:hidden;}
-.kk-root *{box-sizing:border-box;} .kk-root button{font-family:inherit;color:inherit;cursor:pointer;background:none;border:none;}
+.kk-root *{box-sizing:border-box;} .kk-root button{font-family:inherit;color:inherit;cursor:pointer;background:none;border:none;user-select:none;-webkit-user-select:none;}
 .kk-bg{position:absolute;inset:0;z-index:0;pointer-events:none;
   background:radial-gradient(120% 90% at 50% -10%,#271f15 0%,var(--kk-bg) 58%,#120f0b 100%),
   repeating-linear-gradient(118deg,transparent 0 40px,rgba(255,230,180,.014) 40px 41px),
   repeating-linear-gradient(32deg,transparent 0 52px,rgba(0,0,0,.20) 52px 53px);}
-.kk-shell{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:14px 14px 60px;}
+.kk-shell{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:14px 14px calc(60px + env(safe-area-inset-bottom,0px));}
 .kk-topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
 .kk-burger{width:34px;height:34px;flex:none;border:1px solid var(--kk-line);border-radius:8px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;}
 .kk-burger span{width:16px;height:2px;background:var(--kk-gold);border-radius:2px;} .kk-burger:hover{border-color:var(--kk-gold);}
@@ -21,7 +21,7 @@
 .kk-back{margin-left:auto;font-size:13px;color:var(--kk-text-dim);} .kk-back:hover{color:var(--kk-gold);}
 .kk-load,.kk-create{padding:30px 16px;color:var(--kk-text-dim);text-align:center;}
 .kk-create{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:380px;margin:20px auto;}
-.kk-input{width:100%;padding:9px 11px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line);background:var(--kk-stone);color:var(--kk-text);font-family:inherit;font-size:14px;}
+.kk-input{width:100%;padding:9px 11px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line);background:var(--kk-stone);color:var(--kk-text);font-family:inherit;font-size:16px;}
 .kk-input:focus{outline:none;border-color:var(--kk-gold);} .kk-input.sm{padding:6px 8px;font-size:13px;width:auto;}
 .kk-create-btn{width:100%;padding:12px;border-radius:9px;background:var(--kk-gold);color:#1a140c;font-weight:600;font-size:14px;}
 .kk-create-btn:hover:not(:disabled){background:var(--kk-gold-bright);} .kk-create-btn:disabled{opacity:.5;cursor:default;}
@@ -113,7 +113,7 @@
 .kk-field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--kk-text-dim);}
 .kk-attrs-edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;}
 .kk-attr-edit{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r-sm);background:var(--kk-surface);} .kk-attr-edit .kk-attr-name{flex:1;text-align:left;}
-.kk-skills-edit{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;}
+.kk-skills-edit{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;}
 .kk-skill-edit{display:flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r-sm);background:var(--kk-surface);}
 .kk-skill-edit .kk-skill-name{flex:1;} .kk-skill-attr2{font-size:10px;color:var(--kk-text-faint);text-transform:uppercase;width:34px;}
 .kk-custom-tag{font-size:9px;color:var(--kk-gold);border:1px solid var(--kk-gold-dim);border-radius:4px;padding:0 4px;margin-left:5px;text-transform:uppercase;}
@@ -195,7 +195,7 @@
 .kk-scene-btns{display:flex;gap:5px;flex:none;}
 @media (max-width:560px){.kk-scene-row{flex-wrap:wrap;} .kk-scene-btns{width:100%;} .kk-scene-heading{font-size:24px;}}
 /* — Responsive — */
-@media (max-width:560px){.kk-strip{grid-template-columns:1fr 1fr;} .kk-name{font-size:25px;} .kk-cell{width:32px;height:40px;} .kk-edit-bar{flex-direction:column;align-items:stretch;} .kk-adv-row{grid-template-columns:1fr auto auto auto;} .kk-adv-next{grid-column:1 / -1;text-align:left;}}
+@media (max-width:560px){.kk-strip{grid-template-columns:1fr 1fr;} .kk-name{font-size:22px;} .kk-cell{width:32px;height:40px;} .kk-edit-bar{flex-direction:column;align-items:stretch;} .kk-adv-row{grid-template-columns:1fr auto auto auto;} .kk-adv-next{grid-column:1 / -1;text-align:left;} .kk-step{width:44px;height:44px;} .kk-adv-plus{width:44px;height:44px;} .kk-adv-undo{width:44px;height:44px;}}
 
 /* — Player Notes (B-25) — */
 .kk-notes-list{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:6px;}
