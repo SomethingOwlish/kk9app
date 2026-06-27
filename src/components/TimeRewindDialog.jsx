@@ -139,6 +139,7 @@ export default function TimeRewindDialog({ campaign, partyMembers, onClose }) {
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
