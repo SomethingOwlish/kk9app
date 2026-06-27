@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Tip from "./Tip";
 import Stat from "./Stat";
 import HealthTrack from "./HealthTrack";
@@ -7,6 +7,7 @@ import StatusEditor from "./StatusEditor";
 import StatusCard from "./StatusCard";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus } from "../lib/db";
+import { uploadPortrait, validatePortraitFile } from "../lib/storage";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
 
 const DEMO_FIELDS = [
@@ -39,6 +40,34 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const [statusEditorOpen, setStatusEditorOpen] = useState(false);
   const [viewingStatus, setViewingStatus] = useState(null);
   const activeStatuses = Array.isArray(ch.activeStatuses) ? ch.activeStatuses : [];
+
+  const portraitRef = useRef(null);
+  const [portraitUploading, setPortraitUploading] = useState(false);
+  const [portraitError, setPortraitError] = useState("");
+  const canChangePortrait = isOwner || isGM;
+
+  async function handlePortraitClick() {
+    if (!canChangePortrait || portraitUploading) return;
+    portraitRef.current?.click();
+  }
+
+  async function handlePortraitFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const err = validatePortraitFile(file);
+    if (err) { setPortraitError(err); return; }
+    setPortraitError("");
+    setPortraitUploading(true);
+    try {
+      const url = await uploadPortrait(file, campaignId, ch.id);
+      save({ portrait: url });
+    } catch (e) {
+      setPortraitError("Ошибка: " + e.message);
+    } finally {
+      setPortraitUploading(false);
+    }
+  }
   const showNotes = notes.length > 0 || canAddNote;
 
   function submitNote(e) {
@@ -62,9 +91,23 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   return (
     <div className="kk-card">
       <header className="kk-head">
-        <div className="kk-portrait" style={{ ["--fac-color"]: fac.color || "#c8a14e" }}>
+        <div
+          className={`kk-portrait${canChangePortrait ? " kk-portrait--editable" : ""}${portraitUploading ? " kk-portrait--uploading" : ""}`}
+          style={{ ["--fac-color"]: fac.color || "#c8a14e" }}
+          onClick={handlePortraitClick}
+          title={canChangePortrait ? "Сменить портрет" : undefined}
+        >
           {ch.portrait ? <img src={ch.portrait} alt=""/> : <span className="kk-portrait-ph">{(ch.name || "?").slice(0, 1)}</span>}
+          {canChangePortrait && <span className="kk-portrait-overlay">{portraitUploading ? "…" : "✎"}</span>}
+          <input
+            ref={portraitRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            style={{ display: "none" }}
+            onChange={handlePortraitFile}
+          />
         </div>
+        {portraitError && <p className="kk-error kk-portrait-err">{portraitError}</p>}
         <div className="kk-head-main">
           <h1 className="kk-name">{ch.name}</h1>
           <div className="kk-head-tags">
