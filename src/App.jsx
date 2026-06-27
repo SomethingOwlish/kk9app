@@ -187,7 +187,7 @@ export default function App({ user, signOut }) {
           </div>
         </div>
       )}
-      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs}/>
+      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} hasChar={!!viewCh}/>
     </div>
   );
 }
