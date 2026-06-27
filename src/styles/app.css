@@ -277,6 +277,7 @@
 
 /* — GM Board (B-11) — */
 .kk-board{display:flex;flex-direction:column;gap:20px;}
+.kk-board-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .kk-board-section{display:flex;flex-direction:column;gap:10px;}
 .kk-board-gmmode{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line-soft);background:var(--kk-surface);}
 .kk-board-gmmode.on{border-color:var(--kk-danger-dim);background:color-mix(in srgb,var(--kk-danger) 8%,var(--kk-surface));}

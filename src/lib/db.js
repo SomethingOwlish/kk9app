@@ -426,7 +426,7 @@ export async function applyTimeRewind(campaignId, proposals, days, currentGameDa
 // ── Journal (B-13) ───────────────────────────────────────────
 // Streams: "campaign" | "worldNews" | "gmPrivate"
 // Path: campaigns/{id}/journal/{stream}/pages/{pageId}
-export function watchJournalPages(campaignId, stream, cb) {
+export function watchJournalPages(campaignId, stream, cb, threshold = 20) {
   // No compound filter: avoids requiring a composite Firestore index.
   // isArchived filtering is done client-side.
   const q = query(
@@ -438,8 +438,6 @@ export function watchJournalPages(campaignId, stream, cb) {
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((p) => !p.isArchived);
     cb(pages);
-    // Auto-archive when active page count exceeds threshold
-    const threshold = 20;
     if (pages.length > threshold) {
       const batch = writeBatch(db);
       pages.slice(threshold).forEach((p) => {
