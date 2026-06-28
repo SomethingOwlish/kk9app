@@ -1,0 +1,9 @@
+{
+  "pkg": "@kk9/asgard",
+  "globalName": "Asgard",
+  "shape": "package",
+  "provider": { "component": "Root" },
+  "cssEntry": "./design-system/src/styles.css",
+  "runtimeFontPrefixes": ["Playfair Display", "Golos Text"],
+  "projectId": "13fa815e-083e-4c37-adb3-7a1062183712"
+}
