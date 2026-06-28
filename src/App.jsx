@@ -52,10 +52,6 @@ export default function App({ user, signOut }) {
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
   useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
   useEffect(() => watchNpcs(CAMPAIGN_ID, setNpcs), []);
-  useEffect(() => {
-    if (!activeId) { setActiveItems([]); return; }
-    return watchItemsByOwner(CAMPAIGN_ID, activeId, setActiveItems);
-  }, [activeId]);
   useEffect(() => watchStatuses(CAMPAIGN_ID, (statuses) => {
     setCampaignStatuses(statuses);
     if (statuses.length === 0) seedStatuses(CAMPAIGN_ID, STATUSES_DATA).catch(console.error);
@@ -78,6 +74,11 @@ export default function App({ user, signOut }) {
   const myChar = characters.find(c => c.ownerUid === user.uid) || null;
   const activeId = isGM ? (urlCharId || lastSelectedCharId) : myChar?.id;
   const activeChar = characters.find(c => c.id === activeId) || null;
+  // Subscribe to items for the currently-open character.
+  useEffect(() => {
+    if (!activeId) return;
+    return watchItemsByOwner(CAMPAIGN_ID, activeId, setActiveItems);
+  }, [activeId]);
   // Prune overrides whose values now match server state (optimistic update confirmed).
   const effectiveOverrides = useMemo(() => {
     if (overridesCharId !== activeId || !activeChar) return {};
