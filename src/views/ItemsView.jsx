@@ -106,6 +106,7 @@ export default function ItemsView({
     if (!editItemData.name?.trim()) return;
     setEditSaving(true);
     try {
+      // eslint-disable-next-line no-unused-vars
       const { id: _id, createdAt: _ca, ...fields } = editItemData;
       await onUpdateItem(editingItemId, fields);
       setEditingItemId(null);

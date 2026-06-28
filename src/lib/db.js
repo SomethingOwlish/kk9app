@@ -622,6 +622,7 @@ export async function assignItem(campaignId, itemId, charId, itemType, itemData 
   if (itemType === "artifact") {
     await updateDoc(doc(col, itemId), { ownerCharacterId: charId });
   } else {
+    // eslint-disable-next-line no-unused-vars
     const { id: _id, createdAt: _ca, ...rest } = itemData;
     await addDoc(col, { ...rest, ownerCharacterId: charId, createdAt: serverTimestamp() });
   }

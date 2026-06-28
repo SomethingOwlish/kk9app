@@ -103,6 +103,7 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
     if (!editData.name?.trim()) return;
     setEditSaving(true);
     try {
+      // eslint-disable-next-line no-unused-vars
       const { id: _id, createdAt: _ca, ...fields } = editData;
       await onUpdateItem(editingId, fields);
       setEditingId(null);
