@@ -1,43 +1,44 @@
 /* Theme Explorer — color-scheme overrides for .kk-root tokens */
 /* Original theme is the base .kk-root in app.css — no override needed */
+/* Selectors target .kk-root directly (theme class is on the same element) */
 
-.te-theme-parchment .kk-root {
+.kk-root.te-theme-parchment {
   --kk-bg: #efe6d4; --kk-bg-2: #e8dcc4; --kk-stone: #e3d6bd; --kk-surface: #f7f0e1; --kk-surface-2: #efe5d2;
   --kk-line: #cdb88f; --kk-line-soft: #ddcba8; --kk-text: #2e2417; --kk-text-dim: #6b5a3f; --kk-text-faint: #94815f;
   --kk-gold: #b08526; --kk-gold-bright: #caa24a; --kk-gold-dim: #8a6c33; --kk-danger: #b4472a; --kk-danger-dim: #e7cbbd;
   --kk-cell-empty: #e6d8bd; --kk-cell-line: #cbb588; --kk-tension: #7a4fb0;
 }
-.te-theme-arcane .kk-root {
+.kk-root.te-theme-arcane {
   --kk-bg: #0f1226; --kk-bg-2: #141833; --kk-stone: #181d3d; --kk-surface: #1c2249; --kk-surface-2: #232a58;
   --kk-line: #36407e; --kk-line-soft: #2a3262; --kk-text: #e6e9fb; --kk-text-dim: #9aa3d4; --kk-text-faint: #6770a3;
   --kk-gold: #5fd3e6; --kk-gold-bright: #9cebf4; --kk-gold-dim: #3f8a9a; --kk-danger: #e0556f; --kk-danger-dim: #5e2436;
   --kk-cell-empty: #161b3a; --kk-cell-line: #313a72; --kk-tension: #b066e6;
 }
-.te-theme-arcane-light .kk-root {
+.kk-root.te-theme-arcane-light {
   --kk-bg: #eef1fb; --kk-bg-2: #e4e9f7; --kk-stone: #dde3f3; --kk-surface: #f6f8ff; --kk-surface-2: #eaeefb;
   --kk-line: #c2cbe8; --kk-line-soft: #d6ddf0; --kk-text: #1c2138; --kk-text-dim: #555f86; --kk-text-faint: #8089ad;
   --kk-gold: #2c8aa0; --kk-gold-bright: #3aa6bf; --kk-gold-dim: #246f80; --kk-danger: #c0445c; --kk-danger-dim: #f0d2d9;
   --kk-cell-empty: #e2e7f6; --kk-cell-line: #c2cbe8; --kk-tension: #7a4fc0;
 }
-.te-theme-verdant .kk-root {
+.kk-root.te-theme-verdant {
   --kk-bg: #0f1a14; --kk-bg-2: #13211a; --kk-stone: #16271e; --kk-surface: #1a2e23; --kk-surface-2: #20382b;
   --kk-line: #2f5640; --kk-line-soft: #264634; --kk-text: #e6f1e7; --kk-text-dim: #93b39c; --kk-text-faint: #5f7d68;
   --kk-gold: #4fc07e; --kk-gold-bright: #76dd9c; --kk-gold-dim: #2f7d50; --kk-danger: #d2693f; --kk-danger-dim: #4f2a1a;
   --kk-cell-empty: #142319; --kk-cell-line: #2c5038; --kk-tension: #b07ad0;
 }
-.te-theme-verdant-light .kk-root {
+.kk-root.te-theme-verdant-light {
   --kk-bg: #eef4ec; --kk-bg-2: #e4ede1; --kk-stone: #dde8d9; --kk-surface: #f6faf3; --kk-surface-2: #e9f1e5;
   --kk-line: #bcd2b4; --kk-line-soft: #d2e1cb; --kk-text: #1d2c1f; --kk-text-dim: #4f6a55; --kk-text-faint: #7d977f;
   --kk-gold: #2f9b5e; --kk-gold-bright: #3cb771; --kk-gold-dim: #237a48; --kk-danger: #c2552f; --kk-danger-dim: #f1d8cc;
   --kk-cell-empty: #e3edde; --kk-cell-line: #bcd2b4; --kk-tension: #9a5fc0;
 }
-.te-theme-blood .kk-root {
+.kk-root.te-theme-blood {
   --kk-bg: #16100f; --kk-bg-2: #1c1413; --kk-stone: #221715; --kk-surface: #281b19; --kk-surface-2: #31201d;
   --kk-line: #5a322b; --kk-line-soft: #3d2520; --kk-text: #f0e3e0; --kk-text-dim: #bd9a93; --kk-text-faint: #8a655e;
   --kk-gold: #d9534a; --kk-gold-bright: #ef6f62; --kk-gold-dim: #8f342c; --kk-danger: #d98a3a; --kk-danger-dim: #4a3016;
   --kk-cell-empty: #241715; --kk-cell-line: #5a322b; --kk-tension: #9b59b6;
 }
-.te-theme-blood-light .kk-root {
+.kk-root.te-theme-blood-light {
   --kk-bg: #f6ece9; --kk-bg-2: #f0e0db; --kk-stone: #ecdad4; --kk-surface: #fdf4f1; --kk-surface-2: #f4e4df;
   --kk-line: #e0bdb3; --kk-line-soft: #eccfc8; --kk-text: #2c1715; --kk-text-dim: #7a504a; --kk-text-faint: #a67d75;
   --kk-gold: #c23a32; --kk-gold-bright: #d6463c; --kk-gold-dim: #962a24; --kk-danger: #b9742a; --kk-danger-dim: #f0dcc0;
