@@ -151,6 +151,10 @@ export default function App({ user, signOut }) {
   }, [activeId, navigate]);
   const onCreateItem = useCallback(async (data) => {
     if (!activeId) return;
+    const COPY_ITEM_TYPES = new Set(["weapon", "gear", "spell", "device", "vehicle"]);
+    if (COPY_ITEM_TYPES.has(data.type)) {
+      await createItem(CAMPAIGN_ID, { ...data, ownerCharacterId: null });
+    }
     await createItem(CAMPAIGN_ID, { ...data, ownerCharacterId: activeId });
   }, [activeId]);
   const onDeleteItem = useCallback(async (itemId) => {

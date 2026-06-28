@@ -54,8 +54,12 @@ export default function ItemsView({
   const [editItemData, setEditItemData] = useState({});
   const [editSaving, setEditSaving] = useState(false);
 
-  // Show all items regardless of owner — items created on character cards also appear here
-  const tabItems = useMemo(() => items.filter(i => i.type === activeTab), [items, activeTab]);
+  // Copy types: catalog shows templates only (ownerCharacterId === null); copies live on character cards
+  // Artifact: catalog shows all (single owner tracked here); Language: all (reference list)
+  const tabItems = useMemo(() => {
+    const all = items.filter(i => i.type === activeTab);
+    return COPY_TYPES.includes(activeTab) ? all.filter(i => !i.ownerCharacterId) : all;
+  }, [items, activeTab]);
 
   function setNew(k, v) { setNewItem(p => ({ ...p, [k]: v })); }
 
@@ -181,8 +185,35 @@ export default function ItemsView({
           <div className="kk-empty-sm">Нет предметов этого типа</div>
         )}
 
-        {tabItems.map(item => {
-          const isExpanded = expandedId === item.id;
+        {activeTab === "spell" && (() => {
+          const folders = {};
+          const folderOrder = [];
+          for (const item of tabItems) {
+            const key = item.folder || item.skillName || "Без навыка";
+            if (!folders[key]) { folders[key] = []; folderOrder.push(key); }
+            folders[key].push(item);
+          }
+          return folderOrder.map(folder => (
+            <div key={folder} className="kk-spell-folder">
+              <div className="kk-spell-folder-label">{folder}</div>
+              {folders[folder].map(item => renderCatalogRow(item))}
+            </div>
+          ));
+        })()}
+
+        {activeTab !== "spell" && tabItems.map(item => renderCatalogRow(item))}
+      </div>
+
+      <button className="kk-note-btn kk-items-add-btn" onClick={startAdd} style={{ marginTop: "0.75rem" }}>
+        + Добавить {TYPE_LABELS[activeTab]?.toLowerCase() || "предмет"}
+      </button>
+
+      {adding && <AddItemForm type={activeTab} data={newItem} setData={setNew} onSubmit={handleCreate} onCancel={() => setAdding(false)} saving={saving} />}
+    </div>
+  );
+
+  function renderCatalogRow(item) {
+        const isExpanded = expandedId === item.id;
           const artOwner   = isArtifact ? artifactOwner(item) : null;
           const langOwners = isLanguage ? languageOwners(item) : [];
 
@@ -258,17 +289,7 @@ export default function ItemsView({
               )}
             </div>
           );
-        })}
-
-        {/* Add form */}
-        {adding && <AddItemForm type={activeTab} data={newItem} setData={setNew} onSubmit={handleCreate} onCancel={() => setAdding(false)} saving={saving} />}
-      </div>
-
-      <button className="kk-note-btn kk-items-add-btn" onClick={startAdd} style={{ marginTop: "0.75rem" }}>
-        + Добавить {TYPE_LABELS[activeTab]?.toLowerCase() || "предмет"}
-      </button>
-    </div>
-  );
+  }
 }
 
 // ── Minimal inline add-form per type ─────────────────────────
