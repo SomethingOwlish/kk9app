@@ -234,7 +234,7 @@ export default function CharacterCreationWizard({ user, myChar, campaign }) {
 
       <div className="kk-wizard-body">
         {step === 0 && (
-          <StepIdentity data={identity} onChange={handleIdentityChange} campaignId={CAMPAIGN_ID} charId={charId} />
+          <StepIdentity data={identity} onChange={handleIdentityChange} />
         )}
         {step === 1 && (
           <StepAttributes

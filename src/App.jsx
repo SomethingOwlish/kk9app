@@ -5,6 +5,7 @@ import {
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
   watchGmMode, watchStatuses, seedStatuses, watchNpcs,
+  watchItemsByOwner, createItem, deleteItem,
 } from "./lib/db";
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
@@ -48,6 +49,7 @@ export default function App({ user, signOut }) {
   const [gmModeData, setGmModeData] = useState(null);
   const [campaignStatuses, setCampaignStatuses] = useState([]);
   const [npcs, setNpcs] = useState([]);
+  const [activeItems, setActiveItems] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
@@ -76,6 +78,11 @@ export default function App({ user, signOut }) {
   const myChar = characters.find(c => c.ownerUid === user.uid) || null;
   const activeId = isGM ? (urlCharId || lastSelectedCharId) : myChar?.id;
   const activeChar = characters.find(c => c.id === activeId) || null;
+  // Subscribe to items for the currently-open character.
+  useEffect(() => {
+    if (!activeId) return;
+    return watchItemsByOwner(CAMPAIGN_ID, activeId, setActiveItems);
+  }, [activeId]);
   // Prune overrides whose values now match server state (optimistic update confirmed).
   const effectiveOverrides = useMemo(() => {
     if (overridesCharId !== activeId || !activeChar) return {};
@@ -137,6 +144,13 @@ export default function App({ user, signOut }) {
       navigate(`/card/${activeId}`);
     } catch (e) { alert("Не удалось применить прокачку: " + (e?.message || e)); }
   }, [activeId, navigate]);
+  const onCreateItem = useCallback(async (data) => {
+    if (!activeId) return;
+    await createItem(CAMPAIGN_ID, { ...data, ownerCharacterId: activeId });
+  }, [activeId]);
+  const onDeleteItem = useCallback(async (itemId) => {
+    await deleteItem(CAMPAIGN_ID, itemId);
+  }, []);
   const clearLog = useCallback(async () => {
     if (!activeId) return;
     try { await clearCharacterLog(CAMPAIGN_ID, activeId); }

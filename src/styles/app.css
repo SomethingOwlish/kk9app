@@ -532,3 +532,29 @@
 .kk-portrait--editable:hover .kk-portrait-overlay{opacity:1;}
 .kk-portrait--uploading .kk-portrait-overlay{opacity:1;}
 .kk-portrait-err{font-size:12px;color:var(--kk-danger);margin:4px 0 0;max-width:88px;}
+
+/* ── Items (B-14) ──────────────────────────────────────────── */
+.kk-items-group{margin-bottom:10px;}
+.kk-items-group-label{font-size:11px;font-weight:600;color:var(--kk-text-faint);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.kk-item{border-radius:var(--kk-r-sm);background:var(--kk-surface);border:1px solid var(--kk-line-soft);padding:8px 10px;margin-bottom:4px;}
+.kk-item-header{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.kk-item-icon{font-size:14px;flex:none;}
+.kk-item-name{font-size:14px;font-weight:500;color:var(--kk-text);flex:1;min-width:0;}
+.kk-item-subtype{font-size:11px;color:var(--kk-text-faint);border:1px solid var(--kk-line);border-radius:3px;padding:1px 5px;flex:none;}
+.kk-item-condition{font-size:11px;border-radius:3px;padding:1px 5px;flex:none;}
+.kk-cond-perfect{background:rgba(100,200,80,.15);color:#5cb85c;}
+.kk-cond-good{background:rgba(200,200,80,.12);color:#c8a14e;}
+.kk-cond-worn{background:rgba(200,150,60,.12);color:#cc7a3a;}
+.kk-cond-broken{background:rgba(200,60,60,.12);color:var(--kk-danger);}
+.kk-item-stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+.kk-item-stat{font-size:12px;color:var(--kk-text-dim);background:var(--kk-bg);border-radius:3px;padding:1px 6px;border:1px solid var(--kk-line-soft);}
+.kk-item-status-tag{color:var(--kk-gold);}
+.kk-item-desc{margin:4px 0 0;font-size:12px;color:var(--kk-text-dim);line-height:1.4;}
+.kk-items-add-btn{margin-top:4px;}
+.kk-item-form{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:10px;background:var(--kk-surface);border:1px solid var(--kk-line-soft);border-radius:var(--kk-r-sm);}
+.kk-item-form-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.kk-item-form-label{font-size:12px;color:var(--kk-text-faint);flex:none;}
+.kk-item-select{padding:4px 6px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line);background:var(--kk-surface);color:var(--kk-text);font-size:13px;}
+.kk-item-num{width:4rem;padding:4px 6px;border-radius:var(--kk-r-sm);border:1px solid var(--kk-line);background:var(--kk-surface);color:var(--kk-text);font-size:13px;}
+.kk-item-form-actions{display:flex;gap:6px;margin-top:2px;}
+.kk-item-cancel-btn{background:var(--kk-surface);border:1px solid var(--kk-line);color:var(--kk-text-dim);}

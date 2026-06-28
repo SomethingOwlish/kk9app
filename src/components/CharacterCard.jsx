@@ -5,9 +5,10 @@ import HealthTrack from "./HealthTrack";
 import StatusBar from "./StatusBar";
 import StatusEditor from "./StatusEditor";
 import StatusCard from "./StatusCard";
+import ItemList from "./ItemList";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus } from "../lib/db";
-import { uploadPortrait, validatePortraitFile } from "../lib/storage";
+import { resizePortrait, validatePortraitFile } from "../lib/storage";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
 
 const DEMO_FIELDS = [
@@ -19,7 +20,7 @@ const DEMO_FIELDS = [
   ["weaknesses", "Слабости"],
 ];
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId, campaignStatuses = [] }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -60,8 +61,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
     setPortraitError("");
     setPortraitUploading(true);
     try {
-      const url = await uploadPortrait(file, campaignId, ch.id);
-      save({ portrait: url });
+      const dataUrl = await resizePortrait(file);
+      save({ portrait: dataUrl });
     } catch (e) {
       setPortraitError("Ошибка: " + e.message);
     } finally {
@@ -271,6 +272,14 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           </div>
         </details>
       )}
+
+      <ItemList
+        items={items}
+        isGM={isGM}
+        onCreate={onCreateItem}
+        onDelete={onDeleteItem}
+        campaignStatuses={campaignStatuses}
+      />
 
       {showNotes && (
         <section className="kk-block">

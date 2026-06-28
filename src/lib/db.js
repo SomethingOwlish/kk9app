@@ -564,6 +564,29 @@ export async function deleteNpc(campaignId, charId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "characters", charId));
 }
 
+// ── Items (B-14) ─────────────────────────────────────────────
+// Path: campaigns/{campaignId}/items/{itemId}
+// Schema fields: type, name, description, condition, ownerCharacterId
+//   weapon adds: die, modifier, attackModifier, damageLevel, damageType, statusOnHit
+//   gear adds: subtype
+export function watchItemsByOwner(campaignId, charId, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "items"),
+    where("ownerCharacterId", "==", charId)
+  );
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+export async function createItem(campaignId, data) {
+  const ref = collection(db, "campaigns", campaignId, "items");
+  return addDoc(ref, { ...data, createdAt: serverTimestamp() });
+}
+export async function updateItem(campaignId, itemId, data) {
+  await updateDoc(doc(db, "campaigns", campaignId, "items", itemId), data);
+}
+export async function deleteItem(campaignId, itemId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "items", itemId));
+}
+
 export const derive = {
   toughness: derivePhysicalToughness,
   energyMax: deriveEnergyMax,
