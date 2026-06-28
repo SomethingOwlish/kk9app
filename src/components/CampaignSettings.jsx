@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { advSettings, DEFAULT_ADVANCEMENT } from "../lib/advancement";
 import { DEFAULT_BACKGROUNDS } from "../lib/chargen";
-import { seedStatuses, createStatus } from "../lib/db";
+import { seedStatuses, createStatus, seedItems } from "../lib/db";
 import { STATUSES_DATA } from "../lib/seed-statuses";
+import { WEAPONS_DATA } from "../lib/seed-weapons";
+import { GEAR_DATA } from "../lib/seed-gear";
+import { ARTIFACTS_DATA } from "../lib/seed-artifacts";
+import { SPELLS_DATA } from "../lib/seed-spells";
+import { DEVICES_DATA } from "../lib/seed-devices";
 import StatusCard from "./StatusCard";
 
 const DIE_OPTIONS = [4, 6, 8, 10, 12];
@@ -91,6 +96,22 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   const [journalThreshold, setJournalThreshold] = useState(() => campaign?.journalArchiveThreshold ?? 20);
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
+  const [seedingItems, setSeedingItems] = useState({});
+  const [seedItemMsg, setSeedItemMsg] = useState({});
+
+  async function handleSeedItems(type, data) {
+    if (!campaignId) return;
+    setSeedingItems(p => ({ ...p, [type]: true }));
+    setSeedItemMsg(p => ({ ...p, [type]: "" }));
+    try {
+      await seedItems(campaignId, data, type);
+      setSeedItemMsg(p => ({ ...p, [type]: `Загружено ${data.length} записей.` }));
+    } catch (e) {
+      setSeedItemMsg(p => ({ ...p, [type]: "Ошибка: " + e.message }));
+    } finally {
+      setSeedingItems(p => ({ ...p, [type]: false }));
+    }
+  }
   const [editingStatus, setEditingStatus] = useState(null);
   const [creating, setCreating] = useState(false);
 
@@ -350,6 +371,25 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
             <span>Игрок может управлять эмоцией портрета</span>
           </label>
         </div>
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Предметы — стандартные данные</h2>
+        <p className="kk-note">Загружает стандартный набор предметов в каталог. Если предметы этого типа уже есть — пропускает.</p>
+        {[
+          ["weapon",   "Оружие",      WEAPONS_DATA],
+          ["gear",     "Снаряжение",  GEAR_DATA],
+          ["artifact", "Артефакты",   ARTIFACTS_DATA],
+          ["spell",    "Заклинания",  SPELLS_DATA],
+          ["device",   "Устройства",  DEVICES_DATA],
+        ].map(([type, label, data]) => (
+          <div key={type} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="kk-btn" onClick={() => handleSeedItems(type, data)} disabled={seedingItems[type]}>
+              {seedingItems[type] ? "Загрузка…" : `${label} (${data.length})`}
+            </button>
+            {seedItemMsg[type] && <span className="kk-note" style={{ margin: 0 }}>{seedItemMsg[type]}</span>}
+          </div>
+        ))}
       </section>
 
       <section className="kk-block">

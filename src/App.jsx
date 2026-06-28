@@ -5,13 +5,10 @@ import {
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
   watchGmMode, watchStatuses, seedStatuses, watchNpcs,
-  watchItemsByOwner, watchAllItems, createItem, deleteItem, updateItem, seedItems,
+  watchItemsByOwner, watchAllItems, createItem, deleteItem, updateItem,
   assignItem, unassignItem, addLanguageToChar,
 } from "./lib/db";
 import { STATUSES_DATA } from "./lib/seed-statuses";
-import { WEAPONS_DATA } from "./lib/seed-weapons";
-import { GEAR_DATA } from "./lib/seed-gear";
-import { ARTIFACTS_DATA } from "./lib/seed-artifacts";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
 import { CAMPAIGN_ID } from "./lib/config";
@@ -67,11 +64,6 @@ export default function App({ user, signOut }) {
     setCampaignStatuses(statuses);
     if (statuses.length === 0) seedStatuses(CAMPAIGN_ID, STATUSES_DATA).catch(console.error);
   }), []);
-  useEffect(() => {
-    seedItems(CAMPAIGN_ID, WEAPONS_DATA, "weapon").catch(console.error);
-    seedItems(CAMPAIGN_ID, GEAR_DATA, "gear").catch(console.error);
-    seedItems(CAMPAIGN_ID, ARTIFACTS_DATA, "artifact").catch(console.error);
-  }, []);
 
   const cardMatch = pathname.match(/^\/card\/([^/]+)/);
   const urlCharId = cardMatch ? cardMatch[1] : null;
