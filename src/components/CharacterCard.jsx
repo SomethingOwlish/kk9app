@@ -20,7 +20,7 @@ const DEMO_FIELDS = [
   ["weaknesses", "Слабости"],
 ];
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -278,7 +278,9 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         isGM={isGM}
         onCreate={onCreateItem}
         onDelete={onDeleteItem}
+        onUpdateItem={onUpdateItem}
         campaignStatuses={campaignStatuses}
+        character={ch}
       />
 
       {showNotes && (

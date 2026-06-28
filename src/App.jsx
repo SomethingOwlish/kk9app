@@ -5,9 +5,12 @@ import {
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
   watchGmMode, watchStatuses, seedStatuses, watchNpcs,
-  watchItemsByOwner, createItem, deleteItem,
+  watchItemsByOwner, createItem, deleteItem, updateItem, seedItems,
 } from "./lib/db";
 import { STATUSES_DATA } from "./lib/seed-statuses";
+import { WEAPONS_DATA } from "./lib/seed-weapons";
+import { GEAR_DATA } from "./lib/seed-gear";
+import { ARTIFACTS_DATA } from "./lib/seed-artifacts";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
 import { CAMPAIGN_ID } from "./lib/config";
@@ -60,6 +63,11 @@ export default function App({ user, signOut }) {
     setCampaignStatuses(statuses);
     if (statuses.length === 0) seedStatuses(CAMPAIGN_ID, STATUSES_DATA).catch(console.error);
   }), []);
+  useEffect(() => {
+    seedItems(CAMPAIGN_ID, WEAPONS_DATA, "weapon").catch(console.error);
+    seedItems(CAMPAIGN_ID, GEAR_DATA, "gear").catch(console.error);
+    seedItems(CAMPAIGN_ID, ARTIFACTS_DATA, "artifact").catch(console.error);
+  }, []);
 
   const cardMatch = pathname.match(/^\/card\/([^/]+)/);
   const urlCharId = cardMatch ? cardMatch[1] : null;
@@ -151,6 +159,9 @@ export default function App({ user, signOut }) {
   const onDeleteItem = useCallback(async (itemId) => {
     await deleteItem(CAMPAIGN_ID, itemId);
   }, []);
+  const onUpdateItem = useCallback(async (itemId, data) => {
+    await updateItem(CAMPAIGN_ID, itemId, data);
+  }, []);
   const clearLog = useCallback(async () => {
     if (!activeId) return;
     try { await clearCharacterLog(CAMPAIGN_ID, activeId); }
@@ -214,7 +225,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}

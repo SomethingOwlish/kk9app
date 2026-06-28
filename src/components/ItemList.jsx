@@ -1,30 +1,100 @@
 import { useState } from "react";
 import WeaponItem from "./items/WeaponItem";
 import GearItem from "./items/GearItem";
+import ArtifactItem from "./items/ArtifactItem";
+import SpellItem from "./items/SpellItem";
+import DeviceItem from "./items/DeviceItem";
+import VehicleItem from "./items/VehicleItem";
+import LanguageItem from "./items/LanguageItem";
+import FeatureItem from "./items/FeatureItem";
 
 const CONDITIONS = ["perfect", "good", "worn", "broken"];
 const COND_LABEL = { perfect: "Идеальное", good: "Хорошее", worn: "Потрёпанное", broken: "Сломанное" };
-const SUBTYPES = ["attack", "defense", "utility"];
-const SUBTYPE_LABEL = { attack: "Атака", defense: "Защита", utility: "Утилита" };
+const DAMAGE_LEVELS = ["light", "heavy", "lethal"];
+const DMG_LABEL = { light: "Лёгкий", heavy: "Тяжёлый", lethal: "Летальный" };
+const DAMAGE_TYPES = ["physical", "mental"];
+const DMGTYPE_LABEL = { physical: "Физический", mental: "Ментальный" };
+const GEAR_TYPES = ["attack", "defense", "utility"];
+const GEAR_LABEL = { attack: "Атака", defense: "Защита", utility: "Утилита" };
+const ARTIFACT_TYPES = ["attack", "defense", "binding", "spatial", "utility", "buff", "transforming", "prophetic", "ring"];
+const ARTIFACT_LABEL = {
+  attack: "Атакующий", defense: "Защитный", binding: "Сковывающий", spatial: "Пространственный",
+  utility: "Утилитарный", buff: "Усиливающий", transforming: "Трансформирующий",
+  prophetic: "Пророческий", ring: "Кольцо",
+};
+const SPELL_TYPES = ["attack", "defense", "buff", "health_buff", "binding", "spatial", "transforming", "prophetic", "utility"];
+const SPELL_LABEL = {
+  attack: "Атака", defense: "Защита", buff: "Усиление", health_buff: "Здоровье",
+  binding: "Сковывание", spatial: "Пространство", transforming: "Трансформация",
+  prophetic: "Прорицание", utility: "Утилита",
+};
 
-const EMPTY_WEAPON = { name: "", description: "", condition: "perfect", die: 6, modifier: 0, attackModifier: 0, damageLevel: "", damageType: "", statusOnHit: null };
-const EMPTY_GEAR = { name: "", description: "", condition: "perfect", subtype: "utility" };
+const EMPTY_WEAPON = {
+  name: "", description: "", condition: "perfect",
+  skillName: "", damageLevel: "light", damageType: "physical",
+  range: 0, size: "medium", ap: 0, rof: 1, attackModifier: 0,
+  conditionChance: 0, hasStatus: false, statusName: "",
+};
+const EMPTY_GEAR = {
+  name: "", description: "", condition: "perfect", gearType: "utility",
+  quantity: 1, energyRestore: 0, soakType: "none",
+  soakAbsoluteCapacity: 0, soakAbsoluteCurrent: 0,
+  soakBonusDie: 0, soakBonusModifier: 0, healthBufferPip: 0,
+};
+const EMPTY_ARTIFACT = {
+  name: "", description: "", condition: "perfect",
+  artifactType: "ring", rarity: "common",
+  ringMaterial: "", ringStone: "",
+  activationCondition: "", active: false,
+  bonuses: {}, skillBonuses: [], energyRestore: 0,
+};
+const EMPTY_SPELL = {
+  name: "", description: "", spellType: "utility",
+  cost: 1, range: 0, duration: 0, durationHours: 0,
+  uses: 1, upkeepCost: 0, skillName: "", noWandNeeded: false,
+  isAoe: false, active: false, hasStatus: false, statusName: "",
+};
+const EMPTY_DEVICE = {
+  name: "", description: "", condition: "perfect",
+  deviceType: "", charges: 0, bonusSkillName: "", bonusValue: 0,
+};
+const EMPTY_VEHICLE = { name: "", description: "", speed: 0, toughness: 0, capacity: 0 };
+const EMPTY_LANGUAGE = { name: "" };
+const EMPTY_FEATURE = { name: "", description: "" };
 
-export default function ItemList({ items = [], isGM, onCreate, onDelete, campaignStatuses = [] }) {
+const EMPTY_BY_TYPE = {
+  weapon: EMPTY_WEAPON, gear: EMPTY_GEAR, artifact: EMPTY_ARTIFACT,
+  spell: EMPTY_SPELL, device: EMPTY_DEVICE, vehicle: EMPTY_VEHICLE,
+  language: EMPTY_LANGUAGE, feature: EMPTY_FEATURE,
+};
+
+const SECTION_LABELS = {
+  weapon: "Оружие", gear: "Снаряжение", artifact: "Артефакты",
+  spell: "Заклинания", device: "Устройства", vehicle: "Транспорт",
+  language: "Языки", feature: "Черты",
+};
+
+const ITEM_TYPES = Object.keys(SECTION_LABELS);
+
+export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdateItem, campaignStatuses = [], character }) {
   const [adding, setAdding] = useState(false);
   const [type, setType] = useState("weapon");
   const [form, setForm] = useState(EMPTY_WEAPON);
   const [saving, setSaving] = useState(false);
 
-  const weapons = items.filter(i => i.type === "weapon");
-  const gear = items.filter(i => i.type === "gear");
-  const other = items.filter(i => i.type !== "weapon" && i.type !== "gear");
+  const byType = {};
+  for (const t of ITEM_TYPES) byType[t] = items.filter(i => i.type === t);
+
+  const activeSpellsMap = {};
+  if (character?.activeSpells) {
+    for (const as of character.activeSpells) activeSpellsMap[as.itemId] = as;
+  }
 
   function startAdd() { setAdding(true); setType("weapon"); setForm(EMPTY_WEAPON); }
 
   function handleTypeChange(t) {
     setType(t);
-    setForm(t === "weapon" ? EMPTY_WEAPON : EMPTY_GEAR);
+    setForm(EMPTY_BY_TYPE[t] || {});
   }
 
   function setF(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
@@ -52,40 +122,32 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, campaig
         <div className="kk-empty-sm">Нет предметов</div>
       )}
 
-      {weapons.length > 0 && (
-        <div className="kk-items-group">
-          <div className="kk-items-group-label">Оружие</div>
-          {weapons.map(item => (
-            <WeaponItem key={item.id} item={item} isGM={isGM} onDelete={() => onDelete(item.id)} />
-          ))}
-        </div>
-      )}
-
-      {gear.length > 0 && (
-        <div className="kk-items-group">
-          <div className="kk-items-group-label">Снаряжение</div>
-          {gear.map(item => (
-            <GearItem key={item.id} item={item} isGM={isGM} onDelete={() => onDelete(item.id)} />
-          ))}
-        </div>
-      )}
-
-      {other.length > 0 && (
-        <div className="kk-items-group">
-          <div className="kk-items-group-label">Прочее</div>
-          {other.map(item => (
-            <div key={item.id} className="kk-item">
-              <div className="kk-item-header">
-                <span className="kk-item-name">{item.name}</span>
-                <span className="kk-item-subtype">{item.type}</span>
-                {isGM && (
-                  <button className="kk-note-del" onClick={() => onDelete(item.id)} title="Удалить">✕</button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {ITEM_TYPES.map(t => {
+        const group = byType[t];
+        if (group.length === 0) return null;
+        return (
+          <div key={t} className="kk-items-group">
+            <div className="kk-items-group-label">{SECTION_LABELS[t]}</div>
+            {group.map(item => {
+              const del = isGM ? () => onDelete(item.id) : undefined;
+              if (t === "weapon") return <WeaponItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
+              if (t === "gear") return <GearItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
+              if (t === "artifact") return <ArtifactItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
+              if (t === "spell") return (
+                <SpellItem key={item.id} item={item} activeSpell={activeSpellsMap[item.id]} isGM={isGM} onDelete={del} />
+              );
+              if (t === "device") return (
+                <DeviceItem key={item.id} item={item} isGM={isGM} onDelete={del}
+                  onUpdateCharges={onUpdateItem ? (charges) => onUpdateItem(item.id, { charges }) : undefined} />
+              );
+              if (t === "vehicle") return <VehicleItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
+              if (t === "language") return <LanguageItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
+              if (t === "feature") return <FeatureItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
+              return null;
+            })}
+          </div>
+        );
+      })}
 
       {isGM && !adding && (
         <button className="kk-note-btn kk-items-add-btn" onClick={startAdd}>+ Добавить предмет</button>
@@ -96,91 +158,77 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, campaig
           <div className="kk-item-form-row">
             <label className="kk-item-form-label">Тип:</label>
             <select className="kk-item-select" value={type} onChange={e => handleTypeChange(e.target.value)}>
-              <option value="weapon">Оружие</option>
-              <option value="gear">Снаряжение</option>
+              {ITEM_TYPES.map(t => <option key={t} value={t}>{SECTION_LABELS[t]}</option>)}
             </select>
           </div>
 
           <input
             className="kk-note-input"
             placeholder="Название *"
-            value={form.name}
+            value={form.name || ""}
             onChange={e => setF("name", e.target.value)}
             required
             maxLength={100}
           />
-          <textarea
-            className="kk-note-input kk-note-body-input"
-            placeholder="Описание (необязательно)"
-            value={form.description}
-            onChange={e => setF("description", e.target.value)}
-            rows={2}
-            maxLength={500}
-          />
+          {type !== "language" && (
+            <textarea
+              className="kk-note-input kk-note-body-input"
+              placeholder="Описание"
+              value={form.description || ""}
+              onChange={e => setF("description", e.target.value)}
+              rows={2}
+              maxLength={600}
+            />
+          )}
 
-          <div className="kk-item-form-row">
-            <label className="kk-item-form-label">Состояние:</label>
-            <select className="kk-item-select" value={form.condition} onChange={e => setF("condition", e.target.value)}>
-              {CONDITIONS.map(c => <option key={c} value={c}>{COND_LABEL[c]}</option>)}
-            </select>
-          </div>
-
+          {/* Weapon fields */}
           {type === "weapon" && (
             <>
               <div className="kk-item-form-row">
-                <label className="kk-item-form-label">Урон:</label>
-                <select className="kk-item-select" value={form.die} onChange={e => setF("die", Number(e.target.value))}>
-                  {[4, 6, 8, 10, 12, 20].map(d => <option key={d} value={d}>d{d}</option>)}
+                <label className="kk-item-form-label">Состояние:</label>
+                <select className="kk-item-select" value={form.condition} onChange={e => setF("condition", e.target.value)}>
+                  {CONDITIONS.map(c => <option key={c} value={c}>{COND_LABEL[c]}</option>)}
                 </select>
-                <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>Мод:</label>
-                <input
-                  type="number"
-                  className="kk-item-num"
-                  value={form.modifier}
-                  onChange={e => setF("modifier", Number(e.target.value))}
-                />
-              </div>
-              <div className="kk-item-form-row">
-                <label className="kk-item-form-label">Мод атаки:</label>
-                <input
-                  type="number"
-                  className="kk-item-num"
-                  value={form.attackModifier}
-                  onChange={e => setF("attackModifier", Number(e.target.value))}
-                />
-                <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>Тип урона:</label>
-                <input
-                  className="kk-item-select"
-                  placeholder="физический"
-                  value={form.damageType}
-                  onChange={e => setF("damageType", e.target.value)}
-                  maxLength={40}
-                />
               </div>
               <div className="kk-item-form-row">
                 <label className="kk-item-form-label">Уровень урона:</label>
-                <input
-                  className="kk-item-select"
-                  placeholder="лёгкий"
-                  value={form.damageLevel}
-                  onChange={e => setF("damageLevel", e.target.value)}
-                  maxLength={40}
-                />
+                <select className="kk-item-select" value={form.damageLevel} onChange={e => setF("damageLevel", e.target.value)}>
+                  {DAMAGE_LEVELS.map(l => <option key={l} value={l}>{DMG_LABEL[l]}</option>)}
+                </select>
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Тип урона:</label>
+                <select className="kk-item-select" value={form.damageType} onChange={e => setF("damageType", e.target.value)}>
+                  {DAMAGE_TYPES.map(d => <option key={d} value={d}>{DMGTYPE_LABEL[d]}</option>)}
+                </select>
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Навык:</label>
+                <input className="kk-item-select" placeholder="Рукопашный бой" value={form.skillName} onChange={e => setF("skillName", e.target.value)} maxLength={60} />
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Дальность (м):</label>
+                <input type="number" className="kk-item-num" value={form.range} onChange={e => setF("range", Number(e.target.value))} min={0} />
+                <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>БП:</label>
+                <input type="number" className="kk-item-num" value={form.ap} onChange={e => setF("ap", Number(e.target.value))} min={0} />
+                <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>СКО:</label>
+                <input type="number" className="kk-item-num" value={form.rof} onChange={e => setF("rof", Number(e.target.value))} min={1} />
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Мод атаки:</label>
+                <input type="number" className="kk-item-num" value={form.attackModifier} onChange={e => setF("attackModifier", Number(e.target.value))} />
               </div>
               {campaignStatuses.length > 0 && (
                 <div className="kk-item-form-row">
                   <label className="kk-item-form-label">Статус при попадании:</label>
                   <select
                     className="kk-item-select"
-                    value={form.statusOnHit?.id || ""}
-                    onChange={e => {
-                      const s = campaignStatuses.find(st => st.id === e.target.value);
-                      setF("statusOnHit", s ? { id: s.id, name: s.name } : null);
-                    }}
+                    value={form.statusName || ""}
+                    onChange={e => { setF("hasStatus", !!e.target.value); setF("statusName", e.target.value); }}
                   >
                     <option value="">— нет —</option>
                     {campaignStatuses.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
+                      <option key={s.id} value={s.name}>{s.name}</option>
                     ))}
                   </select>
                 </div>
@@ -188,17 +236,122 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, campaig
             </>
           )}
 
+          {/* Gear fields */}
           {type === "gear" && (
-            <div className="kk-item-form-row">
-              <label className="kk-item-form-label">Подтип:</label>
-              <select className="kk-item-select" value={form.subtype} onChange={e => setF("subtype", e.target.value)}>
-                {SUBTYPES.map(s => <option key={s} value={s}>{SUBTYPE_LABEL[s]}</option>)}
-              </select>
-            </div>
+            <>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Состояние:</label>
+                <select className="kk-item-select" value={form.condition} onChange={e => setF("condition", e.target.value)}>
+                  {CONDITIONS.map(c => <option key={c} value={c}>{COND_LABEL[c]}</option>)}
+                </select>
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Подтип:</label>
+                <select className="kk-item-select" value={form.gearType} onChange={e => setF("gearType", e.target.value)}>
+                  {GEAR_TYPES.map(g => <option key={g} value={g}>{GEAR_LABEL[g]}</option>)}
+                </select>
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Кол-во:</label>
+                <input type="number" className="kk-item-num" value={form.quantity} onChange={e => setF("quantity", Number(e.target.value))} min={1} />
+              </div>
+            </>
+          )}
+
+          {/* Artifact fields */}
+          {type === "artifact" && (
+            <>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Состояние:</label>
+                <select className="kk-item-select" value={form.condition} onChange={e => setF("condition", e.target.value)}>
+                  {CONDITIONS.map(c => <option key={c} value={c}>{COND_LABEL[c]}</option>)}
+                </select>
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Тип артефакта:</label>
+                <select className="kk-item-select" value={form.artifactType} onChange={e => setF("artifactType", e.target.value)}>
+                  {ARTIFACT_TYPES.map(t => <option key={t} value={t}>{ARTIFACT_LABEL[t]}</option>)}
+                </select>
+              </div>
+              {form.artifactType === "ring" && (
+                <>
+                  <div className="kk-item-form-row">
+                    <label className="kk-item-form-label">Материал кольца:</label>
+                    <input className="kk-item-select" value={form.ringMaterial} onChange={e => setF("ringMaterial", e.target.value)} maxLength={60} />
+                  </div>
+                  <div className="kk-item-form-row">
+                    <label className="kk-item-form-label">Камень:</label>
+                    <input className="kk-item-select" value={form.ringStone} onChange={e => setF("ringStone", e.target.value)} maxLength={60} />
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {/* Spell fields */}
+          {type === "spell" && (
+            <>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Тип заклинания:</label>
+                <select className="kk-item-select" value={form.spellType} onChange={e => setF("spellType", e.target.value)}>
+                  {SPELL_TYPES.map(t => <option key={t} value={t}>{SPELL_LABEL[t]}</option>)}
+                </select>
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Навык:</label>
+                <input className="kk-item-select" value={form.skillName} onChange={e => setF("skillName", e.target.value)} maxLength={60} />
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Стоимость:</label>
+                <input type="number" className="kk-item-num" value={form.cost} onChange={e => setF("cost", Number(e.target.value))} min={0} />
+                <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>Поддержание:</label>
+                <input type="number" className="kk-item-num" value={form.upkeepCost} onChange={e => setF("upkeepCost", Number(e.target.value))} min={0} />
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Использований:</label>
+                <input type="number" className="kk-item-num" value={form.uses} onChange={e => setF("uses", Number(e.target.value))} min={1} />
+                <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>Дальность (м):</label>
+                <input type="number" className="kk-item-num" value={form.range} onChange={e => setF("range", Number(e.target.value))} min={0} />
+              </div>
+            </>
+          )}
+
+          {/* Device fields */}
+          {type === "device" && (
+            <>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Состояние:</label>
+                <select className="kk-item-select" value={form.condition} onChange={e => setF("condition", e.target.value)}>
+                  {CONDITIONS.map(c => <option key={c} value={c}>{COND_LABEL[c]}</option>)}
+                </select>
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Тип устройства:</label>
+                <input className="kk-item-select" value={form.deviceType} onChange={e => setF("deviceType", e.target.value)} maxLength={60} />
+              </div>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Заряды:</label>
+                <input type="number" className="kk-item-num" value={form.charges} onChange={e => setF("charges", Number(e.target.value))} min={0} />
+              </div>
+            </>
+          )}
+
+          {/* Vehicle fields */}
+          {type === "vehicle" && (
+            <>
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Скорость:</label>
+                <input type="number" className="kk-item-num" value={form.speed} onChange={e => setF("speed", Number(e.target.value))} min={0} />
+                <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>Стойкость:</label>
+                <input type="number" className="kk-item-num" value={form.toughness} onChange={e => setF("toughness", Number(e.target.value))} min={0} />
+                <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>Вместимость:</label>
+                <input type="number" className="kk-item-num" value={form.capacity} onChange={e => setF("capacity", Number(e.target.value))} min={0} />
+              </div>
+            </>
           )}
 
           <div className="kk-item-form-actions">
-            <button type="submit" className="kk-note-btn" disabled={saving || !form.name.trim()}>
+            <button type="submit" className="kk-note-btn" disabled={saving || !form.name?.trim()}>
               {saving ? "Сохранение…" : "Добавить"}
             </button>
             <button type="button" className="kk-note-btn kk-item-cancel-btn" onClick={() => setAdding(false)}>

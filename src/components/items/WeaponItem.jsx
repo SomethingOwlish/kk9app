@@ -1,7 +1,8 @@
 const CONDITION_LABEL = { perfect: "Идеальное", good: "Хорошее", worn: "Потрёпанное", broken: "Сломанное" };
+const DAMAGE_LEVEL_LABEL = { light: "Лёгкий", heavy: "Тяжёлый", lethal: "Летальный" };
+const DAMAGE_TYPE_LABEL = { physical: "Физический", mental: "Ментальный" };
 
 export default function WeaponItem({ item, isGM, onDelete }) {
-  const mod = item.modifier > 0 ? `+${item.modifier}` : item.modifier < 0 ? `${item.modifier}` : "";
   const atk = item.attackModifier > 0 ? `+${item.attackModifier}` : item.attackModifier < 0 ? `${item.attackModifier}` : "";
   return (
     <div className="kk-item kk-item-weapon">
@@ -16,11 +17,20 @@ export default function WeaponItem({ item, isGM, onDelete }) {
         )}
       </div>
       <div className="kk-item-stats">
-        <span className="kk-item-stat">d{item.die}{mod}</span>
-        {item.attackModifier !== 0 && <span className="kk-item-stat">Атака {atk}</span>}
-        {item.damageType && <span className="kk-item-stat">{item.damageType}</span>}
-        {item.damageLevel && <span className="kk-item-stat">{item.damageLevel}</span>}
-        {item.statusOnHit?.name && <span className="kk-item-stat kk-item-status-tag">» {item.statusOnHit.name}</span>}
+        {item.damageLevel && (
+          <span className="kk-item-stat">{DAMAGE_LEVEL_LABEL[item.damageLevel] || item.damageLevel}</span>
+        )}
+        {item.damageType && (
+          <span className="kk-item-stat">{DAMAGE_TYPE_LABEL[item.damageType] || item.damageType}</span>
+        )}
+        {item.skillName && <span className="kk-item-stat">{item.skillName}</span>}
+        {item.range > 0 && <span className="kk-item-stat">{item.range}м</span>}
+        {item.ap > 0 && <span className="kk-item-stat">БП {item.ap}</span>}
+        {item.rof > 1 && <span className="kk-item-stat">СКО {item.rof}</span>}
+        {item.attackModifier !== 0 && atk && <span className="kk-item-stat">Атака {atk}</span>}
+        {item.hasStatus && item.statusName && (
+          <span className="kk-item-stat kk-item-status-tag">» {item.statusName}</span>
+        )}
       </div>
       {item.description && <p className="kk-item-desc">{item.description}</p>}
     </div>

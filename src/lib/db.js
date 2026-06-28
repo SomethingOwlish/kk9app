@@ -564,11 +564,15 @@ export async function deleteNpc(campaignId, charId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "characters", charId));
 }
 
-// ── Items (B-14) ─────────────────────────────────────────────
+// ── Items (B-14 / B-15) ──────────────────────────────────────
 // Path: campaigns/{campaignId}/items/{itemId}
-// Schema fields: type, name, description, condition, ownerCharacterId
-//   weapon adds: die, modifier, attackModifier, damageLevel, damageType, statusOnHit
-//   gear adds: subtype
+// type: weapon | gear | artifact | spell | device | vehicle | language | feature
+// weapon: skillName, damageLevel (light/heavy/lethal), damageType (physical/mental), range, ap, rof, attackModifier, hasStatus, statusName
+// gear: gearType, quantity, energyRestore, soakType, soakAbsoluteCapacity, soakAbsoluteCurrent, soakBonusDie, soakBonusModifier, healthBufferPip
+// artifact: artifactType (9), rarity, ringMaterial, ringStone, bonuses{}, skillBonuses[], active, destroyed, energyRestore
+// spell: spellType (9), cost, upkeepCost, range, duration, durationHours, uses, skillName, noWandNeeded, isAoe, hasStatus, statusName, bonuses{}, skillBonuses[]
+// device: deviceType, condition, charges, bonusSkillName, bonusValue
+// vehicle: speed, toughness, capacity
 export function watchItemsByOwner(campaignId, charId, cb) {
   const q = query(
     collection(db, "campaigns", campaignId, "items"),
@@ -585,6 +589,23 @@ export async function updateItem(campaignId, itemId, data) {
 }
 export async function deleteItem(campaignId, itemId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "items", itemId));
+}
+export function watchItemsByType(campaignId, type, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "items"),
+    where("type", "==", type)
+  );
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+export async function seedItems(campaignId, itemsData, type) {
+  const col = collection(db, "campaigns", campaignId, "items");
+  const snap = await getDocs(query(col, where("type", "==", type)));
+  if (snap.size > 0) return;
+  const batch = writeBatch(db);
+  for (const item of itemsData) {
+    batch.set(doc(col), { ...item, type, ownerCharacterId: null, createdAt: serverTimestamp() });
+  }
+  await batch.commit();
 }
 
 export const derive = {
