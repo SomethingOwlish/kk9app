@@ -72,7 +72,18 @@ function parseRewind(campaign) {
   };
 }
 
-export default function CampaignSettings({ campaign, advancementConfig, onSave, onClose, campaignId, campaignStatuses = [] }) {
+const THEMES = [
+  { key: "original",      label: "Original",  bg: "#181410", accent: "#c8a14e", tone: "dark" },
+  { key: "parchment",     label: "Parchment", bg: "#efe6d4", accent: "#b08526", tone: "light" },
+  { key: "arcane",        label: "Arcane ☽",  bg: "#0f1226", accent: "#5fd3e6", tone: "dark" },
+  { key: "arcane-light",  label: "Arcane ☀",  bg: "#eef1fb", accent: "#2c8aa0", tone: "light" },
+  { key: "verdant",       label: "Verdant ☽", bg: "#0f1a14", accent: "#4fc07e", tone: "dark" },
+  { key: "verdant-light", label: "Verdant ☀", bg: "#eef4ec", accent: "#2f9b5e", tone: "light" },
+  { key: "blood",         label: "Blood ☽",   bg: "#16100f", accent: "#d9534a", tone: "dark" },
+  { key: "blood-light",   label: "Blood ☀",   bg: "#f6ece9", accent: "#c23a32", tone: "light" },
+];
+
+export default function CampaignSettings({ campaign, advancementConfig, onSave, onClose, campaignId, campaignStatuses = [], isGM = true, theme = "original", onThemeChange }) {
   const [d, setD] = useState(() => advSettings(advancementConfig));
   const [cg, setCg] = useState(() => parseChargen(campaign));
   const [rw, setRw] = useState(() => parseRewind(campaign));
@@ -138,6 +149,39 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
         </div>
       </div>
 
+      <section className="kk-block">
+        <h2 className="kk-h2">Цветовая схема</h2>
+        <p className="kk-note">Личная настройка — видна только вам.</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {THEMES.map(t => {
+            const active = t.key === (theme || "original");
+            return (
+              <button
+                key={t.key}
+                onClick={() => onThemeChange?.(t.key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "6px 11px 6px 7px", borderRadius: 9,
+                  fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  color: active ? "var(--kk-text)" : "var(--kk-text-dim)",
+                  background: active ? "var(--kk-surface-2)" : "transparent",
+                  border: active ? "1px solid var(--kk-gold-dim)" : "1px solid var(--kk-line-soft)",
+                  boxShadow: active ? `0 0 0 1px ${t.accent} inset` : "none",
+                  transition: "background .15s, color .15s",
+                }}
+              >
+                <span style={{ display: "inline-flex", borderRadius: 4, overflow: "hidden", border: "1px solid rgba(128,100,60,.3)", flexShrink: 0 }}>
+                  <span style={{ width: 11, height: 16, background: t.bg, display: "block" }} />
+                  <span style={{ width: 11, height: 16, background: t.accent, display: "block" }} />
+                </span>
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {isGM && <>
       <section className="kk-block">
         <h2 className="kk-h2">Создание персонажа</h2>
         <p className="kk-note">Параметры мастера создания — влияют только на новых персонажей.</p>
@@ -349,6 +393,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
           onClose={() => setEditingStatus(null)}
         />
       )}
+      </>}
 
       <div className="kk-edit-foot">
         <button className="kk-btn ghost" onClick={() => { setD(structuredClone(DEFAULT_ADVANCEMENT)); setCg(structuredClone(DEFAULT_CHARGEN)); setJournalThreshold(20); }}>Сбросить к дефолтам</button>
