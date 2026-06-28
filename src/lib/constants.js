@@ -38,6 +38,7 @@ export const MENU = [
   { id: "log", label: "Лог сессий" },
   { id: "scene", label: "Сцена" },
   { id: "board", label: "Доска ГМ", gmOnly: true },
+  { id: "items", label: "Предметы", gmOnly: true },
   { id: "shop", label: "Магазин" },
   { id: "journal", label: "Журнал кампании", on: true },
   { id: "gm", label: "ГМ Борд" },

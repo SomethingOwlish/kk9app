@@ -5,7 +5,8 @@ import {
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
   watchGmMode, watchStatuses, seedStatuses, watchNpcs,
-  watchItemsByOwner, createItem, deleteItem, updateItem, seedItems,
+  watchItemsByOwner, watchAllItems, createItem, deleteItem, updateItem, seedItems,
+  assignItem, unassignItem, addLanguageToChar,
 } from "./lib/db";
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { WEAPONS_DATA } from "./lib/seed-weapons";
@@ -30,6 +31,7 @@ import GmBoard from "./views/GmBoard";
 import ScenePlayerView from "./views/ScenePlayerView";
 import CharacterCreationWizard from "./components/CharacterCreationWizard";
 import JournalView from "./views/JournalView";
+import ItemsView from "./views/ItemsView";
 
 export default function App({ user, signOut }) {
   const navigate = useNavigate();
@@ -53,12 +55,14 @@ export default function App({ user, signOut }) {
   const [campaignStatuses, setCampaignStatuses] = useState([]);
   const [npcs, setNpcs] = useState([]);
   const [activeItems, setActiveItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
   useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
   useEffect(() => watchNpcs(CAMPAIGN_ID, setNpcs), []);
+  useEffect(() => watchAllItems(CAMPAIGN_ID, setAllItems), []);
   useEffect(() => watchStatuses(CAMPAIGN_ID, (statuses) => {
     setCampaignStatuses(statuses);
     if (statuses.length === 0) seedStatuses(CAMPAIGN_ID, STATUSES_DATA).catch(console.error);
@@ -77,7 +81,8 @@ export default function App({ user, signOut }) {
     : pathname === "/settings" ? "settings"
     : pathname === "/scene" ? "scene"
     : pathname === "/board" ? "board"
-    : pathname === "/journal" ? "journal" : "portal";
+    : pathname === "/journal" ? "journal"
+    : pathname === "/items" ? "items" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
   const role = isAdmin ? actingAs : baseRole;
@@ -162,6 +167,21 @@ export default function App({ user, signOut }) {
   const onUpdateItem = useCallback(async (itemId, data) => {
     await updateItem(CAMPAIGN_ID, itemId, data);
   }, []);
+  const onAssignItem = useCallback(async (itemId, charId, itemType) => {
+    await assignItem(CAMPAIGN_ID, itemId, charId, itemType);
+  }, []);
+  const onUnassignItem = useCallback(async (itemId, charId, itemType) => {
+    await unassignItem(CAMPAIGN_ID, itemId, charId, itemType);
+  }, []);
+  const onAddLanguage = useCallback(async (charId, entry) => {
+    await addLanguageToChar(CAMPAIGN_ID, charId, entry);
+  }, []);
+  const onCreateCatalogItem = useCallback(async (data) => {
+    await createItem(CAMPAIGN_ID, data);
+  }, []);
+  const onDeleteCatalogItem = useCallback(async (itemId) => {
+    await deleteItem(CAMPAIGN_ID, itemId);
+  }, []);
   const clearLog = useCallback(async () => {
     if (!activeId) return;
     try { await clearCharacterLog(CAMPAIGN_ID, activeId); }
@@ -175,6 +195,7 @@ export default function App({ user, signOut }) {
     else if (id === "scene") navigate("/scene");
     else if (id === "gm" && isGM) navigate("/board");
     else if (id === "journal") navigate("/journal");
+    else if (id === "items" && isGM) navigate("/items");
     else if (id === "print" && activeId) navigate(`/print/${activeId}`);
   }, [isGM, role, navigate, activeId]);
   const current = view === "portal" ? "portal"
@@ -182,7 +203,8 @@ export default function App({ user, signOut }) {
     : view === "advance" ? "adv"
     : view === "scene" ? "scene"
     : view === "board" ? "gm"
-    : view === "journal" ? "journal" : "card";
+    : view === "journal" ? "journal"
+    : view === "items" ? "items" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
   const partyMembers = useMemo(() => characters.filter(c => partyRefs.has(c.id)), [characters, partyRefs]);
@@ -223,6 +245,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
+        {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
         {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem}/>}

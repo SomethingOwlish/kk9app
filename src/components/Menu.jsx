@@ -1,7 +1,9 @@
 import { MENU } from "../lib/constants";
 
 export default function Menu({ open, onClose, onNav, current, onSignOut, isGM, isAdmin, actingAs, onActAs, hasChar, isDemo }) {
-  const items = MENU.map(m => ({ ...m, on: m.on || m.id === "scene" || (m.id === "set" && !isDemo) || (isGM && m.id === "gm") || (m.id === "print" && hasChar) }));
+  const items = MENU
+    .filter(m => !m.gmOnly || isGM)
+    .map(m => ({ ...m, on: m.on || m.id === "scene" || (m.id === "set" && !isDemo) || (isGM && (m.id === "gm" || m.id === "items")) || (m.id === "print" && hasChar) }));
   return (
     <>
       <div className={`kk-scrim ${open ? "show" : ""}`} onClick={onClose} aria-hidden/>

@@ -5,8 +5,6 @@ import ArtifactItem from "./items/ArtifactItem";
 import SpellItem from "./items/SpellItem";
 import DeviceItem from "./items/DeviceItem";
 import VehicleItem from "./items/VehicleItem";
-import LanguageItem from "./items/LanguageItem";
-import FeatureItem from "./items/FeatureItem";
 
 const CONDITIONS = ["perfect", "good", "worn", "broken"];
 const COND_LABEL = { perfect: "Идеальное", good: "Хорошее", worn: "Потрёпанное", broken: "Сломанное" };
@@ -59,21 +57,17 @@ const EMPTY_DEVICE = {
   deviceType: "", charges: 0, bonusSkillName: "", bonusValue: 0,
 };
 const EMPTY_VEHICLE = { name: "", description: "", speed: 0, toughness: 0, capacity: 0 };
-const EMPTY_LANGUAGE = { name: "" };
-const EMPTY_FEATURE = { name: "", description: "" };
-
 const EMPTY_BY_TYPE = {
   weapon: EMPTY_WEAPON, gear: EMPTY_GEAR, artifact: EMPTY_ARTIFACT,
   spell: EMPTY_SPELL, device: EMPTY_DEVICE, vehicle: EMPTY_VEHICLE,
-  language: EMPTY_LANGUAGE, feature: EMPTY_FEATURE,
 };
 
 const SECTION_LABELS = {
   weapon: "Оружие", gear: "Снаряжение", artifact: "Артефакты",
   spell: "Заклинания", device: "Устройства", vehicle: "Транспорт",
-  language: "Языки", feature: "Черты",
 };
 
+// Language and feature are embedded in the character doc, not in the items collection.
 const ITEM_TYPES = Object.keys(SECTION_LABELS);
 
 export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdateItem, campaignStatuses = [], character }) {
@@ -141,8 +135,6 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
                   onUpdateCharges={onUpdateItem ? (charges) => onUpdateItem(item.id, { charges }) : undefined} />
               );
               if (t === "vehicle") return <VehicleItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
-              if (t === "language") return <LanguageItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
-              if (t === "feature") return <FeatureItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
               return null;
             })}
           </div>

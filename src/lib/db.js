@@ -110,6 +110,7 @@ export async function createCharacter(campaignId, characterId, { name, ownerUid,
     magicLevels: [],
     customSkills: [],
     languages: [],
+    features: [],
     skills: baseSkills,
     relations: [],
     refs: { artifacts: [], companions: [], daemons: [], contacts: [] },
@@ -597,6 +598,47 @@ export function watchItemsByType(campaignId, type, cb) {
   );
   return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }
+export function watchAllItems(campaignId, cb) {
+  const q = query(collection(db, "campaigns", campaignId, "items"), orderBy("type"), orderBy("name"));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+
+// Copy types (weapon/gear/device/vehicle): sets ownerCharacterId on the item.
+// Ref types (artifact/spell): adds itemId to character.refs.artifacts[] / refs.spells[].
+// Language: adds { name, itemId } to character.languages[].
+const REF_TYPES = new Set(["artifact", "spell"]);
+export async function assignItem(campaignId, itemId, charId, itemType) {
+  if (REF_TYPES.has(itemType)) {
+    const field = itemType === "spell" ? "refs.spells" : "refs.artifacts";
+    await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { [field]: arrayUnion(itemId) });
+  } else {
+    await updateDoc(doc(db, "campaigns", campaignId, "items", itemId), { ownerCharacterId: charId });
+  }
+}
+export async function unassignItem(campaignId, itemId, charId, itemType) {
+  if (REF_TYPES.has(itemType)) {
+    const field = itemType === "spell" ? "refs.spells" : "refs.artifacts";
+    await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { [field]: arrayRemove(itemId) });
+  } else {
+    await updateDoc(doc(db, "campaigns", campaignId, "items", itemId), { ownerCharacterId: null });
+  }
+}
+
+export async function addLanguageToChar(campaignId, charId, entry) {
+  // entry: { name, itemId }
+  await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { languages: arrayUnion(entry) });
+}
+export async function removeLanguageFromChar(campaignId, charId, entry) {
+  await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { languages: arrayRemove(entry) });
+}
+
+export async function addFeatureToChar(campaignId, charId, feature) {
+  await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { features: arrayUnion(feature) });
+}
+export async function removeFeatureFromChar(campaignId, charId, feature) {
+  await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { features: arrayRemove(feature) });
+}
+
 export async function seedItems(campaignId, itemsData, type) {
   const col = collection(db, "campaigns", campaignId, "items");
   const snap = await getDocs(query(col, where("type", "==", type)));

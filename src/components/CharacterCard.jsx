@@ -7,7 +7,7 @@ import StatusEditor from "./StatusEditor";
 import StatusCard from "./StatusCard";
 import ItemList from "./ItemList";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
-import { applyStatus, removeStatus } from "../lib/db";
+import { applyStatus, removeStatus, removeLanguageFromChar, addFeatureToChar, removeFeatureFromChar } from "../lib/db";
 import { resizePortrait, validatePortraitFile } from "../lib/storage";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
 
@@ -19,6 +19,8 @@ const DEMO_FIELDS = [
   ["allergies", "Аллергии"],
   ["weaknesses", "Слабости"],
 ];
+
+const FEATURE_KIND_LABEL = { character: "Черта характера", unique: "Уникальная возможность" };
 
 export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
@@ -283,6 +285,50 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         character={ch}
       />
 
+      {/* Languages — embedded in character.languages[] */}
+      {((ch.languages && ch.languages.length > 0) || isGM) && (
+        <section className="kk-block">
+          <h2 className="kk-h2">Языки</h2>
+          {(!ch.languages || ch.languages.length === 0) && <div className="kk-empty-sm">Нет языков</div>}
+          <div className="kk-items-group">
+            {(ch.languages || []).map((lang, i) => (
+              <div key={i} className="kk-item kk-item-language">
+                <div className="kk-item-header">
+                  <span className="kk-item-icon">🗣</span>
+                  <span className="kk-item-name">{lang.name}</span>
+                  {isGM && (
+                    <button className="kk-note-del" onClick={() => removeLanguageFromChar(campaignId, ch.id, lang).catch(console.error)} title="Убрать язык">✕</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Features — embedded in character.features[] */}
+      {isGM && (
+        <section className="kk-block">
+          <h2 className="kk-h2">Черты и возможности</h2>
+          {(!ch.features || ch.features.length === 0) && <div className="kk-empty-sm">Нет черт</div>}
+          <div className="kk-items-group">
+            {(ch.features || []).map((feat, i) => (
+              <div key={i} className="kk-item kk-item-feature">
+                <div className="kk-item-header">
+                  <span className="kk-item-icon">{feat.isWeakness ? "⬇" : "★"}</span>
+                  <span className="kk-item-name">{feat.name}</span>
+                  {feat.kind && <span className="kk-item-subtype">{FEATURE_KIND_LABEL[feat.kind] || feat.kind}</span>}
+                  <button className="kk-note-del" onClick={() => removeFeatureFromChar(campaignId, ch.id, feat).catch(console.error)} title="Удалить">✕</button>
+                </div>
+                {feat.description && <p className="kk-item-desc">{feat.description}</p>}
+                {feat.restrictions && <p className="kk-item-desc" style={{ fontStyle: "italic" }}>{feat.restrictions}</p>}
+              </div>
+            ))}
+          </div>
+          <AddFeatureForm campaignId={campaignId} charId={ch.id} />
+        </section>
+      )}
+
       {showNotes && (
         <section className="kk-block">
           <h2 className="kk-h2">Заметки</h2>
@@ -339,5 +385,64 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         </section>
       )}
     </div>
+  );
+}
+
+function AddFeatureForm({ campaignId, charId }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", kind: "character", description: "", isWeakness: false, restrictions: "", costTrack: "physical" });
+  const [saving, setSaving] = useState(false);
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await addFeatureToChar(campaignId, charId, { ...form, name: form.name.trim() });
+      setOpen(false);
+      setForm({ name: "", kind: "character", description: "", isWeakness: false, restrictions: "", costTrack: "physical" });
+    } catch (err) {
+      alert("Ошибка: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) return (
+    <button className="kk-note-btn kk-items-add-btn" onClick={() => setOpen(true)} style={{ marginTop: "0.5rem" }}>+ Добавить черту</button>
+  );
+
+  return (
+    <form className="kk-item-form" onSubmit={handleSubmit} style={{ marginTop: "0.5rem" }}>
+      <input className="kk-note-input" placeholder="Название *" value={form.name} onChange={e => setF("name", e.target.value)} required maxLength={100} />
+      <div className="kk-item-form-row">
+        <label className="kk-item-form-label">Вид:</label>
+        <select className="kk-item-select" value={form.kind} onChange={e => setF("kind", e.target.value)}>
+          <option value="character">Черта характера</option>
+          <option value="unique">Уникальная возможность</option>
+        </select>
+        <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>
+          <input type="checkbox" checked={form.isWeakness} onChange={e => setF("isWeakness", e.target.checked)} /> Слабость
+        </label>
+      </div>
+      <textarea className="kk-note-input kk-note-body-input" placeholder="Описание" value={form.description} onChange={e => setF("description", e.target.value)} rows={2} maxLength={500} />
+      {form.kind === "unique" && (
+        <>
+          <textarea className="kk-note-input kk-note-body-input" placeholder="Ограничения" value={form.restrictions} onChange={e => setF("restrictions", e.target.value)} rows={1} maxLength={300} />
+          <div className="kk-item-form-row">
+            <label className="kk-item-form-label">Шкала затрат:</label>
+            <select className="kk-item-select" value={form.costTrack} onChange={e => setF("costTrack", e.target.value)}>
+              <option value="physical">Физическая</option>
+              <option value="mental">Ментальная</option>
+            </select>
+          </div>
+        </>
+      )}
+      <div className="kk-item-form-actions">
+        <button type="submit" className="kk-note-btn" disabled={saving || !form.name.trim()}>{saving ? "…" : "Добавить"}</button>
+        <button type="button" className="kk-note-btn kk-item-cancel-btn" onClick={() => setOpen(false)}>Отмена</button>
+      </div>
+    </form>
   );
 }
