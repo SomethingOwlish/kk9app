@@ -80,14 +80,14 @@ function parseRewind(campaign) {
 }
 
 const THEMES = [
-  { key: "original",      label: "Original",  bg: "#181410", accent: "#c8a14e", tone: "dark" },
-  { key: "parchment",     label: "Parchment", bg: "#efe6d4", accent: "#b08526", tone: "light" },
-  { key: "arcane",        label: "Arcane ☽",  bg: "#0f1226", accent: "#5fd3e6", tone: "dark" },
-  { key: "arcane-light",  label: "Arcane ☀",  bg: "#eef1fb", accent: "#2c8aa0", tone: "light" },
-  { key: "verdant",       label: "Verdant ☽", bg: "#0f1a14", accent: "#4fc07e", tone: "dark" },
-  { key: "verdant-light", label: "Verdant ☀", bg: "#eef4ec", accent: "#2f9b5e", tone: "light" },
-  { key: "blood",         label: "Blood ☽",   bg: "#16100f", accent: "#d9534a", tone: "dark" },
-  { key: "blood-light",   label: "Blood ☀",   bg: "#f6ece9", accent: "#c23a32", tone: "light" },
+  { key: "original",   label: "Goldleaf",  bg: "#181410", accent: "#c8a14e", tone: "dark" },
+  { key: "parchment",  label: "Parchment", bg: "#f1e8d1", accent: "#bf9a45", tone: "light" },
+  { key: "amethyst",   label: "Amethyst",  bg: "#eaecf6", accent: "#2c8a96", tone: "light" },
+  { key: "verdant",    label: "Verdant",   bg: "#e7efe4", accent: "#2f9e5f", tone: "light" },
+  { key: "rosewood",   label: "Rosewood",  bg: "#f6e7e5", accent: "#c0392b", tone: "light" },
+  { key: "ember",      label: "Ember",     bg: "#1a1210", accent: "#d65a4a", tone: "dark" },
+  { key: "grove",      label: "Grove",     bg: "#0e1611", accent: "#5bbd7e", tone: "dark" },
+  { key: "midnight",   label: "Midnight",  bg: "#0f1729", accent: "#5bd3e0", tone: "dark" },
 ];
 
 export default function CampaignSettings({ campaign, advancementConfig, onSave, onClose, campaignId, campaignStatuses = [], isGM = true, theme = "original", onThemeChange }) {

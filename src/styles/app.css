@@ -8,9 +8,9 @@
   -webkit-font-smoothing:antialiased;line-height:1.45;overflow:hidden;}
 .kk-root *{box-sizing:border-box;} .kk-root button{font-family:inherit;color:inherit;cursor:pointer;background:none;border:none;user-select:none;-webkit-user-select:none;}
 .kk-bg{position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:radial-gradient(120% 90% at 50% -10%,#271f15 0%,var(--kk-bg) 58%,#120f0b 100%),
-  repeating-linear-gradient(118deg,transparent 0 40px,rgba(255,230,180,.014) 40px 41px),
-  repeating-linear-gradient(32deg,transparent 0 52px,rgba(0,0,0,.20) 52px 53px);}
+  background:radial-gradient(135% 90% at 50% -12%,var(--kk-surface) 0%,var(--kk-bg) 56%,var(--kk-bg-2) 100%),
+  repeating-linear-gradient(118deg,transparent 0 38px,rgba(255,255,255,.02) 38px 39px),
+  repeating-linear-gradient(32deg,transparent 0 52px,rgba(0,0,0,.06) 52px 53px);}
 .kk-shell{position:relative;z-index:1;max-width:760px;margin:0 auto;padding:14px 14px calc(60px + env(safe-area-inset-bottom,0px));}
 .kk-topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
 .kk-burger{width:34px;height:34px;flex:none;border:1px solid var(--kk-line);border-radius:8px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;}
