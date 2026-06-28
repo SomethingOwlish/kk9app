@@ -1,0 +1,12 @@
+{
+  "namespace": "Asgard",
+  "source": "@kk9/asgard@1.0.0",
+  "shape": "package",
+  "provider": "Root",
+  "componentCount": 14,
+  "skippedStoryIds": [],
+  "runtimeFontPrefixes": [
+    "Playfair Display",
+    "Golos Text"
+  ]
+}

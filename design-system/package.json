@@ -1,0 +1,26 @@
+{
+  "name": "@kk9/asgard",
+  "version": "1.0.0",
+  "description": "Asgard design system for KK9 — dark fantasy TTRPG campaign tracker",
+  "module": "./dist/index.es.js",
+  "main": "./dist/index.cjs.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.es.js",
+      "require": "./dist/index.cjs.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}
