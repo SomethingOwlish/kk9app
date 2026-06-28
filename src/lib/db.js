@@ -599,8 +599,11 @@ export function watchItemsByType(campaignId, type, cb) {
   return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
 }
 export function watchAllItems(campaignId, cb) {
-  const q = query(collection(db, "campaigns", campaignId, "items"), orderBy("type"), orderBy("name"));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(collection(db, "campaigns", campaignId, "items"), (snap) => {
+    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    items.sort((a, b) => (a.type || "").localeCompare(b.type || "") || (a.name || "").localeCompare(b.name || ""));
+    cb(items);
+  });
 }
 
 // Copy types (weapon/gear/device/vehicle): sets ownerCharacterId on the item.
