@@ -12,7 +12,9 @@ import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
 import { CAMPAIGN_ID } from "./lib/config";
 import { getPath, applyOverrides, canAdvance } from "./lib/appUtils";
+import { loadPrefs, savePref } from "./lib/userPrefs";
 import "./styles/app.css";
+import "./styles/theme-explorer.css";
 import CharacterCard from "./components/CharacterCard";
 import AdvancementDialog from "./components/AdvancementDialog";
 import LogView from "./components/LogView";
@@ -29,6 +31,8 @@ import JournalView from "./views/JournalView";
 export default function App({ user, signOut }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [theme, setTheme] = useState(() => loadPrefs(user.uid).theme || "original");
+  const saveTheme = useCallback((t) => { setTheme(t); savePref(user.uid, "theme", t); }, [user.uid]);
   const [campaign, setCampaign] = useState(null);
   const [characters, setCharacters] = useState([]);
   const [ready, setReady] = useState(false);
@@ -156,7 +160,7 @@ export default function App({ user, signOut }) {
     setMenu(false);
     if (id === "portal") navigate("/");
     else if (id === "card") { setEditing(false); navigate(activeId ? `/card/${activeId}` : "/"); }
-    else if (id === "set" && isGM) navigate("/settings");
+    else if (id === "set" && role !== "demo") navigate("/settings");
     else if (id === "scene") navigate("/scene");
     else if (id === "gm" && isGM) navigate("/board");
     else if (id === "journal") navigate("/journal");
@@ -172,9 +176,10 @@ export default function App({ user, signOut }) {
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
   const partyMembers = useMemo(() => characters.filter(c => partyRefs.has(c.id)), [characters, partyRefs]);
   const cl = campaign !== null;
+  const themeClass = theme !== "original" ? ` te-theme-${theme}` : "";
   if (view === "scene" && ready && cl) {
     return (
-      <div className="kk-root">
+      <div className={`kk-root${themeClass}`}>
         <div className="kk-bg" aria-hidden/>
         <ScenePlayerView isGM={isGM} onBack={() => navigate("/")}/>
         {!isGM && (
@@ -182,13 +187,13 @@ export default function App({ user, signOut }) {
             <span/><span/><span/>
           </button>
         )}
-        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs}/>
+        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"}/>
       </div>
     );
   }
 
   return (
-    <div className="kk-root">
+    <div className={`kk-root${themeClass}`}>
       <div className="kk-bg" aria-hidden/>
       <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню"><span/><span/><span/></button>
       <div className="kk-shell">
@@ -208,8 +213,8 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
-        {ready && cl && view === "settings" && isGM && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses}/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem}/>}
+        {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}
@@ -226,7 +231,7 @@ export default function App({ user, signOut }) {
           </div>
         </div>
       )}
-      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} hasChar={!!viewCh}/>
+      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!viewCh}/>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import AuthGate from "./components/AuthGate";
 import App from "./App";
 import LandingPage from "./views/LandingPage";
 import PrintView from "./views/PrintView";
+import ThemeExplorer from "./views/ThemeExplorer";
 
 // Top-level routes:
 //   #/landing       → LandingPage placeholder (B-20 will fill this)
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Routes>
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/print/:charId" element={<PrintView />} />
+        <Route path="/theme" element={<ThemeExplorer />} />
         <Route
           path="/*"
           element={
