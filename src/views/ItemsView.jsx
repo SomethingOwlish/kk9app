@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 
-// Item types split into ref vs copy ownership models
-const COPY_TYPES = ["weapon", "gear", "device", "vehicle"];
-const REF_TYPES  = ["artifact", "spell"];
+// Artifact: single owner (ownerCharacterId on item doc).
+// All others (weapon/gear/spell/device/vehicle): copy-per-character (catalog shows templates only).
+// Language: character.languages[] embedded array.
+const COPY_TYPES = ["weapon", "gear", "spell", "device", "vehicle"];
 const LANG_TYPE  = "language";
 
 const TYPE_LABELS = {
@@ -10,7 +11,7 @@ const TYPE_LABELS = {
   spell: "Заклинания", device: "Устройства", vehicle: "Транспорт",
   language: "Языки",
 };
-const ALL_CATALOG_TYPES = [...COPY_TYPES, ...REF_TYPES, LANG_TYPE];
+const ALL_CATALOG_TYPES = [...COPY_TYPES, "artifact", LANG_TYPE];
 
 const DAMAGE_LEVEL_LABEL = { light: "Лёгкий", heavy: "Тяжёлый", lethal: "Летальный" };
 const ARTIFACT_TYPE_LABEL = {
@@ -32,11 +33,6 @@ function itemSubtitle(item) {
   return "";
 }
 
-function ownerLabel(item, characters) {
-  if (!item.ownerCharacterId) return null;
-  const ch = characters.find(c => c.id === item.ownerCharacterId);
-  return ch ? ch.name : "?";
-}
 
 export default function ItemsView({
   items = [],
@@ -54,10 +50,11 @@ export default function ItemsView({
   const [newItem, setNewItem] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const tabItems = useMemo(
-    () => items.filter(i => i.type === activeTab),
-    [items, activeTab]
-  );
+  const tabItems = useMemo(() => {
+    const all = items.filter(i => i.type === activeTab);
+    // Copy types: only show templates (no owner); artifact shows all (has single owner)
+    return COPY_TYPES.includes(activeTab) ? all.filter(i => !i.ownerCharacterId) : all;
+  }, [items, activeTab]);
 
   function setNew(k, v) { setNewItem(p => ({ ...p, [k]: v })); }
 
@@ -100,7 +97,7 @@ export default function ItemsView({
     const charId = assignTarget[item.id];
     if (!charId) return;
     try {
-      await onAssign(item.id, charId, item.type);
+      await onAssign(item, charId, item.type);
       setAssignTarget(p => ({ ...p, [item.id]: "" }));
     } catch (err) {
       alert("Ошибка назначения: " + err.message);
@@ -128,21 +125,17 @@ export default function ItemsView({
     }
   }
 
-  // Who has this ref item
-  function refOwners(item) {
-    if (item.type === "artifact") {
-      return characters.filter(c => c.refs?.artifacts?.includes(item.id));
-    }
-    if (item.type === "spell") {
-      return characters.filter(c => c.refs?.spells?.includes(item.id));
-    }
-    if (item.type === "language") {
-      return characters.filter(c => c.languages?.some(l => l.itemId === item.id));
-    }
-    return [];
+  // For artifact: returns 0 or 1 owner; for language: all chars with that language
+  function artifactOwner(item) {
+    if (!item.ownerCharacterId) return null;
+    return characters.find(c => c.id === item.ownerCharacterId) || null;
+  }
+  function languageOwners(item) {
+    return characters.filter(c => c.languages?.some(l => l.itemId === item.id));
   }
 
-  const isRefType   = REF_TYPES.includes(activeTab) || activeTab === LANG_TYPE;
+  const isArtifact  = activeTab === "artifact";
+  const isLanguage  = activeTab === LANG_TYPE;
   const isCopyType  = COPY_TYPES.includes(activeTab);
 
   return (
@@ -170,22 +163,22 @@ export default function ItemsView({
 
         {tabItems.map(item => {
           const isExpanded = expandedId === item.id;
-          const owners = isRefType ? refOwners(item) : [];
-          const copyOwner = isCopyType ? ownerLabel(item, characters) : null;
+          const artOwner   = isArtifact ? artifactOwner(item) : null;
+          const langOwners = isLanguage ? languageOwners(item) : [];
 
           return (
             <div key={item.id} className={`kk-catalog-row${isExpanded ? " expanded" : ""}`}>
               <div className="kk-catalog-row-head" onClick={() => setExpandedId(isExpanded ? null : item.id)}>
                 <span className="kk-catalog-row-name">{item.name}</span>
                 <span className="kk-catalog-row-sub">{itemSubtitle(item)}</span>
-                {isCopyType && copyOwner && (
-                  <span className="kk-catalog-row-owner">{copyOwner}</span>
+                {isArtifact && artOwner && (
+                  <span className="kk-catalog-row-owner">{artOwner.name}</span>
                 )}
-                {isCopyType && !copyOwner && (
+                {isArtifact && !artOwner && (
                   <span className="kk-catalog-row-unowned">Нет владельца</span>
                 )}
-                {isRefType && owners.length > 0 && (
-                  <span className="kk-catalog-row-owner">{owners.map(c => c.name).join(", ")}</span>
+                {isLanguage && langOwners.length > 0 && (
+                  <span className="kk-catalog-row-owner">{langOwners.map(c => c.name).join(", ")}</span>
                 )}
                 <span className="kk-catalog-chevron">{isExpanded ? "▲" : "▼"}</span>
               </div>
@@ -209,23 +202,23 @@ export default function ItemsView({
                     <button
                       className="kk-note-btn"
                       disabled={!assignTarget[item.id]}
-                      onClick={() => activeTab === "language" ? handleAddLang(item) : handleAssign(item)}
+                      onClick={() => isLanguage ? handleAddLang(item) : handleAssign(item)}
                     >
-                      Назначить
+                      {isCopyType ? "Выдать копию" : "Назначить"}
                     </button>
                   </div>
 
-                  {/* Current owners with unassign */}
-                  {isCopyType && copyOwner && (
+                  {/* Artifact: show current owner with option to unassign */}
+                  {isArtifact && artOwner && (
                     <div className="kk-catalog-owners">
-                      <span className="kk-catalog-owner-name">{copyOwner}</span>
+                      <span className="kk-catalog-owner-name">{artOwner.name}</span>
                       <button className="kk-note-del" onClick={() => handleUnassign(item, item.ownerCharacterId)}>✕</button>
                     </div>
                   )}
-                  {isRefType && owners.map(c => (
+                  {/* Language: show all chars that know this language */}
+                  {isLanguage && langOwners.map(c => (
                     <div key={c.id} className="kk-catalog-owners">
                       <span className="kk-catalog-owner-name">{c.name}</span>
-                      <button className="kk-note-del" onClick={() => handleUnassign(item, c.id)}>✕</button>
                     </div>
                   ))}
 

@@ -116,6 +116,13 @@ export async function createCharacter(campaignId, characterId, { name, ownerUid,
     refs: { artifacts: [], companions: [], daemons: [], contacts: [] },
     createdAt: serverTimestamp(),
   });
+  // Every character starts with fists as a default weapon
+  await addDoc(collection(db, "campaigns", campaignId, "items"), {
+    type: "weapon", name: "Кулаки", ownerCharacterId: characterId,
+    skillName: "Рукопашный бой", damageLevel: "light", damageType: "physical",
+    range: 0, ap: 0, rof: 1, attackModifier: 0, condition: "perfect",
+    equipped: true, description: "", createdAt: serverTimestamp(),
+  });
   // private/gm — GM-only notes (tension moved to main doc per B-07)
   const gmRef = doc(db, "campaigns", campaignId, "characters", characterId, "private", "gm");
   await setDoc(gmRef, {
@@ -606,24 +613,24 @@ export function watchAllItems(campaignId, cb) {
   });
 }
 
-// Copy types (weapon/gear/device/vehicle): sets ownerCharacterId on the item.
-// Ref types (artifact/spell): adds itemId to character.refs.artifacts[] / refs.spells[].
+// Artifact: single owner, ownerCharacterId set directly on the item doc.
+// All other types (weapon/gear/spell/device/vehicle): copy-per-character.
+//   assign = create a new copy doc with ownerCharacterId; unassign = delete that copy doc.
 // Language: adds { name, itemId } to character.languages[].
-const REF_TYPES = new Set(["artifact", "spell"]);
-export async function assignItem(campaignId, itemId, charId, itemType) {
-  if (REF_TYPES.has(itemType)) {
-    const field = itemType === "spell" ? "refs.spells" : "refs.artifacts";
-    await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { [field]: arrayUnion(itemId) });
+export async function assignItem(campaignId, itemId, charId, itemType, itemData = {}) {
+  const col = collection(db, "campaigns", campaignId, "items");
+  if (itemType === "artifact") {
+    await updateDoc(doc(col, itemId), { ownerCharacterId: charId });
   } else {
-    await updateDoc(doc(db, "campaigns", campaignId, "items", itemId), { ownerCharacterId: charId });
+    const { id: _id, createdAt: _ca, ...rest } = itemData;
+    await addDoc(col, { ...rest, ownerCharacterId: charId, createdAt: serverTimestamp() });
   }
 }
-export async function unassignItem(campaignId, itemId, charId, itemType) {
-  if (REF_TYPES.has(itemType)) {
-    const field = itemType === "spell" ? "refs.spells" : "refs.artifacts";
-    await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { [field]: arrayRemove(itemId) });
-  } else {
+export async function unassignItem(campaignId, itemId, _charId, itemType) {
+  if (itemType === "artifact") {
     await updateDoc(doc(db, "campaigns", campaignId, "items", itemId), { ownerCharacterId: null });
+  } else {
+    await deleteDoc(doc(db, "campaigns", campaignId, "items", itemId));
   }
 }
 

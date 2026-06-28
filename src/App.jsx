@@ -159,8 +159,8 @@ export default function App({ user, signOut }) {
   const onUpdateItem = useCallback(async (itemId, data) => {
     await updateItem(CAMPAIGN_ID, itemId, data);
   }, []);
-  const onAssignItem = useCallback(async (itemId, charId, itemType) => {
-    await assignItem(CAMPAIGN_ID, itemId, charId, itemType);
+  const onAssignItem = useCallback(async (item, charId, itemType) => {
+    await assignItem(CAMPAIGN_ID, item.id, charId, itemType, item);
   }, []);
   const onUnassignItem = useCallback(async (itemId, charId, itemType) => {
     await unassignItem(CAMPAIGN_ID, itemId, charId, itemType);

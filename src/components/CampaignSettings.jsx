@@ -8,6 +8,8 @@ import { GEAR_DATA } from "../lib/seed-gear";
 import { ARTIFACTS_DATA } from "../lib/seed-artifacts";
 import { SPELLS_DATA } from "../lib/seed-spells";
 import { DEVICES_DATA } from "../lib/seed-devices";
+import { VEHICLES_DATA } from "../lib/seed-vehicles";
+import { LANGUAGES_DATA } from "../lib/seed-languages";
 import StatusCard from "./StatusCard";
 
 const DIE_OPTIONS = [4, 6, 8, 10, 12];
@@ -382,6 +384,8 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
           ["artifact", "Артефакты",   ARTIFACTS_DATA],
           ["spell",    "Заклинания",  SPELLS_DATA],
           ["device",   "Устройства",  DEVICES_DATA],
+          ["vehicle",  "Транспорт",   VEHICLES_DATA],
+          ["language", "Языки",       LANGUAGES_DATA],
         ].map(([type, label, data]) => (
           <div key={type} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center", flexWrap: "wrap" }}>
             <button className="kk-btn" onClick={() => handleSeedItems(type, data)} disabled={seedingItems[type]}>
