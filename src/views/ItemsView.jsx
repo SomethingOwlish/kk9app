@@ -39,22 +39,23 @@ export default function ItemsView({
   characters = [],
   onCreateItem,
   onDeleteItem,
+  onUpdateItem,
   onAssign,
   onUnassign,
   onAddLanguage,
 }) {
   const [activeTab, setActiveTab] = useState("weapon");
   const [expandedId, setExpandedId] = useState(null);
-  const [assignTarget, setAssignTarget] = useState({}); // itemId → charId
+  const [assignTarget, setAssignTarget] = useState({});
   const [adding, setAdding] = useState(false);
   const [newItem, setNewItem] = useState({});
   const [saving, setSaving] = useState(false);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editItemData, setEditItemData] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
 
-  const tabItems = useMemo(() => {
-    const all = items.filter(i => i.type === activeTab);
-    // Copy types: only show templates (no owner); artifact shows all (has single owner)
-    return COPY_TYPES.includes(activeTab) ? all.filter(i => !i.ownerCharacterId) : all;
-  }, [items, activeTab]);
+  // Show all items regardless of owner — items created on character cards also appear here
+  const tabItems = useMemo(() => items.filter(i => i.type === activeTab), [items, activeTab]);
 
   function setNew(k, v) { setNewItem(p => ({ ...p, [k]: v })); }
 
@@ -90,6 +91,25 @@ export default function ItemsView({
       alert("Ошибка: " + err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function startEditItem(item) { setEditingItemId(item.id); setEditItemData({ ...item }); }
+  function setEI(k, v) { setEditItemData(p => ({ ...p, [k]: v })); }
+
+  async function handleSaveEditItem(e) {
+    e.preventDefault();
+    if (!editItemData.name?.trim()) return;
+    setEditSaving(true);
+    try {
+      const { id: _id, createdAt: _ca, ...fields } = editItemData;
+      await onUpdateItem(editingItemId, fields);
+      setEditingItemId(null);
+      setEditItemData({});
+    } catch (err) {
+      alert("Ошибка: " + err.message);
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -185,49 +205,55 @@ export default function ItemsView({
 
               {isExpanded && (
                 <div className="kk-catalog-row-body">
-                  {item.description && <p className="kk-item-desc">{item.description}</p>}
+                  {editingItemId === item.id ? (
+                    <AddItemForm type={item.type} data={editItemData} setData={setEI}
+                      onSubmit={handleSaveEditItem} onCancel={() => setEditingItemId(null)}
+                      saving={editSaving} submitLabel="Сохранить" />
+                  ) : (
+                    <>
+                      {item.description && <p className="kk-item-desc">{item.description}</p>}
 
-                  {/* Assign section */}
-                  <div className="kk-catalog-assign">
-                    <select
-                      className="kk-item-select"
-                      value={assignTarget[item.id] || ""}
-                      onChange={e => setAssignTarget(p => ({ ...p, [item.id]: e.target.value }))}
-                    >
-                      <option value="">— выбрать персонажа —</option>
-                      {characters.filter(c => c.characterCreated !== false).map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
+                      {/* Assign: for copy types only show for unowned templates */}
+                      {(!isCopyType || !item.ownerCharacterId) && (
+                        <div className="kk-catalog-assign">
+                          <select
+                            className="kk-item-select"
+                            value={assignTarget[item.id] || ""}
+                            onChange={e => setAssignTarget(p => ({ ...p, [item.id]: e.target.value }))}
+                          >
+                            <option value="">— выбрать персонажа —</option>
+                            {characters.filter(c => c.characterCreated !== false).map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            className="kk-note-btn"
+                            disabled={!assignTarget[item.id]}
+                            onClick={() => isLanguage ? handleAddLang(item) : handleAssign(item)}
+                          >
+                            {isCopyType ? "Выдать копию" : "Назначить"}
+                          </button>
+                        </div>
+                      )}
+
+                      {isArtifact && artOwner && (
+                        <div className="kk-catalog-owners">
+                          <span className="kk-catalog-owner-name">{artOwner.name}</span>
+                          <button className="kk-note-del" onClick={() => handleUnassign(item, item.ownerCharacterId)}>✕</button>
+                        </div>
+                      )}
+                      {isLanguage && langOwners.map(c => (
+                        <div key={c.id} className="kk-catalog-owners">
+                          <span className="kk-catalog-owner-name">{c.name}</span>
+                        </div>
                       ))}
-                    </select>
-                    <button
-                      className="kk-note-btn"
-                      disabled={!assignTarget[item.id]}
-                      onClick={() => isLanguage ? handleAddLang(item) : handleAssign(item)}
-                    >
-                      {isCopyType ? "Выдать копию" : "Назначить"}
-                    </button>
-                  </div>
 
-                  {/* Artifact: show current owner with option to unassign */}
-                  {isArtifact && artOwner && (
-                    <div className="kk-catalog-owners">
-                      <span className="kk-catalog-owner-name">{artOwner.name}</span>
-                      <button className="kk-note-del" onClick={() => handleUnassign(item, item.ownerCharacterId)}>✕</button>
-                    </div>
+                      <div className="kk-catalog-actions">
+                        <button className="kk-note-btn" onClick={() => startEditItem(item)}>✎ Редактировать</button>
+                        <button className="kk-note-btn kk-item-cancel-btn" onClick={() => onDeleteItem(item.id)}>Удалить предмет</button>
+                      </div>
+                    </>
                   )}
-                  {/* Language: show all chars that know this language */}
-                  {isLanguage && langOwners.map(c => (
-                    <div key={c.id} className="kk-catalog-owners">
-                      <span className="kk-catalog-owner-name">{c.name}</span>
-                    </div>
-                  ))}
-
-                  {/* Delete */}
-                  <div className="kk-catalog-actions">
-                    <button className="kk-note-btn kk-item-cancel-btn" onClick={() => onDeleteItem(item.id)}>
-                      Удалить предмет
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -246,7 +272,7 @@ export default function ItemsView({
 }
 
 // ── Minimal inline add-form per type ─────────────────────────
-function AddItemForm({ type, data, setData, onSubmit, onCancel, saving }) {
+function AddItemForm({ type, data, setData, onSubmit, onCancel, saving, submitLabel = "Добавить" }) {
   const CONDITIONS = ["perfect", "good", "worn", "broken"];
   const COND_LBL = { perfect: "Идеальное", good: "Хорошее", worn: "Потрёпанное", broken: "Сломанное" };
   const n = k => e => setData(k, typeof e === "object" ? e.target.value : e);
@@ -327,6 +353,10 @@ function AddItemForm({ type, data, setData, onSubmit, onCancel, saving }) {
           <input className="kk-item-select" value={data.skillName || ""} onChange={n("skillName")} maxLength={60} />
         </div>
         <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Папка:</label>
+          <input className="kk-item-select" value={data.folder || ""} onChange={n("folder")} maxLength={60} placeholder="(по умолчанию: навык)" />
+        </div>
+        <div className="kk-item-form-row">
           <label className="kk-item-form-label">Стоимость:</label>
           <input type="number" className="kk-item-num" value={data.cost || 1} onChange={num("cost")} min={0} />
           <label className="kk-item-form-label" style={{marginLeft:"0.5rem"}}>Поддерж.:</label>
@@ -372,7 +402,7 @@ function AddItemForm({ type, data, setData, onSubmit, onCancel, saving }) {
       )}
 
       <div className="kk-item-form-actions">
-        <button type="submit" className="kk-note-btn" disabled={saving || !data.name?.trim()}>{saving ? "Сохранение…" : "Добавить"}</button>
+        <button type="submit" className="kk-note-btn" disabled={saving || !data.name?.trim()}>{saving ? "Сохранение…" : submitLabel}</button>
         <button type="button" className="kk-note-btn kk-item-cancel-btn" onClick={onCancel}>Отмена</button>
       </div>
     </form>

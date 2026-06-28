@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import WeaponItem from "./items/WeaponItem";
 import GearItem from "./items/GearItem";
 import ArtifactItem from "./items/ArtifactItem";
@@ -49,7 +49,7 @@ const EMPTY_ARTIFACT = {
 const EMPTY_SPELL = {
   name: "", description: "", spellType: "utility",
   cost: 1, range: 0, duration: 0, durationHours: 0,
-  uses: 1, upkeepCost: 0, skillName: "", noWandNeeded: false,
+  uses: 1, upkeepCost: 0, skillName: "", folder: "", noWandNeeded: false,
   isAoe: false, active: false, hasStatus: false, statusName: "",
 };
 const EMPTY_DEVICE = {
@@ -75,6 +75,9 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
   const [type, setType] = useState("weapon");
   const [form, setForm] = useState(EMPTY_WEAPON);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
 
   const byType = {};
   for (const t of ITEM_TYPES) byType[t] = items.filter(i => i.type === t);
@@ -92,6 +95,24 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
   }
 
   function setF(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
+  const setE = useCallback((k, v) => setEditData(prev => ({ ...prev, [k]: v })), []);
+
+  function startEdit(item) { setEditingId(item.id); setEditData({ ...item }); }
+
+  async function handleSaveEdit() {
+    if (!editData.name?.trim()) return;
+    setEditSaving(true);
+    try {
+      const { id: _id, createdAt: _ca, ...fields } = editData;
+      await onUpdateItem(editingId, fields);
+      setEditingId(null);
+      setEditData({});
+    } catch (err) {
+      alert("Ошибка: " + err.message);
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -119,24 +140,58 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
       {ITEM_TYPES.map(t => {
         const group = byType[t];
         if (group.length === 0) return null;
+
+        const renderOne = (item) => {
+          if (editingId === item.id) {
+            return (
+              <ItemEditForm key={item.id} item={item} data={editData} setData={setE}
+                onSave={handleSaveEdit} onCancel={() => setEditingId(null)}
+                saving={editSaving} campaignStatuses={campaignStatuses} />
+            );
+          }
+          const del = isGM ? () => onDelete(item.id) : undefined;
+          let component;
+          if (t === "weapon") component = <WeaponItem item={item} isGM={isGM} onDelete={del} />;
+          else if (t === "gear") component = <GearItem item={item} isGM={isGM} onDelete={del} />;
+          else if (t === "artifact") component = <ArtifactItem item={item} isGM={isGM} onDelete={del} />;
+          else if (t === "spell") component = <SpellItem item={item} activeSpell={activeSpellsMap[item.id]} isGM={isGM} onDelete={del} />;
+          else if (t === "device") component = <DeviceItem item={item} isGM={isGM} onDelete={del}
+            onUpdateCharges={onUpdateItem ? (charges) => onUpdateItem(item.id, { charges }) : undefined} />;
+          else if (t === "vehicle") component = <VehicleItem item={item} isGM={isGM} onDelete={del} />;
+          else return null;
+          return (
+            <div key={item.id} className="kk-item-with-edit">
+              {component}
+              {isGM && <button className="kk-item-edit-btn" onClick={() => startEdit(item)} title="Редактировать">✎</button>}
+            </div>
+          );
+        };
+
+        if (t === "spell") {
+          const folders = {};
+          const folderOrder = [];
+          for (const item of group) {
+            const key = item.folder || item.skillName || "Без навыка";
+            if (!folders[key]) { folders[key] = []; folderOrder.push(key); }
+            folders[key].push(item);
+          }
+          return (
+            <div key={t} className="kk-items-group">
+              <div className="kk-items-group-label">{SECTION_LABELS[t]}</div>
+              {folderOrder.map(folder => (
+                <div key={folder} className="kk-spell-folder">
+                  <div className="kk-spell-folder-label">{folder}</div>
+                  {folders[folder].map(item => renderOne(item))}
+                </div>
+              ))}
+            </div>
+          );
+        }
+
         return (
           <div key={t} className="kk-items-group">
             <div className="kk-items-group-label">{SECTION_LABELS[t]}</div>
-            {group.map(item => {
-              const del = isGM ? () => onDelete(item.id) : undefined;
-              if (t === "weapon") return <WeaponItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
-              if (t === "gear") return <GearItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
-              if (t === "artifact") return <ArtifactItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
-              if (t === "spell") return (
-                <SpellItem key={item.id} item={item} activeSpell={activeSpellsMap[item.id]} isGM={isGM} onDelete={del} />
-              );
-              if (t === "device") return (
-                <DeviceItem key={item.id} item={item} isGM={isGM} onDelete={del}
-                  onUpdateCharges={onUpdateItem ? (charges) => onUpdateItem(item.id, { charges }) : undefined} />
-              );
-              if (t === "vehicle") return <VehicleItem key={item.id} item={item} isGM={isGM} onDelete={del} />;
-              return null;
-            })}
+            {group.map(item => renderOne(item))}
           </div>
         );
       })}
@@ -294,6 +349,10 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
                 <input className="kk-item-select" value={form.skillName} onChange={e => setF("skillName", e.target.value)} maxLength={60} />
               </div>
               <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Папка:</label>
+                <input className="kk-item-select" value={form.folder || ""} onChange={e => setF("folder", e.target.value)} maxLength={60} placeholder="(по умолчанию: навык)" />
+              </div>
+              <div className="kk-item-form-row">
                 <label className="kk-item-form-label">Стоимость:</label>
                 <input type="number" className="kk-item-num" value={form.cost} onChange={e => setF("cost", Number(e.target.value))} min={0} />
                 <label className="kk-item-form-label" style={{ marginLeft: "0.75rem" }}>Поддержание:</label>
@@ -353,5 +412,140 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
         </form>
       )}
     </section>
+  );
+}
+
+function ItemEditForm({ item, data, setData, onSave, onCancel, saving, campaignStatuses = [] }) {
+  const t = item.type;
+  const s = (k) => (e) => setData(k, e.target.value);
+  const n = (k) => (e) => setData(k, Number(e.target.value));
+  return (
+    <div className="kk-item-edit-form">
+      <input className="kk-note-input" placeholder="Название *" value={data.name || ""} onChange={s("name")} maxLength={100} />
+      <textarea className="kk-note-input kk-note-body-input" placeholder="Описание" value={data.description || ""} onChange={s("description")} rows={2} maxLength={600} />
+
+      {(t === "weapon" || t === "gear" || t === "artifact" || t === "device") && (
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Состояние:</label>
+          <select className="kk-item-select" value={data.condition || "good"} onChange={s("condition")}>
+            {CONDITIONS.map(c => <option key={c} value={c}>{COND_LABEL[c]}</option>)}
+          </select>
+        </div>
+      )}
+
+      {t === "weapon" && (<>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Уровень урона:</label>
+          <select className="kk-item-select" value={data.damageLevel || "light"} onChange={s("damageLevel")}>
+            {DAMAGE_LEVELS.map(l => <option key={l} value={l}>{DMG_LABEL[l]}</option>)}
+          </select>
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Тип:</label>
+          <select className="kk-item-select" value={data.damageType || "physical"} onChange={s("damageType")}>
+            {DAMAGE_TYPES.map(d => <option key={d} value={d}>{DMGTYPE_LABEL[d]}</option>)}
+          </select>
+        </div>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Навык:</label>
+          <input className="kk-item-select" value={data.skillName || ""} onChange={s("skillName")} maxLength={60} />
+        </div>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Дальн.:</label>
+          <input type="number" className="kk-item-num" value={data.range ?? 0} onChange={n("range")} min={0} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>БП:</label>
+          <input type="number" className="kk-item-num" value={data.ap ?? 0} onChange={n("ap")} min={0} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>СКО:</label>
+          <input type="number" className="kk-item-num" value={data.rof ?? 1} onChange={n("rof")} min={1} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Мод:</label>
+          <input type="number" className="kk-item-num" value={data.attackModifier ?? 0} onChange={n("attackModifier")} />
+        </div>
+        {campaignStatuses.length > 0 && (
+          <div className="kk-item-form-row">
+            <label className="kk-item-form-label">Статус при попадании:</label>
+            <select className="kk-item-select" value={data.statusName || ""} onChange={e => { setData("hasStatus", !!e.target.value); setData("statusName", e.target.value); }}>
+              <option value="">— нет —</option>
+              {campaignStatuses.map(st => <option key={st.id} value={st.name}>{st.name}</option>)}
+            </select>
+          </div>
+        )}
+      </>)}
+
+      {t === "gear" && (<>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Подтип:</label>
+          <select className="kk-item-select" value={data.gearType || "utility"} onChange={s("gearType")}>
+            {GEAR_TYPES.map(g => <option key={g} value={g}>{GEAR_LABEL[g]}</option>)}
+          </select>
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Кол-во:</label>
+          <input type="number" className="kk-item-num" value={data.quantity ?? 1} onChange={n("quantity")} min={1} />
+        </div>
+      </>)}
+
+      {t === "artifact" && (<>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Тип артефакта:</label>
+          <select className="kk-item-select" value={data.artifactType || "ring"} onChange={s("artifactType")}>
+            {ARTIFACT_TYPES.map(at => <option key={at} value={at}>{ARTIFACT_LABEL[at]}</option>)}
+          </select>
+        </div>
+        {data.artifactType === "ring" && (<>
+          <div className="kk-item-form-row">
+            <label className="kk-item-form-label">Материал:</label>
+            <input className="kk-item-select" value={data.ringMaterial || ""} onChange={s("ringMaterial")} maxLength={60} />
+            <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Камень:</label>
+            <input className="kk-item-select" value={data.ringStone || ""} onChange={s("ringStone")} maxLength={60} />
+          </div>
+        </>)}
+      </>)}
+
+      {t === "spell" && (<>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Тип:</label>
+          <select className="kk-item-select" value={data.spellType || "utility"} onChange={s("spellType")}>
+            {SPELL_TYPES.map(st => <option key={st} value={st}>{SPELL_LABEL[st]}</option>)}
+          </select>
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Навык:</label>
+          <input className="kk-item-select" value={data.skillName || ""} onChange={s("skillName")} maxLength={60} />
+        </div>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Папка:</label>
+          <input className="kk-item-select" value={data.folder || ""} onChange={s("folder")} maxLength={60} placeholder="(по умолчанию: навык)" />
+        </div>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Стоимость:</label>
+          <input type="number" className="kk-item-num" value={data.cost ?? 1} onChange={n("cost")} min={0} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Поддерж.:</label>
+          <input type="number" className="kk-item-num" value={data.upkeepCost ?? 0} onChange={n("upkeepCost")} min={0} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Исп.:</label>
+          <input type="number" className="kk-item-num" value={data.uses ?? 1} onChange={n("uses")} min={1} />
+        </div>
+      </>)}
+
+      {t === "device" && (<>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Тип устройства:</label>
+          <input className="kk-item-select" value={data.deviceType || ""} onChange={s("deviceType")} maxLength={60} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Заряды:</label>
+          <input type="number" className="kk-item-num" value={data.charges ?? 0} onChange={n("charges")} min={0} />
+        </div>
+      </>)}
+
+      {t === "vehicle" && (
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Скорость:</label>
+          <input type="number" className="kk-item-num" value={data.speed ?? 0} onChange={n("speed")} min={0} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Стойкость:</label>
+          <input type="number" className="kk-item-num" value={data.toughness ?? 0} onChange={n("toughness")} min={0} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Вместим.:</label>
+          <input type="number" className="kk-item-num" value={data.capacity ?? 0} onChange={n("capacity")} min={0} />
+        </div>
+      )}
+
+      <div className="kk-item-form-actions">
+        <button className="kk-note-btn" onClick={onSave} disabled={saving || !data.name?.trim()}>
+          {saving ? "Сохранение…" : "Сохранить"}
+        </button>
+        <button className="kk-note-btn kk-item-cancel-btn" onClick={onCancel}>Отмена</button>
+      </div>
+    </div>
   );
 }

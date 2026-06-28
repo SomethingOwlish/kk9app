@@ -589,4 +589,12 @@
 .kk-catalog-assign{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .kk-catalog-owners{display:flex;align-items:center;gap:6px;}
 .kk-catalog-owner-name{font-size:12px;color:var(--kk-text-dim);}
-.kk-catalog-actions{margin-top:4px;}
+
+
+.kk-item-with-edit{position:relative;}
+.kk-item-edit-btn{position:absolute;top:4px;right:4px;background:none;border:none;cursor:pointer;font-size:0.85rem;color:var(--kk-muted);padding:2px 5px;border-radius:4px;opacity:0.6;transition:opacity 0.15s;}
+.kk-item-edit-btn:hover{opacity:1;color:var(--kk-accent);}
+.kk-spell-folder{margin-bottom:0.5rem;}
+.kk-spell-folder-label{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--kk-muted);padding:2px 0 4px 2px;border-bottom:1px solid var(--kk-border);margin-bottom:4px;}
+.kk-item-edit-form{background:var(--kk-bg2);border:1px solid var(--kk-border);border-radius:6px;padding:0.75rem;margin:4px 0;}
+.kk-catalog-actions{margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;}
