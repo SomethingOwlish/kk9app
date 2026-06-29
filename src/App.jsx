@@ -315,7 +315,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg}/>}
-        {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID}/>}
+        {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID} isGM={isGM}/>}
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}

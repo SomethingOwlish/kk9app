@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { watchRolls } from "../lib/db";
 
 // Campaign-wide roll log (chat-style). Last 50 rolls, live.
-export default function RollLogView({ campaignId }) {
+export default function RollLogView({ campaignId, isGM = false }) {
   const [rolls, setRolls] = useState([]);
   useEffect(() => watchRolls(campaignId, setRolls, 50), [campaignId]);
 
@@ -29,7 +29,11 @@ export default function RollLogView({ campaignId }) {
                 <span className={`kk-rl-verdict kk-rl-${verdict}`}>
                   {r.snakeEyes ? "💀 крит. провал" : r.success ? (r.raises > 0 ? `✔ +${r.raises}` : "✔ успех") : "✘ провал"}
                 </span>
-                {r.tension?.increment ? <span className="kk-rl-tension">⚗ {r.tension.increment > 0 ? "+" : ""}{r.tension.increment}</span> : null}
+                {r.tension?.increment ? (
+                  isGM
+                    ? <span className="kk-rl-tension">⚗ {r.tension.increment > 0 ? "+" : ""}{r.tension.increment}</span>
+                    : <span className="kk-rl-tension">⚗ {r.tension.increment > 0 ? "напряжение возросло" : "напряжение снизилось"}</span>
+                ) : null}
               </div>
             </div>
           );

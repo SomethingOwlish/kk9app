@@ -136,6 +136,7 @@
 .kk-roll-verdict { font-weight: 700; }
 .kk-roll-tension-res { margin-top: .3rem; font-size: .84rem; color: var(--kk-tension, #a855f7); }
 .kk-roll-iteminfo { font-size: .82rem; opacity: .8; }
+.kk-roll-tension-d100 { font-size: .78rem; opacity: .7; font-style: normal; }
 .kk-roll-breakdown { border: 1px solid rgba(255,255,255,.1); border-radius: 9px; padding: .5rem .6rem; background: rgba(255,255,255,.03); }
 .kk-roll-breakdown-title { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; opacity: .55; margin-bottom: .35rem; }
 .kk-roll-part { display: flex; justify-content: space-between; gap: 1rem; font-size: .85rem; padding: 2px 0; }
