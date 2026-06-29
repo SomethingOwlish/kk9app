@@ -391,6 +391,28 @@
 .kk-jpage-acts{display:flex;gap:6px;}
 .kk-jform{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--kk-gold-dim);border-radius:var(--kk-r);background:var(--kk-stone);}
 .kk-jform-acts{display:flex;justify-content:flex-end;gap:8px;}
+/* — Rules Guide (FEAT-06) — */
+.kk-guide{display:flex;flex-direction:column;gap:16px;}
+.kk-guide-toc{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r);background:var(--kk-surface);}
+.kk-guide-toc-link{font-size:13px;color:var(--kk-text-dim);text-decoration:none;padding:2px 0;}
+.kk-guide-toc-link:hover{color:var(--kk-gold);}
+.kk-guide-toc-link.lvl2{padding-left:14px;font-size:12px;color:var(--kk-text-faint);}
+.kk-guide-body{font-size:14px;line-height:1.65;color:var(--kk-text);}
+.kk-guide-body h1{font-family:var(--kk-font-d);font-size:22px;color:var(--kk-gold);margin:24px 0 10px;scroll-margin-top:70px;}
+.kk-guide-body h2{font-family:var(--kk-font-d);font-size:18px;color:var(--kk-text);margin:20px 0 8px;scroll-margin-top:70px;}
+.kk-guide-body h3{font-size:15px;font-weight:600;margin:14px 0 6px;}
+.kk-guide-body p{margin:8px 0;}
+.kk-guide-body ul,.kk-guide-body ol{margin:8px 0;padding-left:22px;}
+.kk-guide-body li{margin:3px 0;}
+.kk-guide-body strong{color:var(--kk-gold-bright,var(--kk-gold));}
+.kk-guide-body em{color:var(--kk-text-dim);}
+.kk-guide-body blockquote{margin:10px 0;padding:6px 14px;border-left:3px solid var(--kk-gold-dim);color:var(--kk-text-dim);background:var(--kk-stone);border-radius:0 var(--kk-r-sm) var(--kk-r-sm) 0;}
+.kk-guide-body code{font-family:ui-monospace,monospace;font-size:12px;background:var(--kk-surface-2);padding:1px 5px;border-radius:4px;}
+.kk-guide-body hr{border:none;border-top:1px solid var(--kk-line-soft);margin:18px 0;}
+.kk-guide-body table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px;}
+.kk-guide-body th,.kk-guide-body td{border:1px solid var(--kk-line-soft);padding:7px 10px;text-align:left;vertical-align:top;}
+.kk-guide-body th{background:var(--kk-stone);font-weight:600;}
+.kk-guide-textarea{width:100%;font-family:ui-monospace,monospace;font-size:13px;line-height:1.5;min-height:60vh;}
 /* — Misc form helpers — */
 .kk-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;}
 .kk-field{display:flex;flex-direction:column;gap:5px;font-size:13px;} .kk-field label{color:var(--kk-text-dim);}

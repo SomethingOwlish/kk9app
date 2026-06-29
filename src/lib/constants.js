@@ -40,6 +40,7 @@ export const MENU = [
   { id: "items", label: "Снаряжение", gmOnly: true },
   { id: "shop", label: "Магазин" },
   { id: "journal", label: "Журнал кампании", on: true },
+  { id: "guide", label: "Правила" },
   { id: "gm", label: "ГМ Борд" },
   { id: "print", label: "Печать карточки" },
   { id: "set", label: "Настройки" },

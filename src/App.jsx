@@ -30,6 +30,7 @@ import ScenePlayerView from "./views/ScenePlayerView";
 import CharacterCreationWizard from "./components/CharacterCreationWizard";
 import JournalView from "./views/JournalView";
 import ItemsView from "./views/ItemsView";
+import GuideView from "./views/GuideView";
 
 export default function App({ user, signOut }) {
   const navigate = useNavigate();
@@ -77,6 +78,7 @@ export default function App({ user, signOut }) {
     : pathname === "/scene" ? "scene"
     : pathname === "/board" ? "board"
     : pathname === "/journal" ? "journal"
+    : pathname === "/guide" ? "guide"
     : pathname === "/items" ? "items" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
@@ -188,6 +190,9 @@ export default function App({ user, signOut }) {
   const onDeleteCatalogItem = useCallback(async (itemId) => {
     await deleteItem(CAMPAIGN_ID, itemId);
   }, []);
+  const saveGuide = useCallback(async (markdown) => {
+    await updateCampaignNow(CAMPAIGN_ID, { guideMarkdown: markdown });
+  }, []);
   const clearLog = useCallback(async () => {
     if (!activeId) return;
     try { await clearCharacterLog(CAMPAIGN_ID, activeId); }
@@ -201,6 +206,7 @@ export default function App({ user, signOut }) {
     else if (id === "scene") navigate("/scene");
     else if (id === "gm" && isGM) navigate("/board");
     else if (id === "journal") navigate("/journal");
+    else if (id === "guide" && role !== "demo") navigate("/guide");
     else if (id === "items" && isGM) navigate("/items");
     else if (id === "print" && activeId) navigate(`/print/${activeId}`);
   }, [isGM, role, navigate, activeId]);
@@ -210,6 +216,7 @@ export default function App({ user, signOut }) {
     : view === "scene" ? "scene"
     : view === "board" ? "gm"
     : view === "journal" ? "journal"
+    : view === "guide" ? "guide"
     : view === "items" ? "items" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
@@ -251,6 +258,8 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
+        {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
+        {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
