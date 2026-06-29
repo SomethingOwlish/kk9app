@@ -27,38 +27,45 @@ export const TENSION_RESTORE = new Set([
 ]);
 
 /**
+ * Roll a single exploding die, returning the full breakdown of faces.
+ * If a face equals `sides`, add `sides` and roll again (repeat).
+ * @returns {{ total: number, faces: number[] }} — faces is the sequence of
+ *   individual die faces, e.g. d4 exploding once → { total: 5, faces: [4, 1] }.
+ */
+export function rollExplodingDetailed(sides) {
+  const faces = [];
+  let total = 0;
+  let roll;
+  do {
+    roll = Math.floor(Math.random() * sides) + 1;
+    faces.push(roll);
+    total += roll;
+  } while (roll === sides);
+  return { total, faces };
+}
+
+/**
  * Roll a single exploding die.
  * If the result equals `sides`, add `sides` and roll again (repeat).
  * Returns the cumulative total.
  */
 export function rollExploding(sides) {
-  let total = 0;
-  let roll;
-  do {
-    roll = Math.floor(Math.random() * sides) + 1;
-    total += roll;
-  } while (roll === sides);
-  return total;
+  return rollExplodingDetailed(sides).total;
 }
 
 /**
  * Roll the skill die and the Wild Die (d6 by default), both exploding.
- * Returns { skill, wild, kept, isWild, skillNatural, wildNatural }.
+ * Returns { skill, wild, kept, isWild, skillNatural, wildNatural, skillFaces, wildFaces, keptFaces }.
  * skillNatural/wildNatural are the first (pre-explosion) faces for snake-eyes detection.
+ * skillFaces/wildFaces are the full explosion breakdowns (e.g. [4, 1] for a d4 → 5).
  */
 export function rollPool(skillDie, wildDieSides = 6) {
-  const skillNatural = Math.floor(Math.random() * skillDie) + 1;
-  const wildNatural = Math.floor(Math.random() * wildDieSides) + 1;
-
-  let skillTotal = skillNatural;
-  if (skillNatural === skillDie) {
-    skillTotal += rollExploding(skillDie);
-  }
-
-  let wildTotal = wildNatural;
-  if (wildNatural === wildDieSides) {
-    wildTotal += rollExploding(wildDieSides);
-  }
+  const skillRoll = rollExplodingDetailed(skillDie);
+  const wildRoll = rollExplodingDetailed(wildDieSides);
+  const skillNatural = skillRoll.faces[0];
+  const wildNatural = wildRoll.faces[0];
+  const skillTotal = skillRoll.total;
+  const wildTotal = wildRoll.total;
 
   const isWild = wildTotal > skillTotal;
   return {
@@ -68,7 +75,21 @@ export function rollPool(skillDie, wildDieSides = 6) {
     isWild,
     skillNatural,
     wildNatural,
+    skillFaces: skillRoll.faces,
+    wildFaces: wildRoll.faces,
+    keptFaces: isWild ? wildRoll.faces : skillRoll.faces,
   };
+}
+
+/**
+ * Format an explosion breakdown for display.
+ * [4, 1] → "4 + 1 = 5"; [3] → "3".
+ */
+export function formatFaces(faces = []) {
+  if (!faces || faces.length === 0) return "";
+  if (faces.length === 1) return String(faces[0]);
+  const total = faces.reduce((a, b) => a + b, 0);
+  return `${faces.join(" + ")} = ${total}`;
 }
 
 /**

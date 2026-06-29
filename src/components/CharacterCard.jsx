@@ -11,9 +11,12 @@ import RelationsList from "./RelationsList";
 import CompanionRefs from "./CompanionRefs";
 import ContactsList from "./ContactsList";
 import RollDialog from "./RollDialog";
+import DiceIcon from "./DiceIcon";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus, removeLanguageFromChar, addFeatureToChar, removeFeatureFromChar } from "../lib/db";
+import { buildItemRollTarget } from "../lib/items";
 import { resizePortrait, validatePortraitFile } from "../lib/storage";
+import { loadPrefs, savePref } from "../lib/userPrefs";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
 
 const DEMO_FIELDS = [
@@ -22,7 +25,6 @@ const DEMO_FIELDS = [
   ["height", "Рост"],
   ["build", "Телосложение"],
   ["allergies", "Аллергии"],
-  ["weaknesses", "Слабости"],
 ];
 
 const FEATURE_KIND_LABEL = { character: "Черта характера", unique: "Уникальная возможность" };
@@ -49,6 +51,16 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const [statusEditorOpen, setStatusEditorOpen] = useState(false);
   const [viewingStatus, setViewingStatus] = useState(null);
   const [rollTarget, setRollTarget] = useState(null);
+  // Roller visibility toggle (task 1) — persisted per user. Off → no roll buttons.
+  const [rollerOn, setRollerOn] = useState(() => loadPrefs(user?.uid).rollerOn ?? true);
+  const showRoll = canRoll && rollerOn;
+  function toggleRoller() {
+    const next = !rollerOn;
+    setRollerOn(next);
+    if (user?.uid) savePref(user.uid, "rollerOn", next);
+  }
+  const rollItem = (item) => setRollTarget(buildItemRollTarget(item, ch));
+  const toggleItemFlag = (item, field) => onUpdateItem?.(item.id, { [field]: !item[field] });
   const activeStatuses = Array.isArray(ch.activeStatuses) ? ch.activeStatuses : [];
   const companions = Array.isArray(ch.companions) ? ch.companions : [];
   const relations = Array.isArray(ch.relations) ? ch.relations : [];
@@ -134,6 +146,15 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           </div>
         </div>
         <div className="kk-head-actions">
+          {canRoll && (
+            <button
+              className={`kk-roller-toggle${rollerOn ? " on" : ""}`}
+              onClick={toggleRoller}
+              title={rollerOn ? "Скрыть кнопки бросков" : "Показать кнопки бросков"}
+            >
+              <DiceIcon size={15}/> Броски: {rollerOn ? "вкл" : "выкл"}
+            </button>
+          )}
           <LkLink url={ch.lkArticleUrl} label="Вики"/>
           {!isGM && canAdv && <button className="kk-adv-btn" onClick={onAdvance}>Прокачка</button>}
           {isGM && <button className="kk-edit-btn" onClick={onEdit}>Редактировать вручную</button>}
@@ -141,66 +162,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         </div>
       </header>
 
-      <section className="kk-strip">
-        <Stat label="Стойкость" value={toughness} tip="2 + ⌊Дух/2⌋. Считается автоматически." accent="var(--kk-gold)"/>
-        <div className="kk-stat kk-stat-wide">
-          <Tip text="Пул инициативы: Ловкость + Смекалка + Wild Die d6, 2 лучших. Бросок — вне карточки.">
-            <span className="kk-stat-label kk-dotted">Инициатива</span>
-          </Tip>
-          <span className="kk-init">{initStr}</span>
-        </div>
-        <Stat label="Энергия" value={ch.energy.value} max={energyMax}
-          onChange={(v) => save({ "energy.value": Math.max(0, Math.min(energyMax, v)) })}
-          tip={isGM && tension.energyPenalty > 0
-            ? `Максимум = ${energyMaxRaw} − ${tension.energyPenalty} (перегруз напряжения).`
-            : tension.energyPenalty > 0
-              ? "Максимум снижен статусным эффектом."
-              : "Максимум = возраст + грань Духа."}
-          accent="var(--kk-gold)"/>
-        <Stat label="Жетоны судьбы" value={ch.bennies} max={9}
-          onChange={isGM ? (v) => save({ bennies: Math.max(0, Math.min(9, v)) }) : undefined}
-          tip={isGM ? "Старт 3, максимум 9. Выдаёт/снимает ГМ." : "Старт 3, максимум 9. Меняет только ГМ."}
-          accent="var(--kk-gold)"/>
-      </section>
-
-      <section className="kk-block">
-        <h2 className="kk-h2">Здоровье</h2>
-        <HealthTrack label="Физическое" attrLabel="Выносливости" attrDie={ch.attributes.endurance.die}
-          value={ch.health.physical.value} onChange={(v) => save({ "health.physical.value": v })}
-          tipExtra="Растёт от Выносливости."/>
-        <HealthTrack label="Ментальное" attrLabel="Духа" attrDie={ch.attributes.spirit.die}
-          value={ch.health.mental.value} onChange={(v) => save({ "health.mental.value": v })}
-          tipExtra="Растёт от Духа."/>
-        {overflow > 0 && (
-          <div className="kk-overflow-row">
-            <Tip text="Урон сверх обоих треков здоровья. Только ГМ или результат броска.">
-              <span className="kk-overflow-label kk-dotted">Переполнение</span>
-            </Tip>
-            <span className="kk-overflow-val">{overflow}</span>
-            {isGM && (
-              <button className="kk-step" onClick={() => save({ overflow_damage: Math.max(0, overflow - 1) })}>−</button>
-            )}
-          </div>
-        )}
-      </section>
-
-      {isGM && (
-        <section className="kk-block">
-          <h2 className="kk-h2">Напряжение</h2>
-          <div className="kk-tension-strip">
-            <Stat label="Напряжение" value={tension.current} max={tension.max}
-              onChange={(v) => save({ "tension.current": Math.max(0, v) })}
-              tip="Психическое напряжение. Накапливается от бросков с сильными эмоциональными связями."
-              accent="var(--kk-tension)"/>
-            {tension.overcap > 0 && (
-              <Stat label="Перегруз" value={tension.overcap}
-                tip={`Напряжение выше порога. Каждая единица снижает макс. Энергию на 1 (сейчас −${tension.energyPenalty}).`}
-                accent="var(--kk-danger)"/>
-            )}
-          </div>
-        </section>
-      )}
-
+      {/* 1 — Статусы (после хедера) */}
       <section className="kk-block">
         <h2 className="kk-h2">Статусы</h2>
         <StatusBar
@@ -235,7 +197,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         />
       )}
 
-      {(hasBio || demoFields.length > 0 || canEditBio) && (
+      {/* 2 — Анкета (биография + языки внутри) */}
+      {(hasBio || demoFields.length > 0 || canEditBio || (ch.languages && ch.languages.length > 0)) && (
         <details className="kk-bio-details" open>
           <summary className="kk-h2 kk-bio-summary">Анкета</summary>
           <div className="kk-bio-body">
@@ -263,19 +226,77 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
                 <p className="kk-bio-para">{ch.biography}</p>
               </div>
             )}
-            {!hasBio && demoFields.length === 0 && (
+            {((ch.languages && ch.languages.length > 0) || isGM) && (
+              <div className="kk-bio-langs">
+                <div className="kk-demo-label">Языки</div>
+                {(!ch.languages || ch.languages.length === 0) && <div className="kk-empty-sm">Нет языков</div>}
+                <div className="kk-bio-langs-list">
+                  {(ch.languages || []).map((lang, i) => (
+                    <span key={i} className="kk-lang-chip">
+                      {lang.name}
+                      {isGM && (
+                        <button className="kk-lang-del" onClick={() => removeLanguageFromChar(campaignId, ch.id, lang).catch(console.error)} title="Убрать язык">✕</button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!hasBio && demoFields.length === 0 && (!ch.languages || ch.languages.length === 0) && (
               <div className="kk-empty-sm">Анкета не заполнена</div>
             )}
           </div>
         </details>
       )}
 
-      <CompanionRefs
-        companions={companions}
-        canEdit={canEditRelations}
-        onChange={(next) => save({ companions: next })}
-      />
+      {/* 3 — Черты и возможности (для ГМа и игрока) */}
+      {((ch.features && ch.features.length > 0) || isGM) && (
+        <section className="kk-block">
+          <h2 className="kk-h2">Черты и возможности</h2>
+          {(!ch.features || ch.features.length === 0) && <div className="kk-empty-sm">Нет черт</div>}
+          <div className="kk-items-group">
+            {(ch.features || []).map((feat, i) => (
+              <div key={i} className="kk-item kk-item-feature">
+                <div className="kk-item-header">
+                  <span className="kk-item-icon">{feat.isWeakness ? "⬇" : "★"}</span>
+                  <span className="kk-item-name">{feat.name}</span>
+                  {feat.kind && <span className="kk-item-subtype">{FEATURE_KIND_LABEL[feat.kind] || feat.kind}</span>}
+                  {isGM && (
+                    <button className="kk-note-del" onClick={() => removeFeatureFromChar(campaignId, ch.id, feat).catch(console.error)} title="Удалить">✕</button>
+                  )}
+                </div>
+                {feat.description && <p className="kk-item-desc">{feat.description}</p>}
+                {feat.restrictions && <p className="kk-item-desc" style={{ fontStyle: "italic" }}>{feat.restrictions}</p>}
+              </div>
+            ))}
+          </div>
+          {isGM && <AddFeatureForm campaignId={campaignId} charId={ch.id} />}
+        </section>
+      )}
 
+      {/* 4 — Здоровье */}
+      <section className="kk-block">
+        <h2 className="kk-h2">Здоровье</h2>
+        <HealthTrack label="Физическое" attrLabel="Выносливости" attrDie={ch.attributes.endurance.die}
+          value={ch.health.physical.value} onChange={(v) => save({ "health.physical.value": v })}
+          tipExtra="Растёт от Выносливости."/>
+        <HealthTrack label="Ментальное" attrLabel="Духа" attrDie={ch.attributes.spirit.die}
+          value={ch.health.mental.value} onChange={(v) => save({ "health.mental.value": v })}
+          tipExtra="Растёт от Духа."/>
+        {overflow > 0 && (
+          <div className="kk-overflow-row">
+            <Tip text="Урон сверх обоих треков здоровья. Только ГМ или результат броска.">
+              <span className="kk-overflow-label kk-dotted">Переполнение</span>
+            </Tip>
+            <span className="kk-overflow-val">{overflow}</span>
+            {isGM && (
+              <button className="kk-step" onClick={() => save({ overflow_damage: Math.max(0, overflow - 1) })}>−</button>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* 5 — Атрибуты */}
       <section className="kk-block">
         <h2 className="kk-h2">Атрибуты</h2>
         <div className="kk-attrs">{ATTR_ORDER.map(k => {
@@ -284,15 +305,56 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
             <div className="kk-attr" key={k}>
               <span className="kk-attr-name">{ATTR_LABEL[k]}</span>
               <span className="kk-attr-die">{dieStr(a.die, a.modifier)}</span>
-              {canRoll && (
+              {showRoll && (
                 <button className="kk-roll-btn" title={`Бросок: ${ATTR_LABEL[k]}`}
-                  onClick={() => setRollTarget({ kind: "attribute", name: ATTR_LABEL[k], die: a.die, modifier: a.modifier, attribute: k })}>🎲</button>
+                  onClick={() => setRollTarget({ kind: "attribute", name: ATTR_LABEL[k], die: a.die, modifier: a.modifier, attribute: k })}><DiceIcon/></button>
               )}
             </div>
           );
         })}</div>
       </section>
 
+      {/* 6 — Стойкость / инициатива / энергия / жетоны */}
+      <section className="kk-strip">
+        <Stat label="Стойкость" value={toughness} tip="2 + ⌊Дух/2⌋. Считается автоматически." accent="var(--kk-gold)"/>
+        <div className="kk-stat kk-stat-wide">
+          <Tip text="Пул инициативы: Ловкость + Смекалка + Wild Die d6, 2 лучших. Бросок — вне карточки.">
+            <span className="kk-stat-label kk-dotted">Инициатива</span>
+          </Tip>
+          <span className="kk-init">{initStr}</span>
+        </div>
+        <Stat label="Энергия" value={ch.energy.value} max={energyMax}
+          onChange={(v) => save({ "energy.value": Math.max(0, Math.min(energyMax, v)) })}
+          tip={isGM && tension.energyPenalty > 0
+            ? `Максимум = ${energyMaxRaw} − ${tension.energyPenalty} (перегруз напряжения).`
+            : tension.energyPenalty > 0
+              ? "Максимум снижен статусным эффектом."
+              : "Максимум = возраст + грань Духа."}
+          accent="var(--kk-gold)"/>
+        <Stat label="Жетоны судьбы" value={ch.bennies} max={9}
+          onChange={isGM ? (v) => save({ bennies: Math.max(0, Math.min(9, v)) }) : undefined}
+          tip={isGM ? "Старт 3, максимум 9. Выдаёт/снимает ГМ." : "Старт 3, максимум 9. Меняет только ГМ."}
+          accent="var(--kk-gold)"/>
+      </section>
+
+      {isGM && (
+        <section className="kk-block">
+          <h2 className="kk-h2">Напряжение</h2>
+          <div className="kk-tension-strip">
+            <Stat label="Напряжение" value={tension.current} max={tension.max}
+              onChange={(v) => save({ "tension.current": Math.max(0, v) })}
+              tip="Психическое напряжение. Накапливается от бросков с сильными эмоциональными связями."
+              accent="var(--kk-tension)"/>
+            {tension.overcap > 0 && (
+              <Stat label="Перегруз" value={tension.overcap}
+                tip={`Напряжение выше порога. Каждая единица снижает макс. Энергию на 1 (сейчас −${tension.energyPenalty}).`}
+                accent="var(--kk-danger)"/>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* 7 — Навыки */}
       <section className="kk-block">
         <h2 className="kk-h2">Навыки</h2>
         {grouped.map(g => (
@@ -307,9 +369,9 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
                     <span className="kk-skill-attr">{ATTR_SHORT[s.attr]}</span>
                   </Tip>
                   <span className="kk-skill-die">{dieStr(s.die, s.modifier)}</span>
-                  {canRoll && (
+                  {showRoll && (
                     <button className="kk-roll-btn" title={`Бросок: ${s.name}`}
-                      onClick={() => setRollTarget({ kind: "skill", name: s.name, die: s.die, modifier: s.modifier, attribute: s.attr })}>🎲</button>
+                      onClick={() => setRollTarget({ kind: "skill", name: s.name, die: s.die, modifier: s.modifier, attribute: s.attr })}><DiceIcon/></button>
                   )}
                 </div>
               );
@@ -318,9 +380,21 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         ))}
       </section>
 
+      {/* 8 — Спутники */}
+      <CompanionRefs
+        companions={companions}
+        canEdit={canEditRelations}
+        onChange={(next) => save({ companions: next })}
+      />
+
+      {/* 9 — Предметы (с активацией и бросками) */}
       <ItemList
         items={items}
         isGM={isGM}
+        canActivate={canRoll}
+        showRoll={showRoll}
+        onRollItem={rollItem}
+        onToggleFlag={toggleItemFlag}
         onCreate={onCreateItem}
         onDelete={onDeleteItem}
         onUpdateItem={onUpdateItem}
@@ -328,6 +402,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         character={ch}
       />
 
+      {/* 10 — Отношения */}
       <RelationsList
         relations={relations}
         peers={peers}
@@ -345,50 +420,6 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         onUnlink={(orgId) => onUnlinkOrg?.(ch.id, orgId)}
         onSetLevel={(orgId, level) => onSetOrgLevel?.(ch.id, orgId, level)}
       />
-
-      {/* Languages — embedded in character.languages[] */}
-      {((ch.languages && ch.languages.length > 0) || isGM) && (
-        <section className="kk-block">
-          <h2 className="kk-h2">Языки</h2>
-          {(!ch.languages || ch.languages.length === 0) && <div className="kk-empty-sm">Нет языков</div>}
-          <div className="kk-items-group">
-            {(ch.languages || []).map((lang, i) => (
-              <div key={i} className="kk-item kk-item-language">
-                <div className="kk-item-header">
-                  <span className="kk-item-icon">🗣</span>
-                  <span className="kk-item-name">{lang.name}</span>
-                  {isGM && (
-                    <button className="kk-note-del" onClick={() => removeLanguageFromChar(campaignId, ch.id, lang).catch(console.error)} title="Убрать язык">✕</button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Features — embedded in character.features[] */}
-      {isGM && (
-        <section className="kk-block">
-          <h2 className="kk-h2">Черты и возможности</h2>
-          {(!ch.features || ch.features.length === 0) && <div className="kk-empty-sm">Нет черт</div>}
-          <div className="kk-items-group">
-            {(ch.features || []).map((feat, i) => (
-              <div key={i} className="kk-item kk-item-feature">
-                <div className="kk-item-header">
-                  <span className="kk-item-icon">{feat.isWeakness ? "⬇" : "★"}</span>
-                  <span className="kk-item-name">{feat.name}</span>
-                  {feat.kind && <span className="kk-item-subtype">{FEATURE_KIND_LABEL[feat.kind] || feat.kind}</span>}
-                  <button className="kk-note-del" onClick={() => removeFeatureFromChar(campaignId, ch.id, feat).catch(console.error)} title="Удалить">✕</button>
-                </div>
-                {feat.description && <p className="kk-item-desc">{feat.description}</p>}
-                {feat.restrictions && <p className="kk-item-desc" style={{ fontStyle: "italic" }}>{feat.restrictions}</p>}
-              </div>
-            ))}
-          </div>
-          <AddFeatureForm campaignId={campaignId} charId={ch.id} />
-        </section>
-      )}
 
       {showNotes && (
         <section className="kk-block">
@@ -452,6 +483,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           target={rollTarget}
           campaign={campaign}
           campaignStatuses={campaignStatuses}
+          items={items}
+          isGM={isGM}
           onCommit={onCommitRoll}
           onClose={() => setRollTarget(null)}
         />
@@ -460,9 +493,31 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   );
 }
 
+const EMPTY_FEATURE_FORM = {
+  name: "", kind: "character", description: "", isWeakness: false, restrictions: "", costTrack: "physical",
+  // Roll modifier (optional) — fed into collectRollModifiers.
+  modTarget: "none", modAttr: "agility", modSkills: "", modNumeric: 0, modDie: 0, modSuccess: 0,
+};
+
+function buildFeatureModifier(form) {
+  if (form.modTarget === "none") return null;
+  const numeric = Number(form.modNumeric) || 0;
+  const die = Number(form.modDie) || 0;
+  const success = Number(form.modSuccess) || 0;
+  if (!numeric && !die && !success) return null;
+  const m = { modifier: numeric, die_change: die, success_modifier: success };
+  if (form.modTarget === "all") m.target_all = true;
+  else if (form.modTarget === "attribute") m[`target_${form.modAttr}`] = true;
+  else if (form.modTarget === "skill") {
+    m.target_skills = form.modSkills.split(",").map(s => s.trim()).filter(Boolean);
+    if (m.target_skills.length === 0) return null;
+  }
+  return m;
+}
+
 function AddFeatureForm({ campaignId, charId }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", kind: "character", description: "", isWeakness: false, restrictions: "", costTrack: "physical" });
+  const [form, setForm] = useState(EMPTY_FEATURE_FORM);
   const [saving, setSaving] = useState(false);
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -471,9 +526,14 @@ function AddFeatureForm({ campaignId, charId }) {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      await addFeatureToChar(campaignId, charId, { ...form, name: form.name.trim() });
+      // eslint-disable-next-line no-unused-vars
+      const { modTarget, modAttr, modSkills, modNumeric, modDie, modSuccess, ...rest } = form;
+      const modifier = buildFeatureModifier(form);
+      const feature = { ...rest, name: form.name.trim() };
+      if (modifier) feature.modifier = modifier;
+      await addFeatureToChar(campaignId, charId, feature);
       setOpen(false);
-      setForm({ name: "", kind: "character", description: "", isWeakness: false, restrictions: "", costTrack: "physical" });
+      setForm(EMPTY_FEATURE_FORM);
     } catch (err) {
       alert("Ошибка: " + err.message);
     } finally {
@@ -510,6 +570,33 @@ function AddFeatureForm({ campaignId, charId }) {
             </select>
           </div>
         </>
+      )}
+      <div className="kk-item-form-row">
+        <label className="kk-item-form-label">Модификатор броска:</label>
+        <select className="kk-item-select" value={form.modTarget} onChange={e => setF("modTarget", e.target.value)}>
+          <option value="none">— нет —</option>
+          <option value="all">Все броски</option>
+          <option value="attribute">Атрибут</option>
+          <option value="skill">Навыки</option>
+        </select>
+        {form.modTarget === "attribute" && (
+          <select className="kk-item-select" value={form.modAttr} onChange={e => setF("modAttr", e.target.value)}>
+            {ATTR_ORDER.map(k => <option key={k} value={k}>{ATTR_LABEL[k]}</option>)}
+          </select>
+        )}
+      </div>
+      {form.modTarget === "skill" && (
+        <input className="kk-note-input" placeholder="Навыки через запятую" value={form.modSkills} onChange={e => setF("modSkills", e.target.value)} maxLength={200} />
+      )}
+      {form.modTarget !== "none" && (
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">К броску:</label>
+          <input type="number" className="kk-item-num" value={form.modNumeric} onChange={e => setF("modNumeric", e.target.value)} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>Ступ. грани:</label>
+          <input type="number" className="kk-item-num" value={form.modDie} onChange={e => setF("modDie", e.target.value)} />
+          <label className="kk-item-form-label" style={{ marginLeft: "0.5rem" }}>К успеху:</label>
+          <input type="number" className="kk-item-num" value={form.modSuccess} onChange={e => setF("modSuccess", e.target.value)} />
+        </div>
       )}
       <div className="kk-item-form-actions">
         <button type="submit" className="kk-note-btn" disabled={saving || !form.name.trim()}>{saving ? "…" : "Добавить"}</button>

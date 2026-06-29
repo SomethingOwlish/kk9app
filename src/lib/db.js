@@ -610,6 +610,10 @@ export async function createItem(campaignId, data) {
 export async function updateItem(campaignId, itemId, data) {
   await updateDoc(doc(db, "campaigns", campaignId, "items", itemId), data);
 }
+// Toggle an item's activation (active) or equipped flag. Used by item roller.
+export async function setItemFlag(campaignId, itemId, field, value) {
+  await updateDoc(doc(db, "campaigns", campaignId, "items", itemId), { [field]: value });
+}
 export async function deleteItem(campaignId, itemId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "items", itemId));
 }
@@ -699,11 +703,14 @@ export function watchRolls(campaignId, cb, n = 50) {
 // patch to avoid races, then writes the roll-log entry.
 //   outcome: result of computeTensionOutcome (or null)
 //   exhaustionInstance: status instance to add when outcome.addExhaustion
-export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, rollData }) {
+export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, rollData, charPatch }) {
   const tickPatch = tickStatuses(ch) || {};
   const merged = { ...tickPatch };
 
   if (outcome?.tensionPatch) Object.assign(merged, outcome.tensionPatch);
+  // Extra character patch from the roll (e.g. spell energy cost). Applied last so
+  // it overrides any tick-derived energy change for the same field.
+  if (charPatch && typeof charPatch === "object") Object.assign(merged, charPatch);
 
   // Reconcile activeStatuses across tick + exhaustion add/remove.
   let statuses = tickPatch.activeStatuses || ch.activeStatuses || [];

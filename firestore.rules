@@ -127,6 +127,12 @@ service cloud.firestore {
       match /items/{itemId} {
         allow read:  if isMember(campaignId);
         allow write: if isGMOrAdmin(campaignId);
+        // Item owner may toggle only activation/equipped state on their own item
+        // (used by the item roller). No other fields may change via this path.
+        allow update: if isMember(campaignId)
+                      && resource.data.ownerCharacterId != null
+                      && get(/databases/$(database)/documents/campaigns/$(campaignId)/characters/$(resource.data.ownerCharacterId)).data.ownerUid == request.auth.uid
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["active", "equipped"]);
       }
 
       // ── Shops (B-19) ──────────────────────────────────────────────────────

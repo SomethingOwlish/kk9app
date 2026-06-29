@@ -19,32 +19,92 @@ const attrTargetKey = {
   magic: "target_magic",
 };
 
+// Does a roll_modifier-shaped payload apply to the current roll context?
+function modifierHits(rm, ctx, tKey) {
+  return !!(
+    rm.target_all ||
+    (tKey && rm[tKey]) ||
+    (ctx.attribute === "initiative" && (rm.target_initiative || rm.target_agility || rm.target_smarts)) ||
+    (ctx.skillName && Array.isArray(rm.target_skills) && rm.target_skills.includes(ctx.skillName))
+  );
+}
+
 /**
- * Сводит модификаторы броска из активных статусов для конкретного навыка/атрибута.
- * @param {object} ch          — персонаж
- * @param {object} ctx         — { attribute, skillName }
- * @returns {{ numericMod, dieSteps, extraDice, successMod }}
+ * Сводит модификаторы броска для конкретного навыка/атрибута из трёх источников:
+ *   1. Активные статусы (effects[].roll_modifier).
+ *   2. Черты персонажа (ch.features[].modifier) — задаются ГМом.
+ *   3. Активные артефакты (items type=artifact, active=true): бонусы к атрибуту/навыку.
+ *
+ * @param {object} ch    — персонаж
+ * @param {object} ctx   — { attribute, skillName }
+ * @param {Array}  items — предметы персонажа (для бонусов активных артефактов)
+ * @returns {{ numericMod, dieSteps, extraDice, successMod, sources: Array }}
+ *   sources — список вкладов { label, kind, numericMod, dieSteps, extraDice, successMod }.
  */
-export function collectRollModifiers(ch, ctx = {}) {
+export function collectRollModifiers(ch, ctx = {}, items = []) {
   let numericMod = 0, dieSteps = 0, extraDice = 0, successMod = 0;
+  const sources = [];
   const tKey = attrTargetKey[ctx.attribute];
+
+  const add = (label, kind, parts) => {
+    const p = {
+      numericMod: parts.numericMod || 0,
+      dieSteps: parts.dieSteps || 0,
+      extraDice: parts.extraDice || 0,
+      successMod: parts.successMod || 0,
+    };
+    if (!p.numericMod && !p.dieSteps && !p.extraDice && !p.successMod) return;
+    numericMod += p.numericMod;
+    dieSteps   += p.dieSteps;
+    extraDice  += p.extraDice;
+    successMod += p.successMod;
+    sources.push({ label, kind, ...p });
+  };
+
+  // 1 — статусы
   for (const inst of ch?.activeStatuses || []) {
     for (const eff of inst.effects || []) {
       if (!eff.enabled || eff.type !== "roll_modifier") continue;
       const rm = eff.roll_modifier || {};
-      const hits =
-        rm.target_all ||
-        (tKey && rm[tKey]) ||
-        (ctx.attribute === "initiative" && (rm.target_initiative || rm.target_agility || rm.target_smarts)) ||
-        (ctx.skillName && Array.isArray(rm.target_skills) && rm.target_skills.includes(ctx.skillName));
-      if (!hits) continue;
-      numericMod += rm.modifier ?? 0;
-      dieSteps   += rm.die_change ?? 0;
-      extraDice  += rm.extra_dice ?? 0;
-      successMod += rm.success_modifier ?? 0;
+      if (!modifierHits(rm, ctx, tKey)) continue;
+      add(inst.name || "Статус", "status", {
+        numericMod: rm.modifier ?? 0,
+        dieSteps: rm.die_change ?? 0,
+        extraDice: rm.extra_dice ?? 0,
+        successMod: rm.success_modifier ?? 0,
+      });
     }
   }
-  return { numericMod, dieSteps, extraDice, successMod };
+
+  // 2 — черты персонажа
+  for (const feat of ch?.features || []) {
+    const rm = feat?.modifier;
+    if (!rm || typeof rm !== "object") continue;
+    if (!modifierHits(rm, ctx, tKey)) continue;
+    add(feat.name || "Черта", "feature", {
+      numericMod: rm.modifier ?? 0,
+      dieSteps: rm.die_change ?? 0,
+      extraDice: rm.extra_dice ?? 0,
+      successMod: rm.success_modifier ?? 0,
+    });
+  }
+
+  // 3 — активные артефакты
+  for (const it of items || []) {
+    if (it.type !== "artifact" || !it.active || it.destroyed) continue;
+    // Бонус к атрибуту: bonuses keyed by attr key (agility, smarts, …).
+    const attrBonus = ctx.attribute && it.bonuses ? Number(it.bonuses[ctx.attribute] || 0) : 0;
+    // Бонус к навыку: skillBonuses[{ skillName, bonus }].
+    let skillBonus = 0;
+    if (ctx.skillName && Array.isArray(it.skillBonuses)) {
+      for (const sb of it.skillBonuses) {
+        if (sb.skillName === ctx.skillName) skillBonus += Number(sb.bonus || 0);
+      }
+    }
+    add(it.name || "Артефакт", "artifact", { numericMod: attrBonus + skillBonus });
+  }
+
+  return { numericMod, dieSteps, extraDice, successMod, sources };
 }
 
 /**
