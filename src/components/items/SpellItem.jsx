@@ -4,7 +4,7 @@ const TYPE_LABEL = {
   prophetic: "Прорицание", utility: "Утилита",
 };
 
-export default function SpellItem({ item, activeSpell, isGM, onDelete }) {
+export default function SpellItem({ item, activeSpell, isGM, onDelete, onEdit }) {
   // activeSpell = { itemId, usesRemaining, durationRemaining, upkeepCost } or undefined
   return (
     <div className={`kk-item kk-item-spell${activeSpell ? " kk-item-active" : ""}`}>
@@ -15,6 +15,9 @@ export default function SpellItem({ item, activeSpell, isGM, onDelete }) {
           <span className="kk-item-subtype">{TYPE_LABEL[item.spellType] || item.spellType}</span>
         )}
         {item.skillName && <span className="kk-item-stat" style={{ marginLeft: "auto" }}>{item.skillName}</span>}
+        {isGM && onEdit && (
+          <button className="kk-item-edit-btn" onClick={onEdit} title="Редактировать">✎</button>
+        )}
         {isGM && (
           <button className="kk-note-del" onClick={onDelete} title="Удалить предмет">✕</button>
         )}

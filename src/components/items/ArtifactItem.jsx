@@ -6,7 +6,7 @@ const TYPE_LABEL = {
   transforming: "Трансформирующий", prophetic: "Пророческий", ring: "Кольцо",
 };
 
-export default function ArtifactItem({ item, isGM, onDelete }) {
+export default function ArtifactItem({ item, isGM, onDelete, onEdit }) {
   const bonusEntries = item.bonuses
     ? Object.entries(item.bonuses).filter(([, v]) => v !== 0)
     : [];
@@ -25,6 +25,9 @@ export default function ArtifactItem({ item, isGM, onDelete }) {
         <span className={`kk-item-condition kk-cond-${item.condition}`}>
           {CONDITION_LABEL[item.condition] || item.condition}
         </span>
+        {isGM && onEdit && (
+          <button className="kk-item-edit-btn" onClick={onEdit} title="Редактировать">✎</button>
+        )}
         {isGM && (
           <button className="kk-note-del" onClick={onDelete} title="Удалить предмет">✕</button>
         )}

@@ -1,9 +1,12 @@
-export default function VehicleItem({ item, isGM, onDelete }) {
+export default function VehicleItem({ item, isGM, onDelete, onEdit }) {
   return (
     <div className="kk-item kk-item-vehicle">
       <div className="kk-item-header">
         <span className="kk-item-icon">🚗</span>
         <span className="kk-item-name">{item.name}</span>
+        {isGM && onEdit && (
+          <button className="kk-item-edit-btn" onClick={onEdit} title="Редактировать">✎</button>
+        )}
         {isGM && (
           <button className="kk-note-del" onClick={onDelete} title="Удалить предмет">✕</button>
         )}

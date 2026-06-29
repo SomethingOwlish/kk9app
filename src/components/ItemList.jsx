@@ -151,21 +151,15 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
             );
           }
           const del = isGM ? () => onDelete(item.id) : undefined;
-          let component;
-          if (t === "weapon") component = <WeaponItem item={item} isGM={isGM} onDelete={del} />;
-          else if (t === "gear") component = <GearItem item={item} isGM={isGM} onDelete={del} />;
-          else if (t === "artifact") component = <ArtifactItem item={item} isGM={isGM} onDelete={del} />;
-          else if (t === "spell") component = <SpellItem item={item} activeSpell={activeSpellsMap[item.id]} isGM={isGM} onDelete={del} />;
-          else if (t === "device") component = <DeviceItem item={item} isGM={isGM} onDelete={del}
+          const edit = isGM ? () => startEdit(item) : undefined;
+          if (t === "weapon") return <WeaponItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
+          if (t === "gear") return <GearItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
+          if (t === "artifact") return <ArtifactItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
+          if (t === "spell") return <SpellItem key={item.id} item={item} activeSpell={activeSpellsMap[item.id]} isGM={isGM} onDelete={del} onEdit={edit} />;
+          if (t === "device") return <DeviceItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit}
             onUpdateCharges={onUpdateItem ? (charges) => onUpdateItem(item.id, { charges }) : undefined} />;
-          else if (t === "vehicle") component = <VehicleItem item={item} isGM={isGM} onDelete={del} />;
-          else return null;
-          return (
-            <div key={item.id} className="kk-item-with-edit">
-              {component}
-              {isGM && <button className="kk-item-edit-btn" onClick={() => startEdit(item)} title="Редактировать">✎</button>}
-            </div>
-          );
+          if (t === "vehicle") return <VehicleItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
+          return null;
         };
 
         if (t === "spell") {

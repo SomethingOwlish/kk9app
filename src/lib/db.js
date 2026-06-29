@@ -653,12 +653,16 @@ export async function removeFeatureFromChar(campaignId, charId, feature) {
 export async function seedItems(campaignId, itemsData, type) {
   const col = collection(db, "campaigns", campaignId, "items");
   const snap = await getDocs(query(col, where("type", "==", type)));
-  if (snap.size > 0) return;
+  const existing = new Set(snap.docs.map(d => d.data().name));
   const batch = writeBatch(db);
+  let added = 0;
   for (const item of itemsData) {
-    batch.set(doc(col), { ...item, type, ownerCharacterId: null, createdAt: serverTimestamp() });
+    if (!existing.has(item.name)) {
+      batch.set(doc(col), { ...item, type, ownerCharacterId: null, createdAt: serverTimestamp() });
+      added++;
+    }
   }
-  await batch.commit();
+  if (added > 0) await batch.commit();
 }
 
 export const derive = {

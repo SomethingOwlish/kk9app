@@ -1,6 +1,6 @@
 const CONDITION_LABEL = { perfect: "Идеальное", good: "Хорошее", worn: "Потрёпанное", broken: "Сломанное" };
 
-export default function DeviceItem({ item, isGM, onDelete, onUpdateCharges }) {
+export default function DeviceItem({ item, isGM, onDelete, onEdit, onUpdateCharges }) {
   return (
     <div className="kk-item kk-item-device">
       <div className="kk-item-header">
@@ -10,15 +10,28 @@ export default function DeviceItem({ item, isGM, onDelete, onUpdateCharges }) {
         <span className={`kk-item-condition kk-cond-${item.condition}`}>
           {CONDITION_LABEL[item.condition] || item.condition}
         </span>
+        {isGM && onEdit && (
+          <button className="kk-item-edit-btn" onClick={onEdit} title="Редактировать">✎</button>
+        )}
         {isGM && (
           <button className="kk-note-del" onClick={onDelete} title="Удалить предмет">✕</button>
         )}
       </div>
       <div className="kk-item-stats">
+        {item.worksUpper !== undefined && (
+          <span className={`kk-item-stat${item.worksUpper ? "" : " kk-item-stat-muted"}`} title="Работает в Верхнем городе">
+            {item.worksUpper ? "✓ Верхний" : "✗ Верхний"}
+          </span>
+        )}
+        {item.worksLower !== undefined && (
+          <span className={`kk-item-stat${item.worksLower ? "" : " kk-item-stat-muted"}`} title="Работает в Нижнем городе">
+            {item.worksLower ? "✓ Нижний" : "✗ Нижний"}
+          </span>
+        )}
         {item.charges !== undefined && item.charges !== null && (
           <span className="kk-item-stat kk-device-charges">
-            Заряды: {item.charges}
-            {onUpdateCharges && (
+            {item.charges === -1 ? "∞ зарядов" : `Заряды: ${item.charges}`}
+            {onUpdateCharges && item.charges !== -1 && (
               <>
                 <button className="kk-charge-btn" onClick={() => onUpdateCharges(item.charges - 1)} disabled={item.charges <= 0}>−</button>
                 <button className="kk-charge-btn" onClick={() => onUpdateCharges(item.charges + 1)}>+</button>
