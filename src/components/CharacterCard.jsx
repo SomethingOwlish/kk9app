@@ -7,6 +7,10 @@ import StatusEditor from "./StatusEditor";
 import StatusCard from "./StatusCard";
 import ItemList from "./ItemList";
 import LkLink from "./LkLink";
+import RelationsList from "./RelationsList";
+import CompanionRefs from "./CompanionRefs";
+import ContactsList from "./ContactsList";
+import RollDialog from "./RollDialog";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus, removeLanguageFromChar, addFeatureToChar, removeFeatureFromChar } from "../lib/db";
 import { resizePortrait, validatePortraitFile } from "../lib/storage";
@@ -23,7 +27,7 @@ const DEMO_FIELDS = [
 
 const FEATURE_KIND_LABEL = { character: "Черта характера", unique: "Уникальная возможность" };
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem, peers = [], orgs = [], campaign, canRoll = false, onCommitRoll, onLinkOrg, onUnlinkOrg, onSetOrgLevel }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -44,7 +48,12 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const canAddNote = isOwner || isGM;
   const [statusEditorOpen, setStatusEditorOpen] = useState(false);
   const [viewingStatus, setViewingStatus] = useState(null);
+  const [rollTarget, setRollTarget] = useState(null);
   const activeStatuses = Array.isArray(ch.activeStatuses) ? ch.activeStatuses : [];
+  const companions = Array.isArray(ch.companions) ? ch.companions : [];
+  const relations = Array.isArray(ch.relations) ? ch.relations : [];
+  const contacts = Array.isArray(ch.refs?.contacts) ? ch.refs.contacts : [];
+  const canEditRelations = isOwner || isGM;
 
   const portraitRef = useRef(null);
   const [portraitUploading, setPortraitUploading] = useState(false);
@@ -261,6 +270,12 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         </details>
       )}
 
+      <CompanionRefs
+        companions={companions}
+        canEdit={canEditRelations}
+        onChange={(next) => save({ companions: next })}
+      />
+
       <section className="kk-block">
         <h2 className="kk-h2">Атрибуты</h2>
         <div className="kk-attrs">{ATTR_ORDER.map(k => {
@@ -269,6 +284,10 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
             <div className="kk-attr" key={k}>
               <span className="kk-attr-name">{ATTR_LABEL[k]}</span>
               <span className="kk-attr-die">{dieStr(a.die, a.modifier)}</span>
+              {canRoll && (
+                <button className="kk-roll-btn" title={`Бросок: ${ATTR_LABEL[k]}`}
+                  onClick={() => setRollTarget({ kind: "attribute", name: ATTR_LABEL[k], die: a.die, modifier: a.modifier, attribute: k })}>🎲</button>
+              )}
             </div>
           );
         })}</div>
@@ -284,10 +303,14 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
               return (
                 <div className={`kk-skill ${unt ? "untrained" : ""}`} key={s.name}>
                   <span className="kk-skill-name">{s.name}</span>
-                  <Tip text={`Связан с: ${ATTR_LABEL[s.attr]}. Бросок — вне карточки. Не выше атрибута.`}>
+                  <Tip text={`Связан с: ${ATTR_LABEL[s.attr]}. Не выше атрибута.`}>
                     <span className="kk-skill-attr">{ATTR_SHORT[s.attr]}</span>
                   </Tip>
                   <span className="kk-skill-die">{dieStr(s.die, s.modifier)}</span>
+                  {canRoll && (
+                    <button className="kk-roll-btn" title={`Бросок: ${s.name}`}
+                      onClick={() => setRollTarget({ kind: "skill", name: s.name, die: s.die, modifier: s.modifier, attribute: s.attr })}>🎲</button>
+                  )}
                 </div>
               );
             })}</div>
@@ -303,6 +326,24 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         onUpdateItem={onUpdateItem}
         campaignStatuses={campaignStatuses}
         character={ch}
+      />
+
+      <RelationsList
+        relations={relations}
+        peers={peers}
+        canEdit={canEditRelations}
+        onChange={(next) => save({ relations: next })}
+        onDelete={(next) => save({ relations: next })}
+      />
+
+      <ContactsList
+        contacts={contacts}
+        orgs={orgs}
+        isGM={isGM}
+        canSetLevel={canEditRelations}
+        onLink={(orgId) => onLinkOrg?.(ch, orgId)}
+        onUnlink={(orgId) => onUnlinkOrg?.(ch.id, orgId)}
+        onSetLevel={(orgId, level) => onSetOrgLevel?.(ch.id, orgId, level)}
       />
 
       {/* Languages — embedded in character.languages[] */}
@@ -403,6 +444,17 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
             </form>
           )}
         </section>
+      )}
+
+      {rollTarget && (
+        <RollDialog
+          ch={ch}
+          target={rollTarget}
+          campaign={campaign}
+          campaignStatuses={campaignStatuses}
+          onCommit={onCommitRoll}
+          onClose={() => setRollTarget(null)}
+        />
       )}
     </div>
   );
