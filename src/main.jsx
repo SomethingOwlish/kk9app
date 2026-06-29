@@ -20,7 +20,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <HashRouter>
       <Routes>
-        <Route path="/landing" element={<LandingPage />} />
+        <Route
+          path="/landing"
+          element={
+            <AuthGate>
+              {({ user, signOut }) => <LandingPage user={user} signOut={signOut} />}
+            </AuthGate>
+          }
+        />
         <Route path="/print/:charId" element={<PrintView />} />
         <Route path="/theme" element={<ThemeExplorer />} />
         <Route
