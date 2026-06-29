@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import DiceIcon from "./DiceIcon";
+import { ACTIVATABLE_TYPES, EQUIPPABLE_TYPES } from "../lib/items";
 import WeaponItem from "./items/WeaponItem";
 import GearItem from "./items/GearItem";
 import ArtifactItem from "./items/ArtifactItem";
@@ -70,7 +72,17 @@ const SECTION_LABELS = {
 // Language and feature are embedded in the character doc, not in the items collection.
 const ITEM_TYPES = Object.keys(SECTION_LABELS);
 
-export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdateItem, campaignStatuses = [], character }) {
+// Which item types expose a "roll" button (use the linked skill).
+const ROLLABLE_TYPES = new Set(["weapon", "spell", "gear", "artifact"]);
+function isRollable(item) {
+  if (!ROLLABLE_TYPES.has(item.type)) return false;
+  if (item.type === "weapon") return true;
+  if (item.type === "gear") return item.gearType === "attack" || !!item.skillName;
+  if (item.type === "artifact") return item.artifactType === "attack" && !!item.skillName;
+  return !!item.skillName; // spell
+}
+
+export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdateItem, campaignStatuses = [], character, canActivate = false, showRoll = false, onRollItem, onToggleFlag }) {
   const [adding, setAdding] = useState(false);
   const [type, setType] = useState("weapon");
   const [form, setForm] = useState(EMPTY_WEAPON);
@@ -142,6 +154,32 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
         const group = byType[t];
         if (group.length === 0) return null;
 
+        const renderControls = (item) => {
+          const canRollIt = showRoll && isRollable(item) && onRollItem;
+          const canAct = canActivate && ACTIVATABLE_TYPES.has(item.type) && onToggleFlag;
+          const canEquip = canActivate && EQUIPPABLE_TYPES.has(item.type) && onToggleFlag;
+          if (!canRollIt && !canAct && !canEquip) return null;
+          return (
+            <div className="kk-item-controls">
+              {canRollIt && (
+                <button className="kk-item-roll-btn" onClick={() => onRollItem(item)} title="Бросок предмета">
+                  <DiceIcon size={14}/> Бросок
+                </button>
+              )}
+              {canAct && (
+                <button className={`kk-item-toggle${item.active ? " on" : ""}`} onClick={() => onToggleFlag(item, "active")}>
+                  {item.active ? "Активен" : "Активировать"}
+                </button>
+              )}
+              {canEquip && (
+                <button className={`kk-item-toggle${item.equipped ? " on" : ""}`} onClick={() => onToggleFlag(item, "equipped")}>
+                  {item.equipped ? "Снаряжён" : "Снарядить"}
+                </button>
+              )}
+            </div>
+          );
+        };
+
         const renderOne = (item) => {
           if (editingId === item.id) {
             return (
@@ -152,14 +190,22 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
           }
           const del = isGM ? () => onDelete(item.id) : undefined;
           const edit = isGM ? () => startEdit(item) : undefined;
-          if (t === "weapon") return <WeaponItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
-          if (t === "gear") return <GearItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
-          if (t === "artifact") return <ArtifactItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
-          if (t === "spell") return <SpellItem key={item.id} item={item} activeSpell={activeSpellsMap[item.id]} isGM={isGM} onDelete={del} onEdit={edit} />;
-          if (t === "device") return <DeviceItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit}
+          let el = null;
+          if (t === "weapon") el = <WeaponItem item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
+          else if (t === "gear") el = <GearItem item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
+          else if (t === "artifact") el = <ArtifactItem item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
+          else if (t === "spell") el = <SpellItem item={item} activeSpell={activeSpellsMap[item.id]} isGM={isGM} onDelete={del} onEdit={edit} />;
+          else if (t === "device") el = <DeviceItem item={item} isGM={isGM} onDelete={del} onEdit={edit}
             onUpdateCharges={onUpdateItem ? (charges) => onUpdateItem(item.id, { charges }) : undefined} />;
-          if (t === "vehicle") return <VehicleItem key={item.id} item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
-          return null;
+          else if (t === "vehicle") el = <VehicleItem item={item} isGM={isGM} onDelete={del} onEdit={edit} />;
+          if (!el) return null;
+          const controls = renderControls(item);
+          return (
+            <div key={item.id} className="kk-item-wrap">
+              {el}
+              {controls}
+            </div>
+          );
         };
 
         if (t === "spell") {

@@ -208,11 +208,11 @@ export default function App({ user, signOut }) {
     await addLanguageToChar(CAMPAIGN_ID, charId, entry);
   }, []);
   // Persist a roll: merged status-tick + tension patch, then roll-log entry.
-  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance }) => {
+  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance, charPatch }) => {
     const snapshot = characters.find(c => c.id === charId) || activeChar;
     if (!snapshot) return;
     try {
-      await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData });
+      await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData, charPatch });
     } catch (e) { alert("Не удалось сохранить бросок: " + (e?.message || e)); }
   }, [characters, activeChar]);
   const onLinkOrg = useCallback(async (ch, orgId) => {

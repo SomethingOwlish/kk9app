@@ -7,12 +7,42 @@
 
 /* ── Roll buttons on skills/attributes ───────────────────── */
 .kk-roll-btn {
-  background: transparent; border: 1px solid var(--kk-gold, #c8a14e);
-  border-radius: 6px; cursor: pointer; font-size: .8rem; line-height: 1;
-  padding: 2px 5px; margin-left: 6px; opacity: .65; transition: opacity .15s, background .15s;
+  background: transparent; border: 1px solid var(--kk-gold, #c8a14e); color: var(--kk-gold, #c8a14e);
+  border-radius: 6px; cursor: pointer; line-height: 0;
+  padding: 3px 5px; margin-left: 6px; opacity: .7; transition: opacity .15s, background .15s;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .kk-roll-btn:hover { opacity: 1; background: rgba(200,161,78,.15); }
 .kk-attr { display: flex; align-items: center; gap: 6px; }
+
+/* ── Roller visibility toggle (header) ───────────────────── */
+.kk-roller-toggle {
+  display: inline-flex; align-items: center; gap: 5px; font-size: .78rem;
+  background: transparent; border: 1px solid rgba(255,255,255,.18); color: inherit;
+  border-radius: 7px; padding: 4px 8px; cursor: pointer; opacity: .7; transition: all .15s;
+}
+.kk-roller-toggle:hover { opacity: 1; }
+.kk-roller-toggle.on { border-color: var(--kk-gold, #c8a14e); color: var(--kk-gold, #c8a14e); opacity: 1; }
+
+/* ── Languages inside biography ──────────────────────────── */
+.kk-bio-langs { margin-top: .6rem; }
+.kk-bio-langs-list { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .25rem; }
+.kk-lang-chip { display: inline-flex; align-items: center; gap: 4px; font-size: .82rem;
+  padding: 2px 8px; border-radius: 12px; background: rgba(255,255,255,.07); }
+.kk-lang-del { background: none; border: none; cursor: pointer; color: inherit; opacity: .55; font-size: .8rem; padding: 0 2px; }
+.kk-lang-del:hover { opacity: 1; color: var(--kk-danger, #c0563f); }
+
+/* ── Item activation / roll controls ─────────────────────── */
+.kk-item-wrap { display: flex; flex-direction: column; }
+.kk-item-controls { display: flex; flex-wrap: wrap; gap: .4rem; padding: .3rem .2rem .5rem; }
+.kk-item-roll-btn { display: inline-flex; align-items: center; gap: 5px; font-size: .8rem;
+  background: transparent; border: 1px solid var(--kk-gold, #c8a14e); color: var(--kk-gold, #c8a14e);
+  border-radius: 7px; padding: 4px 9px; cursor: pointer; opacity: .85; transition: all .15s; }
+.kk-item-roll-btn:hover { opacity: 1; background: rgba(200,161,78,.15); }
+.kk-item-toggle { font-size: .78rem; background: transparent; border: 1px solid rgba(255,255,255,.2);
+  color: inherit; border-radius: 7px; padding: 4px 9px; cursor: pointer; opacity: .75; transition: all .15s; }
+.kk-item-toggle:hover { opacity: 1; }
+.kk-item-toggle.on { border-color: var(--kk-green, #4caf6a); color: var(--kk-green, #4caf6a); opacity: 1; }
 
 /* ── Relations ───────────────────────────────────────────── */
 .kk-rel-list { display: flex; flex-direction: column; gap: .5rem; }
@@ -105,6 +135,16 @@
 .kk-roll-total em { font-size: .82rem; opacity: .6; font-style: normal; }
 .kk-roll-verdict { font-weight: 700; }
 .kk-roll-tension-res { margin-top: .3rem; font-size: .84rem; color: var(--kk-tension, #a855f7); }
+.kk-roll-iteminfo { font-size: .82rem; opacity: .8; }
+.kk-roll-breakdown { border: 1px solid rgba(255,255,255,.1); border-radius: 9px; padding: .5rem .6rem; background: rgba(255,255,255,.03); }
+.kk-roll-breakdown-title { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; opacity: .55; margin-bottom: .35rem; }
+.kk-roll-part { display: flex; justify-content: space-between; gap: 1rem; font-size: .85rem; padding: 2px 0; }
+.kk-roll-part-label { opacity: .85; }
+.kk-roll-part-val { font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .9; }
+.kk-roll-part-total { border-top: 1px solid rgba(255,255,255,.12); margin-top: .3rem; padding-top: .35rem; font-weight: 600; }
+.kk-roll-part-total .kk-roll-part-val { color: var(--kk-gold, #c8a14e); }
+.kk-roll-manual-toggle { display: flex; align-items: center; gap: .4rem; font-size: .84rem; cursor: pointer; }
+.kk-roll-manual { display: flex; flex-direction: column; gap: .4rem; padding: .4rem .5rem; border: 1px dashed rgba(255,255,255,.2); border-radius: 8px; }
 
 /* ── Roll log ────────────────────────────────────────────── */
 .kk-rolllog { display: flex; flex-direction: column; gap: .8rem; }
