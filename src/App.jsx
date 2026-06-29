@@ -7,6 +7,8 @@ import {
   watchGmMode, watchStatuses, seedStatuses, watchNpcs, watchActiveScene,
   watchItemsByOwner, watchAllItems, createItem, deleteItem, updateItem,
   assignItem, unassignItem, addLanguageToChar, saveBioFields,
+  watchOrganizations, createOrganization, updateOrganization, deleteOrganization,
+  linkCharToOrg, unlinkCharToOrg, setCharOrgLevel, applyRollOutcome,
 } from "./lib/db";
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
@@ -16,6 +18,7 @@ import { getPath, applyOverrides, canAdvance } from "./lib/appUtils";
 import { loadPrefs, savePref } from "./lib/userPrefs";
 import "./styles/app.css";
 import "./styles/theme-explorer.css";
+import "./styles/tier2.css";
 import CharacterCard from "./components/CharacterCard";
 import AdvancementDialog from "./components/AdvancementDialog";
 import LogView from "./components/LogView";
@@ -30,6 +33,8 @@ import CharacterCreationWizard from "./components/CharacterCreationWizard";
 import JournalView from "./views/JournalView";
 import ItemsView from "./views/ItemsView";
 import GuideView from "./views/GuideView";
+import OrganizationsView from "./views/OrganizationsView";
+import RollLogView from "./views/RollLogView";
 
 export default function App({ user, signOut }) {
   const navigate = useNavigate();
@@ -57,6 +62,7 @@ export default function App({ user, signOut }) {
   const [activeScene, setActiveScene] = useState(null);
   const [activeItems, setActiveItems] = useState([]);
   const [allItems, setAllItems] = useState([]);
+  const [orgs, setOrgs] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
@@ -65,6 +71,7 @@ export default function App({ user, signOut }) {
   useEffect(() => watchNpcs(CAMPAIGN_ID, setNpcs), []);
   useEffect(() => watchActiveScene(CAMPAIGN_ID, setActiveScene), []);
   useEffect(() => watchAllItems(CAMPAIGN_ID, setAllItems), []);
+  // Re-subscribe when GM status resolves: players must query visible-only (rules).
   useEffect(() => watchStatuses(CAMPAIGN_ID, (statuses) => {
     setCampaignStatuses(statuses);
     if (statuses.length === 0) seedStatuses(CAMPAIGN_ID, STATUSES_DATA).catch(console.error);
@@ -80,6 +87,8 @@ export default function App({ user, signOut }) {
     : pathname === "/board" ? "board"
     : pathname === "/journal" ? "journal"
     : pathname === "/guide" ? "guide"
+    : pathname === "/orgs" ? "orgs"
+    : pathname === "/rolls" ? "rolls"
     : pathname === "/items" ? "items" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
@@ -103,6 +112,19 @@ export default function App({ user, signOut }) {
   }, [overrides, overridesCharId, activeId, activeChar]);
   const viewCh = activeChar ? applyOverrides(activeChar, effectiveOverrides) : null;
   const canAdv = activeChar ? canAdvance(activeChar, settings) : false;
+  // Relations ref-picker source: all chars + npcs except the open one.
+  const peers = useMemo(
+    () => [...characters, ...npcs]
+      .filter(c => c.id !== activeId)
+      .map(c => ({ id: c.id, name: c.name, portrait: c.portrait })),
+    [characters, npcs, activeId],
+  );
+  // Players (incl. admin acting-as-player) only see organizations marked visible.
+  const orgsForView = useMemo(() => isGM ? orgs : orgs.filter(o => o.visibleToPlayers), [orgs, isGM]);
+  const ownChar = !!(activeChar && user && activeChar.ownerUid === user.uid);
+  const canRoll = role !== "demo" && (isGM || ownChar);
+  // Players must query visible-only orgs (collection listener is denied otherwise).
+  useEffect(() => watchOrganizations(CAMPAIGN_ID, setOrgs, !isGM), [isGM]);
 
   const save = useCallback((patch) => {
     if (!activeId || !viewCh) return;
@@ -185,6 +207,34 @@ export default function App({ user, signOut }) {
   const onAddLanguage = useCallback(async (charId, entry) => {
     await addLanguageToChar(CAMPAIGN_ID, charId, entry);
   }, []);
+  // Persist a roll: merged status-tick + tension patch, then roll-log entry.
+  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance }) => {
+    const snapshot = characters.find(c => c.id === charId) || activeChar;
+    if (!snapshot) return;
+    try {
+      await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData });
+    } catch (e) { alert("Не удалось сохранить бросок: " + (e?.message || e)); }
+  }, [characters, activeChar]);
+  const onLinkOrg = useCallback(async (ch, orgId) => {
+    try { await linkCharToOrg(CAMPAIGN_ID, ch.id, ch.name || "", orgId, 0); }
+    catch (e) { alert("Не удалось привязать организацию: " + (e?.message || e)); }
+  }, []);
+  const onUnlinkOrg = useCallback(async (charId, orgId) => {
+    try { await unlinkCharToOrg(CAMPAIGN_ID, charId, orgId); }
+    catch (e) { alert("Не удалось отвязать: " + (e?.message || e)); }
+  }, []);
+  const onSetOrgLevel = useCallback(async (charId, orgId, level) => {
+    await setCharOrgLevel(CAMPAIGN_ID, charId, orgId, level).catch(console.error);
+  }, []);
+  const onCreateOrg = useCallback(async () => {
+    await createOrganization(CAMPAIGN_ID, {}).catch(e => alert("Ошибка: " + (e?.message || e)));
+  }, []);
+  const onUpdateOrg = useCallback(async (orgId, patch) => {
+    await updateOrganization(CAMPAIGN_ID, orgId, patch).catch(console.error);
+  }, []);
+  const onDeleteOrg = useCallback(async (orgId) => {
+    await deleteOrganization(CAMPAIGN_ID, orgId).catch(e => alert("Ошибка: " + (e?.message || e)));
+  }, []);
   const onCreateCatalogItem = useCallback(async (data) => {
     await createItem(CAMPAIGN_ID, data);
   }, []);
@@ -210,6 +260,8 @@ export default function App({ user, signOut }) {
     else if (id === "guide" && role !== "demo") navigate("/guide");
     else if (id === "lk" && campaign?.lk?.projectUrl) window.open(campaign.lk.projectUrl, "_blank", "noopener,noreferrer");
     else if (id === "items" && isGM) navigate("/items");
+    else if (id === "orgs" && role !== "demo") navigate("/orgs");
+    else if (id === "rolls" && role !== "demo") navigate("/rolls");
     else if (id === "print" && activeId) navigate(`/print/${activeId}`);
   }, [isGM, role, navigate, activeId, campaign]);
   const current = view === "portal" ? "portal"
@@ -219,6 +271,8 @@ export default function App({ user, signOut }) {
     : view === "board" ? "gm"
     : view === "journal" ? "journal"
     : view === "guide" ? "guide"
+    : view === "orgs" ? "orgs"
+    : view === "rolls" ? "rolls"
     : view === "items" ? "items" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
@@ -260,12 +314,14 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")}/>}
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
+        {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg}/>}
+        {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID}/>}
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel}/>}
         {ready && view === "card" && viewCh && editingBio && <BioEditCard ch={activeChar} onSave={saveBio} onCancel={() => setEditingBio(false)}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}

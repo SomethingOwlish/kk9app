@@ -1,0 +1,125 @@
+/* ============================================================
+   КК9 — Tier 2 styles: связи, спутники, организации, броски.
+   Uses existing palette vars with safe fallbacks.
+   ============================================================ */
+
+.kk-block-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+
+/* ── Roll buttons on skills/attributes ───────────────────── */
+.kk-roll-btn {
+  background: transparent; border: 1px solid var(--kk-gold, #c8a14e);
+  border-radius: 6px; cursor: pointer; font-size: .8rem; line-height: 1;
+  padding: 2px 5px; margin-left: 6px; opacity: .65; transition: opacity .15s, background .15s;
+}
+.kk-roll-btn:hover { opacity: 1; background: rgba(200,161,78,.15); }
+.kk-attr { display: flex; align-items: center; gap: 6px; }
+
+/* ── Relations ───────────────────────────────────────────── */
+.kk-rel-list { display: flex; flex-direction: column; gap: .5rem; }
+.kk-rel-row { display: flex; gap: .6rem; align-items: flex-start; padding: .4rem .2rem; border-bottom: 1px solid rgba(255,255,255,.06); }
+.kk-rel-av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex: 0 0 40px;
+  display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.06);
+  font-weight: 700; color: var(--kk-gold, #c8a14e); }
+.kk-rel-av img { width: 100%; height: 100%; object-fit: cover; }
+.kk-rel-main { flex: 1; min-width: 0; }
+.kk-rel-top { display: flex; justify-content: space-between; gap: .5rem; align-items: baseline; }
+.kk-rel-name { font-weight: 600; }
+.kk-rel-lvl { font-size: .8rem; white-space: nowrap; }
+.kk-rel-bar { position: relative; height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); margin: 4px 0; }
+.kk-rel-bar-center { position: absolute; left: 50%; top: -1px; width: 1px; height: 7px; background: rgba(255,255,255,.35); }
+.kk-rel-bar-fill { position: absolute; top: 0; height: 100%; border-radius: 3px; }
+.kk-rel-tags { font-size: .76rem; opacity: .75; }
+.kk-rel-notes { font-size: .78rem; opacity: .6; font-style: italic; margin-top: 2px; }
+.kk-rel-acts { display: flex; flex-direction: column; gap: 3px; }
+
+.kk-icon-btn { background: transparent; border: none; cursor: pointer; color: inherit; opacity: .6;
+  font-size: .85rem; padding: 2px 4px; border-radius: 4px; }
+.kk-icon-btn:hover { opacity: 1; background: rgba(255,255,255,.08); }
+.kk-icon-del:hover { color: var(--kk-danger, #c0563f); }
+
+.kk-rel-form { display: flex; flex-direction: column; gap: .6rem; padding: .4rem 0; }
+
+/* ── Companions ──────────────────────────────────────────── */
+.kk-comp-list { display: flex; flex-direction: column; gap: .4rem; }
+.kk-comp-row { display: flex; gap: .6rem; align-items: center; padding: .35rem; border-radius: 8px; background: rgba(255,255,255,.04); }
+.kk-comp-stunned { opacity: .6; }
+.kk-comp-av { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; flex: 0 0 34px;
+  display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.08); font-weight: 700; }
+.kk-comp-av img { width: 100%; height: 100%; object-fit: cover; }
+.kk-comp-main { flex: 1; min-width: 0; }
+.kk-comp-top { display: flex; gap: .5rem; align-items: baseline; }
+.kk-comp-name { font-weight: 600; }
+.kk-comp-state { font-size: .72rem; padding: 1px 6px; border-radius: 10px; }
+.kk-comp-state-active { background: rgba(76,175,106,.2); color: var(--kk-green, #4caf6a); }
+.kk-comp-state-stunned { background: rgba(192,86,63,.2); color: var(--kk-danger, #c0563f); }
+.kk-comp-desc { font-size: .78rem; opacity: .7; }
+.kk-comp-acts { display: flex; gap: 3px; }
+
+/* ── Contacts (char sheet) ───────────────────────────────── */
+.kk-contact-pick { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+.kk-contact-list { display: flex; flex-direction: column; gap: .35rem; }
+.kk-contact-row { display: flex; align-items: center; gap: .5rem; padding: .35rem; border-radius: 8px; background: rgba(255,255,255,.04); }
+.kk-contact-main { flex: 1; display: flex; gap: .5rem; align-items: baseline; min-width: 0; }
+.kk-contact-name { font-weight: 600; }
+.kk-contact-type { font-size: .74rem; opacity: .65; }
+.kk-contact-lvl { display: flex; align-items: center; gap: 4px; }
+.kk-contact-lvl-val { min-width: 1.6rem; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ── Organizations tab ───────────────────────────────────── */
+.kk-orgs { display: flex; flex-direction: column; gap: 1rem; }
+.kk-orgs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .8rem; }
+.kk-org-card { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: .8rem; background: rgba(255,255,255,.03);
+  display: flex; flex-direction: column; gap: .5rem; }
+.kk-org-visible { border-color: rgba(76,175,106,.4); }
+.kk-org-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.kk-org-name { font-weight: 700; font-size: 1.02rem; }
+.kk-org-name-input { font-weight: 700; flex: 1; }
+.kk-org-type { font-size: .76rem; opacity: .65; }
+.kk-org-access { font-size: .78rem; opacity: .7; }
+.kk-org-desc { font-size: .84rem; opacity: .82; white-space: pre-wrap; }
+.kk-org-sub { font-size: .8rem; opacity: .8; }
+.kk-org-events { margin: .2rem 0 0; padding-left: 1.1rem; }
+.kk-org-vis { display: flex; align-items: center; gap: .4rem; font-size: .82rem; cursor: pointer; }
+.kk-org-fields { display: flex; flex-direction: column; gap: .5rem; }
+.kk-org-actors { border-top: 1px solid rgba(255,255,255,.08); padding-top: .4rem; }
+.kk-org-actor { display: flex; align-items: center; gap: .5rem; font-size: .82rem; padding: 2px 0; }
+.kk-org-actor span:first-child { flex: 1; }
+.kk-org-actor-lvl { font-variant-numeric: tabular-nums; opacity: .8; }
+
+/* ── Roll dialog ─────────────────────────────────────────── */
+.kk-roll-modal { max-width: 440px; }
+.kk-roll-body { display: flex; flex-direction: column; gap: .6rem; padding: .2rem 0; }
+.kk-roll-summary { display: flex; justify-content: space-between; gap: 1rem; font-size: .92rem; }
+.kk-roll-mod { font-size: .78rem; opacity: .6; font-style: normal; }
+.kk-roll-statusmods { font-size: .8rem; opacity: .8; }
+.kk-roll-warn { font-size: .82rem; color: var(--kk-danger, #c0563f); }
+.kk-roll-blocked { font-weight: 600; }
+.kk-roll-tension-note { font-size: .82rem; color: var(--kk-tension, #a855f7); }
+.kk-roll-result { border-radius: 10px; padding: .7rem; margin-top: .4rem; text-align: center;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); }
+.kk-roll-result.ok { border-color: rgba(76,175,106,.5); }
+.kk-roll-result.fail { border-color: rgba(192,86,63,.5); }
+.kk-roll-dice { display: flex; justify-content: center; gap: 1rem; font-size: .82rem; opacity: .85; }
+.kk-roll-kept { font-weight: 600; }
+.kk-roll-total { font-size: 1.2rem; margin: .3rem 0; }
+.kk-roll-total em { font-size: .82rem; opacity: .6; font-style: normal; }
+.kk-roll-verdict { font-weight: 700; }
+.kk-roll-tension-res { margin-top: .3rem; font-size: .84rem; color: var(--kk-tension, #a855f7); }
+
+/* ── Roll log ────────────────────────────────────────────── */
+.kk-rolllog { display: flex; flex-direction: column; gap: .8rem; }
+.kk-rolllog-list { display: flex; flex-direction: column; gap: .35rem; }
+.kk-rolllog-row { border-radius: 8px; padding: .45rem .6rem; background: rgba(255,255,255,.04); border-left: 3px solid rgba(255,255,255,.2); }
+.kk-rolllog-row.kk-rl-ok { border-left-color: var(--kk-green, #4caf6a); }
+.kk-rolllog-row.kk-rl-fail { border-left-color: var(--kk-danger, #c0563f); }
+.kk-rl-head { display: flex; gap: .5rem; align-items: baseline; }
+.kk-rl-name { font-weight: 600; }
+.kk-rl-ability { flex: 1; opacity: .8; }
+.kk-rl-time { font-size: .74rem; opacity: .55; }
+.kk-rl-body { display: flex; gap: .8rem; align-items: baseline; font-size: .84rem; margin-top: 2px; }
+.kk-rl-kept { flex: 1; }
+.kk-rl-verdict.kk-rl-ok { color: var(--kk-green, #4caf6a); }
+.kk-rl-verdict.kk-rl-fail { color: var(--kk-danger, #c0563f); }
+.kk-rl-tension { color: var(--kk-tension, #a855f7); }
+
+.kk-vital-overcap { color: var(--kk-danger, #c0563f); }

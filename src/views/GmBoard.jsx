@@ -94,6 +94,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
                   key={ch.id}
                   ch={ch}
                   campaignId={CAMPAIGN_ID}
+                  campaign={campaign}
                   onOpen={() => onOpenChar(ch.id)}
                   onRemove={() => removeFromParty(CAMPAIGN_ID, ch.id).catch(console.error)}
                 />

@@ -15,6 +15,7 @@ import {
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
 import { derivePhysicalToughness, deriveEnergyMax, deriveTensionMax } from "./derive";
+import { tickStatuses } from "./statusEngine";
 
 // Навык по имени — для подтягивания attr/categ при добавлении.
 const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
@@ -677,6 +678,140 @@ export async function seedItems(campaignId, itemsData, type) {
     }
   }
   if (added > 0) await batch.commit();
+}
+
+// ── Roll log (B-18 / FEAT-16) ────────────────────────────────
+// Path: campaigns/{id}/rolls/{rollId}. Members read all; create only own char.
+export async function addRollEntry(campaignId, rollData) {
+  const ref = collection(db, "campaigns", campaignId, "rolls");
+  return addDoc(ref, { ...rollData, at: serverTimestamp() });
+}
+export function watchRolls(campaignId, cb, n = 50) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "rolls"),
+    orderBy("at", "desc"),
+    limit(n),
+  );
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+
+// Applies post-roll character mutations (status tick + tension) as ONE merged
+// patch to avoid races, then writes the roll-log entry.
+//   outcome: result of computeTensionOutcome (or null)
+//   exhaustionInstance: status instance to add when outcome.addExhaustion
+export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, rollData }) {
+  const tickPatch = tickStatuses(ch) || {};
+  const merged = { ...tickPatch };
+
+  if (outcome?.tensionPatch) Object.assign(merged, outcome.tensionPatch);
+
+  // Reconcile activeStatuses across tick + exhaustion add/remove.
+  let statuses = tickPatch.activeStatuses || ch.activeStatuses || [];
+  if (outcome?.removeExhaustion) {
+    statuses = statuses.filter((s) => s.name !== "Ментальное истощение");
+  }
+  if (outcome?.addExhaustion && exhaustionInstance) {
+    if (!statuses.some((s) => s.name === "Ментальное истощение")) {
+      statuses = [...statuses, exhaustionInstance];
+    }
+  }
+  if (tickPatch.activeStatuses || outcome?.removeExhaustion || outcome?.addExhaustion) {
+    merged.activeStatuses = statuses;
+  }
+
+  if (Object.keys(merged).length > 0) {
+    await updateCharacterNow(campaignId, charId, merged);
+  }
+  if (rollData) await addRollEntry(campaignId, rollData);
+}
+
+// ── Organizations / Contacts (FEAT-14, reshaped) ─────────────
+// NOT items. Collection: campaigns/{id}/organizations/{orgId}.
+// Schema: { name, description, orgType, accessLevel, members[], events[],
+//           visibleToPlayers: bool, actorRefs: [{ charId, charName, level }] }
+// Character side mirror: character.refs.contacts[] = [{ orgId, level }].
+// onlyVisible: players MUST constrain the query to visibleToPlayers==true, else
+// the collection listener is denied wholesale (a GM-only doc fails the read rule).
+export function watchOrganizations(campaignId, cb, onlyVisible = false) {
+  const col = collection(db, "campaigns", campaignId, "organizations");
+  const ref = onlyVisible ? query(col, where("visibleToPlayers", "==", true)) : col;
+  return onSnapshot(ref, (snap) => {
+    const orgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    orgs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    cb(orgs);
+  });
+}
+export async function createOrganization(campaignId, data) {
+  const ref = collection(db, "campaigns", campaignId, "organizations");
+  return addDoc(ref, {
+    name: "Новая организация", description: "", orgType: "", accessLevel: "",
+    members: [], events: [], visibleToPlayers: false, actorRefs: [],
+    ...data, createdAt: serverTimestamp(),
+  });
+}
+export async function updateOrganization(campaignId, orgId, data) {
+  await updateDoc(doc(db, "campaigns", campaignId, "organizations", orgId), data);
+}
+export async function deleteOrganization(campaignId, orgId) {
+  // Best-effort: strip the org ref from each linked character first.
+  const snap = await getDoc(doc(db, "campaigns", campaignId, "organizations", orgId));
+  const actorRefs = snap.exists() ? (snap.data().actorRefs || []) : [];
+  await Promise.allSettled(actorRefs.map(async ({ charId }) => {
+    const cRef = doc(db, "campaigns", campaignId, "characters", charId);
+    const cSnap = await getDoc(cRef);
+    if (!cSnap.exists()) return;
+    const contacts = (cSnap.data().refs?.contacts || []).filter((c) => c.orgId !== orgId);
+    await updateDoc(cRef, { "refs.contacts": contacts });
+  }));
+  await deleteDoc(doc(db, "campaigns", campaignId, "organizations", orgId));
+}
+
+// Bidirectional link (GM action): write character.refs.contacts AND org.actorRefs.
+// Best-effort, not a transaction (two docs): on second-write failure, roll back.
+export async function linkCharToOrg(campaignId, charId, charName, orgId, level = 0) {
+  const charRef = doc(db, "campaigns", campaignId, "characters", charId);
+  const orgRef = doc(db, "campaigns", campaignId, "organizations", orgId);
+  const charSnap = await getDoc(charRef);
+  if (!charSnap.exists()) throw new Error("Персонаж не найден");
+  const refs = charSnap.data().refs || {};
+  const contacts = Array.isArray(refs.contacts) ? refs.contacts : [];
+  if (contacts.some((c) => c.orgId === orgId)) return; // already linked
+  await updateDoc(charRef, { "refs.contacts": [...contacts, { orgId, level }] });
+  try {
+    const orgSnap = await getDoc(orgRef);
+    if (!orgSnap.exists()) throw new Error("Организация не найдена");
+    const actorRefs = Array.isArray(orgSnap.data().actorRefs) ? orgSnap.data().actorRefs : [];
+    if (!actorRefs.some((a) => a.charId === charId)) {
+      await updateDoc(orgRef, { actorRefs: [...actorRefs, { charId, charName, level }] });
+    }
+  } catch (e) {
+    await updateDoc(charRef, { "refs.contacts": contacts }).catch(() => {});
+    console.error("linkCharToOrg rollback", e);
+    throw e;
+  }
+}
+export async function unlinkCharToOrg(campaignId, charId, orgId) {
+  const charRef = doc(db, "campaigns", campaignId, "characters", charId);
+  const orgRef = doc(db, "campaigns", campaignId, "organizations", orgId);
+  const charSnap = await getDoc(charRef);
+  if (charSnap.exists()) {
+    const contacts = (charSnap.data().refs?.contacts || []).filter((c) => c.orgId !== orgId);
+    await updateDoc(charRef, { "refs.contacts": contacts });
+  }
+  const orgSnap = await getDoc(orgRef);
+  if (orgSnap.exists()) {
+    const actorRefs = (orgSnap.data().actorRefs || []).filter((a) => a.charId !== charId);
+    await updateDoc(orgRef, { actorRefs }).catch((e) => console.error("unlink org side", e));
+  }
+}
+// Player-adjustable: set this character's own relation level to an org (own doc only).
+export async function setCharOrgLevel(campaignId, charId, orgId, level) {
+  const charRef = doc(db, "campaigns", campaignId, "characters", charId);
+  const charSnap = await getDoc(charRef);
+  if (!charSnap.exists()) return;
+  const contacts = (charSnap.data().refs?.contacts || []).map((c) =>
+    c.orgId === orgId ? { ...c, level } : c);
+  await updateDoc(charRef, { "refs.contacts": contacts });
 }
 
 export const derive = {

@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { updateCharacterNow } from "../lib/db";
+import { tensionAdjustPatch, tensionClearPatch, tensionSettings } from "../lib/tension";
 
-export default function PartyRow({ ch, campaignId, onOpen, onRemove }) {
+export default function PartyRow({ ch, campaignId, campaign, onOpen, onRemove }) {
   const [modal, setModal] = useState(null); // 'xp' | 'money' | null
   const [modalVal, setModalVal] = useState("");
 
@@ -9,8 +10,12 @@ export default function PartyRow({ ch, campaignId, onOpen, onRemove }) {
   const physFilled = ch.health?.physical?.value ?? 0;
   const mentFilled = ch.health?.mental?.value ?? 0;
   const energyCur = ch.energy?.value ?? 0;
-  const energyMax = ch.energy?.max ?? 0;
+  const penalty = ch.tension?.energyPenalty ?? 0;
+  const energyMax = Math.max(0, (ch.energy?.max ?? 0) - penalty);
   const tension = ch.tension?.current ?? 0;
+  const overcap = ch.tension?.overcap ?? 0;
+  const tensionMax = ch.tension?.max ?? 0;
+  const settings = tensionSettings(campaign);
 
   const quick = useCallback((patch) => {
     updateCharacterNow(campaignId, ch.id, patch).catch(console.error);
@@ -43,11 +48,19 @@ export default function PartyRow({ ch, campaignId, onOpen, onRemove }) {
           <div className="kk-party-row-vitals">
             <span title="Физический урон">❤ {physFilled}</span>
             <span title="Ментальный урон">🧠 {mentFilled}</span>
-            <span title="Энергия">⚡ {energyCur}/{energyMax}</span>
-            {tension > 0 && <span title="Напряжение" className="kk-vital-tension">⚗ {tension}</span>}
+            <span title="Энергия (макс. с учётом напряжения)">⚡ {energyCur}/{energyMax}</span>
+            <span title="Напряжение" className="kk-vital-tension">⚗ {tension}/{tensionMax}</span>
+            {overcap > 0 && <span title="Перегруз напряжения" className="kk-vital-overcap">⚠ {overcap}</span>}
           </div>
         </div>
         <div className="kk-party-row-acts">
+          <button className="kk-qa-btn" title="− Напряжение"
+            onClick={() => { const p = tensionAdjustPatch(ch, -1, settings); if (p) quick(p); }}>⚗−</button>
+          <button className="kk-qa-btn" title="+ Напряжение"
+            onClick={() => { const p = tensionAdjustPatch(ch, 1, settings); if (p) quick(p); }}>⚗+</button>
+          {(tension > 0 || overcap > 0) && (
+            <button className="kk-qa-btn" title="Сбросить напряжение" onClick={() => quick(tensionClearPatch())}>⚗0</button>
+          )}
           <button className="kk-qa-btn" title="+ Бенни" onClick={() => quick({ bennies: Math.min(9, (ch.bennies ?? 0) + 1) })}>◆</button>
           <button className="kk-qa-btn" title="Опыт" onClick={() => openModal("xp")}>★</button>
           <button className="kk-qa-btn" title="Деньги" onClick={() => openModal("money")}>₽</button>
