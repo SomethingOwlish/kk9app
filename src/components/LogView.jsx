@@ -110,6 +110,27 @@ function AdvancementCard({ e }) {
   );
 }
 
+function BioLogCard({ e }) {
+  const fields = Array.isArray(e.fields) ? e.fields : [];
+  return (
+    <div className="kk-log kk-log--bio">
+      <div className="kk-log-head">
+        <span className="kk-log-type-tag bio">Анкета</span>
+        <span className="kk-log-date">{fmtDate(e.at)}</span>
+      </div>
+      <div className="kk-log-section">
+        {fields.length > 0 ? (
+          <div className="kk-log-tags">
+            {fields.map((f, i) => <span key={i} className="kk-log-skill-tag">{f}</span>)}
+          </div>
+        ) : (
+          <span>Сохранено без изменений</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function UnknownCard({ e }) {
   return (
     <div className="kk-log">
@@ -123,6 +144,7 @@ function UnknownCard({ e }) {
 
 function renderEntry(e) {
   if (e.type === "chargen_created") return <ChargenCard key={e.id} e={e} />;
+  if (e.type === "bio_edit") return <BioLogCard key={e.id} e={e} />;
   if (!e.type || e.type === "advancement") return <AdvancementCard key={e.id} e={e} />;
   return <UnknownCard key={e.id} e={e} />;
 }
@@ -133,6 +155,7 @@ const TABS = [
   { id: "all",             label: "Все" },
   { id: "chargen_created", label: "Создание" },
   { id: "advancement",     label: "Прокачка" },
+  { id: "bio_edit",        label: "Анкета" },
 ];
 
 function tabMatches(tabId, e) {

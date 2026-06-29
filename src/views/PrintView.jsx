@@ -156,20 +156,11 @@ export default function PrintView() {
           <span className="pr-res-label">Энергия</span>
           <span className="pr-res-val">{ch.energy?.value ?? 0} / {energyMax}</span>
         </div>
-        <div className="pr-res-item">
-          <span className="pr-res-label">Напряжение</span>
-          <span className="pr-res-val">{tension.current} / {tension.max}</span>
-        </div>
+        {/* Напряжение/Перегруз excluded from print — GM-only mechanic (IMP-01). */}
         {overflow > 0 && (
           <div className="pr-res-item">
             <span className="pr-res-label">Переполнение</span>
             <span className="pr-res-val pr-res-danger">{overflow}</span>
-          </div>
-        )}
-        {tension.overcap > 0 && (
-          <div className="pr-res-item">
-            <span className="pr-res-label">Перегруз напр.</span>
-            <span className="pr-res-val pr-res-danger">{tension.overcap}</span>
           </div>
         )}
       </div>

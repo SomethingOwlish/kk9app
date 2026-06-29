@@ -66,6 +66,8 @@
 .kk-head-econ{display:flex;gap:14px;margin-top:8px;} .kk-econ{font-size:13px;color:var(--kk-gold-bright);font-weight:600;}
 .kk-head-actions{display:flex;flex-direction:column;gap:6px;}
 .kk-edit-btn{padding:8px 12px;border:1px solid var(--kk-gold-dim);border-radius:var(--kk-r-sm);color:var(--kk-gold);font-size:13px;font-weight:600;}
+.kk-lk-link{display:inline-flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--kk-gold-dim);border-radius:var(--kk-r-sm);color:var(--kk-gold);font-size:13px;font-weight:600;text-decoration:none;}
+.kk-lk-link:hover{background:color-mix(in srgb,var(--kk-gold) 12%,transparent);}
 .kk-edit-btn:hover{border-color:var(--kk-gold);background:var(--kk-surface);}
 .kk-adv-btn{padding:9px 16px;border-radius:var(--kk-r-sm);background:var(--kk-gold);color:#1a140c;font-size:13px;font-weight:700;}
 .kk-adv-btn:hover{background:var(--kk-gold-bright);}
@@ -139,6 +141,7 @@
 .kk-log-type-tag{font-size:10px;text-transform:uppercase;padding:2px 7px;border-radius:10px;background:var(--kk-surface-2);color:var(--kk-text-faint);letter-spacing:.04em;}
 .kk-log-type-tag.chargen{background:color-mix(in srgb,var(--kk-gold) 15%,transparent);color:var(--kk-gold);}
 .kk-log-type-tag.advancement{background:color-mix(in srgb,var(--kk-accent,#5b8dd9) 15%,transparent);color:var(--kk-accent,#5b8dd9);}
+.kk-log-type-tag.bio{background:color-mix(in srgb,var(--kk-gold) 12%,transparent);color:var(--kk-text-dim);}
 /* Chargen card sections */
 .kk-log--chargen{border-color:color-mix(in srgb,var(--kk-gold) 30%,var(--kk-line-soft));}
 .kk-log-section{margin-top:8px;padding-top:8px;border-top:1px solid var(--kk-line-soft);}
@@ -163,6 +166,7 @@
 .kk-bio-summary::after{content:"▼";font-size:9px;color:var(--kk-text-faint);}
 .kk-bio-details[open] .kk-bio-summary::after{content:"▲";}
 .kk-bio-body{padding:0 14px;display:flex;flex-direction:column;gap:12px;}
+.kk-bio-edit-btn{align-self:flex-start;}
 .kk-demo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;}
 .kk-demo-field{display:flex;flex-direction:column;gap:2px;}
 .kk-demo-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--kk-text-faint);}

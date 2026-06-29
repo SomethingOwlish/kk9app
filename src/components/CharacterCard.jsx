@@ -6,6 +6,7 @@ import StatusBar from "./StatusBar";
 import StatusEditor from "./StatusEditor";
 import StatusCard from "./StatusCard";
 import ItemList from "./ItemList";
+import LkLink from "./LkLink";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus, removeLanguageFromChar, addFeatureToChar, removeFeatureFromChar } from "../lib/db";
 import { resizePortrait, validatePortraitFile } from "../lib/storage";
@@ -22,7 +23,7 @@ const DEMO_FIELDS = [
 
 const FEATURE_KIND_LABEL = { character: "Черта характера", unique: "Уникальная возможность" };
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -36,6 +37,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const hasBio = !!ch.biography;
   const demoFields = DEMO_FIELDS.filter(([k]) => ch[k]);
   const isOwner = !!(user && ch.ownerUid && user.uid === ch.ownerUid);
+  const canEditBio = isOwner || isGM;
   const notes = Array.isArray(ch.notes) ? ch.notes : [];
   const [noteTitle, setNoteTitle] = useState("");
   const [noteBody, setNoteBody] = useState("");
@@ -123,6 +125,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           </div>
         </div>
         <div className="kk-head-actions">
+          <LkLink url={ch.lkArticleUrl} label="Вики"/>
           {!isGM && canAdv && <button className="kk-adv-btn" onClick={onAdvance}>Прокачка</button>}
           {isGM && <button className="kk-edit-btn" onClick={onEdit}>Редактировать вручную</button>}
           {isGM && <button className="kk-edit-btn" onClick={onLog}>Логи</button>}
@@ -139,7 +142,11 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         </div>
         <Stat label="Энергия" value={ch.energy.value} max={energyMax}
           onChange={(v) => save({ "energy.value": Math.max(0, Math.min(energyMax, v)) })}
-          tip={tension.energyPenalty > 0 ? `Максимум = ${energyMaxRaw} − ${tension.energyPenalty} (перегруз напряжения).` : "Максимум = возраст + грань Духа."}
+          tip={isGM && tension.energyPenalty > 0
+            ? `Максимум = ${energyMaxRaw} − ${tension.energyPenalty} (перегруз напряжения).`
+            : tension.energyPenalty > 0
+              ? "Максимум снижен статусным эффектом."
+              : "Максимум = возраст + грань Духа."}
           accent="var(--kk-gold)"/>
         <Stat label="Жетоны судьбы" value={ch.bennies} max={9}
           onChange={isGM ? (v) => save({ bennies: Math.max(0, Math.min(9, v)) }) : undefined}
@@ -168,20 +175,22 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         )}
       </section>
 
-      <section className="kk-block">
-        <h2 className="kk-h2">Напряжение</h2>
-        <div className="kk-tension-strip">
-          <Stat label="Напряжение" value={tension.current} max={tension.max}
-            onChange={(v) => save({ "tension.current": Math.max(0, v) })}
-            tip="Психическое напряжение. Накапливается от бросков с сильными эмоциональными связями."
-            accent="var(--kk-tension)"/>
-          {tension.overcap > 0 && (
-            <Stat label="Перегруз" value={tension.overcap}
-              tip={`Напряжение выше порога. Каждая единица снижает макс. Энергию на 1 (сейчас −${tension.energyPenalty}).`}
-              accent="var(--kk-danger)"/>
-          )}
-        </div>
-      </section>
+      {isGM && (
+        <section className="kk-block">
+          <h2 className="kk-h2">Напряжение</h2>
+          <div className="kk-tension-strip">
+            <Stat label="Напряжение" value={tension.current} max={tension.max}
+              onChange={(v) => save({ "tension.current": Math.max(0, v) })}
+              tip="Психическое напряжение. Накапливается от бросков с сильными эмоциональными связями."
+              accent="var(--kk-tension)"/>
+            {tension.overcap > 0 && (
+              <Stat label="Перегруз" value={tension.overcap}
+                tip={`Напряжение выше порога. Каждая единица снижает макс. Энергию на 1 (сейчас −${tension.energyPenalty}).`}
+                accent="var(--kk-danger)"/>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="kk-block">
         <h2 className="kk-h2">Статусы</h2>
@@ -217,6 +226,41 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         />
       )}
 
+      {(hasBio || demoFields.length > 0 || canEditBio) && (
+        <details className="kk-bio-details" open>
+          <summary className="kk-h2 kk-bio-summary">Анкета</summary>
+          <div className="kk-bio-body">
+            <button
+              className="kk-btn ghost kk-bio-edit-btn"
+              onClick={canEditBio ? onEditBio : undefined}
+              disabled={!canEditBio}
+              title={canEditBio ? undefined : "Можно редактировать только свою анкету"}
+            >
+              Редактировать анкету
+            </button>
+            {demoFields.length > 0 && (
+              <div className="kk-demo-grid">
+                {demoFields.map(([k, label]) => (
+                  <div className="kk-demo-field" key={k}>
+                    <span className="kk-demo-label">{label}</span>
+                    <span className="kk-demo-val">{ch[k]}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {hasBio && (
+              <div className="kk-bio-text">
+                <div className="kk-demo-label">Биография</div>
+                <p className="kk-bio-para">{ch.biography}</p>
+              </div>
+            )}
+            {!hasBio && demoFields.length === 0 && (
+              <div className="kk-empty-sm">Анкета не заполнена</div>
+            )}
+          </div>
+        </details>
+      )}
+
       <section className="kk-block">
         <h2 className="kk-h2">Атрибуты</h2>
         <div className="kk-attrs">{ATTR_ORDER.map(k => {
@@ -250,30 +294,6 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           </div>
         ))}
       </section>
-
-      {(hasBio || demoFields.length > 0) && (
-        <details className="kk-bio-details">
-          <summary className="kk-h2 kk-bio-summary">Анкета</summary>
-          <div className="kk-bio-body">
-            {demoFields.length > 0 && (
-              <div className="kk-demo-grid">
-                {demoFields.map(([k, label]) => (
-                  <div className="kk-demo-field" key={k}>
-                    <span className="kk-demo-label">{label}</span>
-                    <span className="kk-demo-val">{ch[k]}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {hasBio && (
-              <div className="kk-bio-text">
-                <div className="kk-demo-label">Биография</div>
-                <p className="kk-bio-para">{ch.biography}</p>
-              </div>
-            )}
-          </div>
-        </details>
-      )}
 
       <ItemList
         items={items}

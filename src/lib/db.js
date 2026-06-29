@@ -194,6 +194,15 @@ export async function clearCharacterLog(campaignId, characterId) {
   await batch.commit();
 }
 
+// Bio/anketa edit (IMP-02): write demographic + biography fields to the
+// character doc, then append a log entry recording which fields changed.
+// `changed` is an array of human-readable labels for LogView display.
+export async function saveBioFields(campaignId, characterId, fields, changed = []) {
+  const ref = doc(db, "campaigns", campaignId, "characters", characterId);
+  await updateDoc(ref, fields);
+  await addLogEntry(campaignId, characterId, { type: "bio_edit", fields: changed });
+}
+
 // Atomic advancement apply: log entry + character update in one transaction.
 // Validates server-side XP to prevent double-spend on concurrent tabs.
 export async function applyAdvancement(campaignId, characterId, { attributes, skills, spent, changes, newExperience }) {

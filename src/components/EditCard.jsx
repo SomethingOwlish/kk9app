@@ -97,10 +97,13 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
       "tension.overcap": Number(d.tension?.overcap) || 0,
       "tension.energyPenalty": Number(d.tension?.energyPenalty) || 0,
       overflow_damage: Number(d.overflow_damage) || 0,
+      lkArticleUrl: (d.lkArticleUrl || "").trim(),
     });
   }
 
   const tension = d.tension || { current: 0, overcap: 0, energyPenalty: 0, max: 0 };
+  const lkUrl = (d.lkArticleUrl || "").trim();
+  const lkWarn = lkUrl.length > 0 && !lkUrl.startsWith("https://www.legendkeeper.com/app/");
 
   return (
     <div className="kk-edit">
@@ -147,6 +150,11 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
           <label className="kk-field"><span>Деньги</span><input className="kk-input" type="number" value={d.money} onChange={e => set({ money: e.target.value })}/></label>
           <label className="kk-field"><span>Опыт</span><input className="kk-input" type="number" value={d.experience} onChange={e => set({ experience: e.target.value })}/></label>
         </div>
+        <label className="kk-field kk-field-wide" style={{ marginTop: 10 }}>
+          <span>Ссылка на статью Legend Keeper</span>
+          <input className="kk-input" value={d.lkArticleUrl || ""} onChange={e => set({ lkArticleUrl: e.target.value })} placeholder="https://www.legendkeeper.com/app/…"/>
+        </label>
+        {lkWarn && <p className="kk-modal-warn" style={{ margin: "4px 0 0" }}>Ссылка должна начинаться с https://www.legendkeeper.com/app/</p>}
       </section>
 
       <section className="kk-block">

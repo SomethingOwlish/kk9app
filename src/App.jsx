@@ -6,7 +6,7 @@ import {
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
   watchGmMode, watchStatuses, seedStatuses, watchNpcs,
   watchItemsByOwner, watchAllItems, createItem, deleteItem, updateItem,
-  assignItem, unassignItem, addLanguageToChar,
+  assignItem, unassignItem, addLanguageToChar, saveBioFields,
 } from "./lib/db";
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
@@ -20,6 +20,7 @@ import CharacterCard from "./components/CharacterCard";
 import AdvancementDialog from "./components/AdvancementDialog";
 import LogView from "./components/LogView";
 import EditCard from "./components/EditCard";
+import BioEditCard from "./components/BioEditCard";
 import CampaignSettings from "./components/CampaignSettings";
 import Menu from "./components/Menu";
 import PlayerPortal from "./views/PlayerPortal";
@@ -40,6 +41,8 @@ export default function App({ user, signOut }) {
   const [ready, setReady] = useState(false);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Player/GM bio (anketa) edit modal — kept separate from the full GM EditCard.
+  const [editingBio, setEditingBio] = useState(false);
   const [overrides, setOverrides] = useState({});
   // Scopes overrides to a character ID so back/forward never applies one
   // character's unsaved changes to another character's view.
@@ -106,9 +109,15 @@ export default function App({ user, signOut }) {
     saveCharacterDebounced(CAMPAIGN_ID, activeId, enriched, 500);
   }, [activeId, viewCh]);
   const openCard = useCallback((id) => {
-    setLastSelectedCharId(id); setOverridesCharId(null); setOverrides({}); setEditing(false);
+    setLastSelectedCharId(id); setOverridesCharId(null); setOverrides({}); setEditing(false); setEditingBio(false);
     navigate(`/card/${id}`);
   }, [navigate]);
+  const saveBio = useCallback(async (fields, changed) => {
+    if (!activeId) return;
+    // Errors propagate to BioEditCard, which renders them inline.
+    await saveBioFields(CAMPAIGN_ID, activeId, fields, changed);
+    setEditingBio(false);
+  }, [activeId]);
   const saveEdit = useCallback(async (rawPatch) => {
     if (!activeId || !activeChar) return;
     const patch = enrichPatch(activeChar, rawPatch);
@@ -134,6 +143,7 @@ export default function App({ user, signOut }) {
         campaignPatch.scene   = extra.scene;
         campaignPatch.combat  = extra.combat;
         campaignPatch.magic   = extra.magic;
+        campaignPatch.lk      = extra.lk;
       }
       await Promise.all([
         saveAdvancementConfig(CAMPAIGN_ID, advancement),
@@ -244,7 +254,8 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem}/>}
+        {ready && view === "card" && viewCh && editingBio && <BioEditCard ch={activeChar} onSave={saveBio} onCancel={() => setEditingBio(false)}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}

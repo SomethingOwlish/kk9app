@@ -66,6 +66,9 @@ function parseExtra(campaign) {
     magic: {
       aoeEnergyCostMultiplier: campaign?.magic?.aoeEnergyCostMultiplier ?? 1.5,
     },
+    lk: {
+      projectUrl: campaign?.lk?.projectUrl ?? "",
+    },
   };
 }
 
@@ -373,6 +376,20 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
             <span>Игрок может управлять эмоцией портрета</span>
           </label>
         </div>
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Legend Keeper</h2>
+        <p className="kk-note">Базовый URL проекта вики. Ссылки на статьи задаются в карточках персонажей.</p>
+        <label className="kk-field" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+          <span>URL проекта</span>
+          <input
+            className="kk-input"
+            value={ex.lk.projectUrl}
+            onChange={e => setEx(p => ({ ...p, lk: { ...p.lk, projectUrl: e.target.value } }))}
+            placeholder="https://www.legendkeeper.com/app/…"
+          />
+        </label>
       </section>
 
       <section className="kk-block">
