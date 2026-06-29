@@ -41,6 +41,7 @@ export const MENU = [
   { id: "shop", label: "Магазин" },
   { id: "journal", label: "Журнал кампании", on: true },
   { id: "guide", label: "Правила" },
+  { id: "lk", label: "Legend Keeper ↗" },
   { id: "gm", label: "ГМ Борд" },
   { id: "print", label: "Печать карточки" },
   { id: "set", label: "Настройки" },

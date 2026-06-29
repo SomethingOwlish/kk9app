@@ -1,3 +1,5 @@
+import LkLink from "../LkLink";
+
 const CONDITION_LABEL = { perfect: "Идеальное", good: "Хорошее", worn: "Потрёпанное", broken: "Сломанное" };
 const RARITY_LABEL = { common: "Обычный", uncommon: "Необычный", rare: "Редкий", unique: "Уникальный", ancient: "Древний" };
 const TYPE_LABEL = {
@@ -73,6 +75,12 @@ export default function ArtifactItem({ item, isGM, onDelete, onEdit }) {
       {item.destroyed && <div className="kk-item-destroyed-badge">Уничтожен</div>}
 
       {item.description && <p className="kk-item-desc">{item.description}</p>}
+
+      {item.lkArticleUrl && (
+        <div className="kk-item-lk">
+          <LkLink url={item.lkArticleUrl} label="Подробности"/>
+        </div>
+      )}
     </div>
   );
 }
