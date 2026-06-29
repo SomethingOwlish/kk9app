@@ -41,7 +41,7 @@ const EMPTY_GEAR = {
 };
 const EMPTY_ARTIFACT = {
   name: "", description: "", condition: "perfect",
-  artifactType: "ring", rarity: "common",
+  artifactType: "ring", rarity: "common", lkArticleUrl: "",
   ringMaterial: "", ringStone: "",
   activationCondition: "", active: false,
   bonuses: {}, skillBonuses: [], energyRestore: 0,
@@ -327,6 +327,10 @@ export default function ItemList({ items = [], isGM, onCreate, onDelete, onUpdat
                   </div>
                 </>
               )}
+              <div className="kk-item-form-row">
+                <label className="kk-item-form-label">Legend Keeper:</label>
+                <input className="kk-item-select" value={form.lkArticleUrl || ""} onChange={e => setF("lkArticleUrl", e.target.value)} placeholder="https://www.legendkeeper.com/app/…" />
+              </div>
             </>
           )}
 
@@ -490,6 +494,10 @@ function ItemEditForm({ item, data, setData, onSave, onCancel, saving, campaignS
             <input className="kk-item-select" value={data.ringStone || ""} onChange={s("ringStone")} maxLength={60} />
           </div>
         </>)}
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-label">Legend Keeper:</label>
+          <input className="kk-item-select" value={data.lkArticleUrl || ""} onChange={s("lkArticleUrl")} placeholder="https://www.legendkeeper.com/app/…" />
+        </div>
       </>)}
 
       {t === "spell" && (<>

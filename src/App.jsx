@@ -4,7 +4,7 @@ import {
   watchCampaign, watchCharacterList, saveCharacterDebounced,
   updateCharacterNow, updateCampaignNow, clearCharacterLog,
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
-  watchGmMode, watchStatuses, seedStatuses, watchNpcs,
+  watchGmMode, watchStatuses, seedStatuses, watchNpcs, watchActiveScene,
   watchItemsByOwner, watchAllItems, createItem, deleteItem, updateItem,
   assignItem, unassignItem, addLanguageToChar, saveBioFields,
 } from "./lib/db";
@@ -23,8 +23,7 @@ import EditCard from "./components/EditCard";
 import BioEditCard from "./components/BioEditCard";
 import CampaignSettings from "./components/CampaignSettings";
 import Menu from "./components/Menu";
-import PlayerPortal from "./views/PlayerPortal";
-import GmPortal from "./views/GmPortal";
+import LiveSession from "./components/LiveSession";
 import GmBoard from "./views/GmBoard";
 import ScenePlayerView from "./views/ScenePlayerView";
 import CharacterCreationWizard from "./components/CharacterCreationWizard";
@@ -55,6 +54,7 @@ export default function App({ user, signOut }) {
   const [gmModeData, setGmModeData] = useState(null);
   const [campaignStatuses, setCampaignStatuses] = useState([]);
   const [npcs, setNpcs] = useState([]);
+  const [activeScene, setActiveScene] = useState(null);
   const [activeItems, setActiveItems] = useState([]);
   const [allItems, setAllItems] = useState([]);
 
@@ -63,6 +63,7 @@ export default function App({ user, signOut }) {
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
   useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
   useEffect(() => watchNpcs(CAMPAIGN_ID, setNpcs), []);
+  useEffect(() => watchActiveScene(CAMPAIGN_ID, setActiveScene), []);
   useEffect(() => watchAllItems(CAMPAIGN_ID, setAllItems), []);
   useEffect(() => watchStatuses(CAMPAIGN_ID, (statuses) => {
     setCampaignStatuses(statuses);
@@ -207,9 +208,10 @@ export default function App({ user, signOut }) {
     else if (id === "gm" && isGM) navigate("/board");
     else if (id === "journal") navigate("/journal");
     else if (id === "guide" && role !== "demo") navigate("/guide");
+    else if (id === "lk" && campaign?.lk?.projectUrl) window.open(campaign.lk.projectUrl, "_blank", "noopener,noreferrer");
     else if (id === "items" && isGM) navigate("/items");
     else if (id === "print" && activeId) navigate(`/print/${activeId}`);
-  }, [isGM, role, navigate, activeId]);
+  }, [isGM, role, navigate, activeId, campaign]);
   const current = view === "portal" ? "portal"
     : view === "settings" ? "set"
     : view === "advance" ? "adv"
@@ -233,7 +235,7 @@ export default function App({ user, signOut }) {
             <span/><span/><span/>
           </button>
         )}
-        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"}/>
+        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasLk={!!campaign?.lk?.projectUrl}/>
       </div>
     );
   }
@@ -255,13 +257,13 @@ export default function App({ user, signOut }) {
           <CharacterCreationWizard user={user} myChar={myChar} campaign={campaign} />
         )}
         {ready && cl && role === "player" && gmModeData?.active && view === "card" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
-        {ready && cl && view === "portal" && isGM && <GmPortal campaign={campaign} characters={characters} onOpen={openCard} onSettings={() => navigate("/settings")} role={baseRole}/>}
+        {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")}/>}
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
-        {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <PlayerPortal campaign={campaign} characters={characters} onOpen={openCard} myUid={user.uid} role={baseRole}/>}
+        {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
         {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem}/>}
         {ready && view === "card" && viewCh && editingBio && <BioEditCard ch={activeChar} onSave={saveBio} onCancel={() => setEditingBio(false)}/>}
@@ -281,7 +283,7 @@ export default function App({ user, signOut }) {
           </div>
         </div>
       )}
-      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!viewCh}/>
+      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!viewCh} hasLk={!!campaign?.lk?.projectUrl}/>
     </div>
   );
 }

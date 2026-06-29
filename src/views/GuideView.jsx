@@ -106,7 +106,16 @@ export default function GuideView({ campaign, canEdit = false, onSave }) {
       {toc.length > 0 && (
         <nav className="kk-guide-toc">
           {toc.map((t, i) => (
-            <a key={i} href={`#${t.id}`} className={`kk-guide-toc-link lvl${t.level}`}>{t.text}</a>
+            // Button (not <a href="#id">) — the app runs under HashRouter, so a
+            // hash anchor would be parsed as a route change and navigate away.
+            <button
+              key={i}
+              type="button"
+              className={`kk-guide-toc-link lvl${t.level}`}
+              onClick={() => document.getElementById(t.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              {t.text}
+            </button>
           ))}
         </nav>
       )}
