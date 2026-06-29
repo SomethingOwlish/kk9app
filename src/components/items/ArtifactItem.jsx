@@ -52,6 +52,23 @@ export default function ArtifactItem({ item, isGM, onDelete, onEdit }) {
         </div>
       )}
 
+      {(item.artifactType === "attack" || item.artifactType === "defense" || item.statusName || item.creator) && (
+        <div className="kk-item-stats">
+          {item.artifactType === "attack" && item.damageLevel && (
+            <span className="kk-item-stat">{({ light: "Лёгкий", heavy: "Тяжёлый", lethal: "Летальный" })[item.damageLevel] || item.damageLevel}</span>
+          )}
+          {item.artifactType === "attack" && item.skillName && <span className="kk-item-stat">{item.skillName}</span>}
+          {item.artifactType === "defense" && item.soakType === "absolute" && item.soakAbsoluteCapacity > 0 && (
+            <span className="kk-item-stat">Поглощение {item.soakAbsoluteCurrent}/{item.soakAbsoluteCapacity}</span>
+          )}
+          {item.artifactType === "defense" && item.soakType === "bonus" && (item.soakBonusDie > 0 || item.soakBonusModifier !== 0) && (
+            <span className="kk-item-stat">Бонус защиты {item.soakBonusDie > 0 ? `d${item.soakBonusDie}` : ""}{item.soakBonusModifier > 0 ? `+${item.soakBonusModifier}` : item.soakBonusModifier < 0 ? item.soakBonusModifier : ""}</span>
+          )}
+          {item.hasStatus && item.statusName && <span className="kk-item-stat kk-item-status-tag">» {item.statusName}</span>}
+          {item.creator && <span className="kk-item-stat kk-item-stat-muted">{item.creator}</span>}
+        </div>
+      )}
+
       {item.active && <div className="kk-item-active-badge">Активен</div>}
       {item.destroyed && <div className="kk-item-destroyed-badge">Уничтожен</div>}
 

@@ -32,6 +32,7 @@ export default function SpellItem({ item, activeSpell, isGM, onDelete, onEdit })
         )}
         {item.noWandNeeded && <span className="kk-item-stat">Без жезла</span>}
         {item.isAoe && <span className="kk-item-stat">Площадь</span>}
+        {item.hasStatus && item.statusName && <span className="kk-item-stat kk-item-status-tag">» {item.statusName}</span>}
       </div>
       {activeSpell && (
         <div className="kk-item-stats kk-spell-active-state">
