@@ -13,7 +13,7 @@ function healthMax(die) {
   }
 }
 
-export default function PartyCard({ ch }) {
+export default function PartyCard({ ch, onOpen }) {
   const fac = ch.faculty || {};
   const color = fac.color || "#c8a14e";
   const energyMax = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -23,9 +23,17 @@ export default function PartyCard({ ch }) {
   const physVal = ch.health?.physical?.value ?? 0;
   const mentMax = healthMax(ch.attributes?.spirit?.die ?? 4);
   const mentVal = ch.health?.mental?.value ?? 0;
+  const clickable = typeof onOpen === "function";
 
   return (
-    <div className="kk-party-card" style={{ "--fac-color": color }}>
+    <div
+      className={`kk-pcard${clickable ? " kk-pcard--clickable" : ""}`}
+      style={{ "--fac-color": color }}
+      onClick={clickable ? onOpen : undefined}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } } : undefined}
+    >
       <div className="kk-party-card-portrait">
         {ch.portrait
           ? <img src={ch.portrait} alt=""/>

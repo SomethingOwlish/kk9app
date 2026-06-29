@@ -68,6 +68,8 @@
 .kk-edit-btn{padding:8px 12px;border:1px solid var(--kk-gold-dim);border-radius:var(--kk-r-sm);color:var(--kk-gold);font-size:13px;font-weight:600;}
 .kk-lk-link{display:inline-flex;align-items:center;gap:4px;padding:8px 12px;border:1px solid var(--kk-gold-dim);border-radius:var(--kk-r-sm);color:var(--kk-gold);font-size:13px;font-weight:600;text-decoration:none;}
 .kk-lk-link:hover{background:color-mix(in srgb,var(--kk-gold) 12%,transparent);}
+.kk-item-lk{margin-top:6px;}
+.kk-lk-link.sm{padding:4px 9px;font-size:12px;}
 .kk-edit-btn:hover{border-color:var(--kk-gold);background:var(--kk-surface);}
 .kk-adv-btn{padding:9px 16px;border-radius:var(--kk-r-sm);background:var(--kk-gold);color:#1a140c;font-size:13px;font-weight:700;}
 .kk-adv-btn:hover{background:var(--kk-gold-bright);}
@@ -412,7 +414,9 @@
 .kk-scene-title{padding:10px 14px;font-family:var(--kk-font-d);font-size:16px;color:var(--kk-text);}
 .kk-landing-party{display:flex;flex-direction:column;gap:12px;}
 .kk-party-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
-.kk-party-card{display:flex;gap:12px;padding:12px;border:1px solid var(--kk-line-soft);border-left:3px solid var(--fac-color,var(--kk-gold));border-radius:var(--kk-r);background:var(--kk-surface);}
+.kk-pcard{display:flex;flex-direction:row;gap:12px;padding:12px;border:1px solid var(--kk-line-soft);border-left:3px solid var(--fac-color,var(--kk-gold));border-radius:var(--kk-r);background:var(--kk-surface);text-align:left;}
+.kk-pcard--clickable{cursor:pointer;transition:border-color .15s,transform .1s;}
+.kk-pcard--clickable:hover{border-color:var(--fac-color,var(--kk-gold));transform:translateY(-2px);}
 .kk-party-card-portrait{width:56px;height:56px;border-radius:50%;overflow:hidden;flex:none;background:var(--kk-stone);display:flex;align-items:center;justify-content:center;border:2px solid var(--fac-color,var(--kk-gold));}
 .kk-party-card-portrait img{width:100%;height:100%;object-fit:cover;}
 .kk-party-card-ph{font-family:var(--kk-font-d);font-size:22px;color:var(--kk-text-dim);}
@@ -430,7 +434,7 @@
 /* — Rules Guide (FEAT-06) — */
 .kk-guide{display:flex;flex-direction:column;gap:16px;}
 .kk-guide-toc{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--kk-line-soft);border-radius:var(--kk-r);background:var(--kk-surface);}
-.kk-guide-toc-link{font-size:13px;color:var(--kk-text-dim);text-decoration:none;padding:2px 0;}
+.kk-guide-toc-link{font-size:13px;color:var(--kk-text-dim);text-decoration:none;padding:2px 0;display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;}
 .kk-guide-toc-link:hover{color:var(--kk-gold);}
 .kk-guide-toc-link.lvl2{padding-left:14px;font-size:12px;color:var(--kk-text-faint);}
 .kk-guide-body{font-size:14px;line-height:1.65;color:var(--kk-text);}

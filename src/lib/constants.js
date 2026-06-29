@@ -43,6 +43,7 @@ export const MENU = [
   { id: "orgs", label: "Организации" },
   { id: "rolls", label: "Лог бросков" },
   { id: "guide", label: "Правила" },
+  { id: "lk", label: "Legend Keeper ↗" },
   { id: "gm", label: "ГМ Борд" },
   { id: "print", label: "Печать карточки" },
   { id: "set", label: "Настройки" },

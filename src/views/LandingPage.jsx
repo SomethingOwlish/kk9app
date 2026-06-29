@@ -1,13 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { watchCampaign, watchCharacterList, watchActiveScene } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
-import PartyCard from "../components/PartyCard";
-import DateWeatherPanel from "../components/DateWeatherPanel";
-import ScenePreviewPanel from "../components/ScenePreviewPanel";
+import LiveSession from "../components/LiveSession";
 
-// FEAT-18 — Live session landing page. Rendered inside AuthGate (main.jsx),
-// so `user` is always authenticated and Firestore reads are permitted.
-// All subscriptions are cleaned up on unmount.
+// FEAT-18 — Standalone live-session page (#/landing). Rendered inside AuthGate
+// (main.jsx), so `user` is always authenticated and Firestore reads are
+// permitted. Read-only here; the same board is also the in-app portal (App.jsx,
+// where party cards are clickable). All subscriptions are cleaned up on unmount.
 export default function LandingPage({ signOut }) {
   const [campaign, setCampaign] = useState(null);
   const [characters, setCharacters] = useState([]);
@@ -37,23 +36,8 @@ export default function LandingPage({ signOut }) {
         </div>
       </header>
 
-      <div className="kk-landing-top">
-        <DateWeatherPanel campaign={campaign}/>
-        <ScenePreviewPanel scene={activeScene}/>
-      </div>
-
-      <section className="kk-landing-party">
-        <h2 className="kk-h2">Отряд</h2>
-        {!ready && <div className="kk-load">Загрузка…</div>}
-        {ready && party.length === 0 && (
-          <div className="kk-empty">В отряде пока никого нет.</div>
-        )}
-        {ready && party.length > 0 && (
-          <div className="kk-party-grid">
-            {party.map((ch) => <PartyCard key={ch.id} ch={ch}/>)}
-          </div>
-        )}
-      </section>
+      {!ready && <div className="kk-load">Загрузка…</div>}
+      {ready && <LiveSession campaign={campaign} party={party} activeScene={activeScene}/>}
     </div>
   );
 }

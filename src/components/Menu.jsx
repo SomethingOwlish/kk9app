@@ -1,6 +1,6 @@
 import { MENU } from "../lib/constants";
 
-export default function Menu({ open, onClose, onNav, current, onSignOut, isGM, isAdmin, actingAs, onActAs, hasChar, isDemo }) {
+export default function Menu({ open, onClose, onNav, current, onSignOut, isGM, isAdmin, actingAs, onActAs, hasChar, isDemo, hasLk }) {
   const items = MENU
     .filter(m => !m.gmOnly || isGM)
     .map(m => ({ ...m, on: m.on || m.id === "scene" || (m.id === "set" && !isDemo) || (m.id === "guide" && !isDemo) || (m.id === "orgs" && !isDemo) || (m.id === "rolls" && !isDemo) || (isGM && (m.id === "gm" || m.id === "items")) || (m.id === "print" && hasChar) }));
