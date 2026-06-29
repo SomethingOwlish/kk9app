@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { advSettings, DEFAULT_ADVANCEMENT } from "../lib/advancement";
 import { DEFAULT_BACKGROUNDS } from "../lib/chargen";
-import { seedStatuses, createStatus, seedItems } from "../lib/db";
+import { seedStatuses, createStatus, seedItems, createScene, listScenes, updateCampaignNow } from "../lib/db";
 import { STATUSES_DATA } from "../lib/seed-statuses";
 import { WEAPONS_DATA } from "../lib/seed-weapons";
 import { GEAR_DATA } from "../lib/seed-gear";
@@ -119,6 +119,46 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   }
   const [editingStatus, setEditingStatus] = useState(null);
   const [creating, setCreating] = useState(false);
+
+  // FEAT-07 — GitHub scene import
+  const DEFAULT_SCENES_FOLDER = "src/media/scene";
+  const [scenesFolder, setScenesFolder] = useState(() => campaign?.scenesGithubFolder || DEFAULT_SCENES_FOLDER);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+
+  async function handleImportScenes() {
+    if (!campaignId) return;
+    const folder = (scenesFolder || "").trim() || DEFAULT_SCENES_FOLDER;
+    setImporting(true);
+    setImportMsg("");
+    try {
+      await updateCampaignNow(campaignId, { scenesGithubFolder: folder });
+      const res = await fetch(
+        `https://api.github.com/repos/SomethingOwlish/kk9app/contents/${folder.split("/").map(encodeURIComponent).join("/")}`
+      );
+      if (res.status === 404) throw new Error("Папка не найдена");
+      if (res.status === 403) throw new Error("GitHub API лимит исчерпан");
+      if (!res.ok) throw new Error(`Ошибка GitHub (${res.status})`);
+      const list = await res.json();
+      if (!Array.isArray(list)) throw new Error("Это не папка");
+      const IMG = [".png", ".jpg", ".jpeg", ".webp", ".gif"];
+      const images = list.filter(
+        (it) => it.type === "file" && IMG.some((ext) => it.name.toLowerCase().endsWith(ext))
+      );
+      const existing = await listScenes(campaignId);
+      const existingBg = new Set(existing.map((s) => s.background));
+      const fresh = images.filter((it) => !existingBg.has(it.download_url));
+      for (const it of fresh) {
+        await createScene(campaignId, { title: "Надо разобрать", background: it.download_url, text: "" });
+      }
+      setImportMsg(fresh.length > 0 ? `Добавлено ${fresh.length} сцен` : "Новых изображений не найдено");
+    } catch (e) {
+      const msg = e?.message || String(e);
+      setImportMsg(/Failed to fetch|NetworkError/i.test(msg) ? "Нет соединения с GitHub" : msg);
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function handleSeedStatuses() {
     if (!campaignId) return;
@@ -375,6 +415,26 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
             <input type="checkbox" checked={ex.scene.allowPlayerEmotions} onChange={e => setEx(p => ({ ...p, scene: { ...p.scene, allowPlayerEmotions: e.target.checked } }))}/>
             <span>Игрок может управлять эмоцией портрета</span>
           </label>
+        </div>
+      </section>
+
+      <section className="kk-block">
+        <h2 className="kk-h2">Сцены — импорт из GitHub</h2>
+        <p className="kk-note">Загружает изображения из папки репозитория как новые сцены. Существующие (по URL фона) пропускаются.</p>
+        <label className="kk-field" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+          <span>Папка в репозитории</span>
+          <input
+            className="kk-input"
+            value={scenesFolder}
+            onChange={e => setScenesFolder(e.target.value)}
+            placeholder={DEFAULT_SCENES_FOLDER}
+          />
+        </label>
+        <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="kk-btn" onClick={handleImportScenes} disabled={importing}>
+            {importing ? "Загрузка…" : "Загрузить новые сцены"}
+          </button>
+          {importMsg && <span className="kk-note" style={{ margin: 0 }}>{importMsg}</span>}
         </div>
       </section>
 

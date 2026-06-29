@@ -250,6 +250,11 @@ export async function createScene(campaignId, data) {
   const ref = collection(db, "campaigns", campaignId, "scenes");
   return addDoc(ref, { ...data, isActive: false, createdAt: serverTimestamp() });
 }
+// One-shot read of all scenes (used by FEAT-07 GitHub import for dedup).
+export async function listScenes(campaignId) {
+  const snap = await getDocs(collection(db, "campaigns", campaignId, "scenes"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
 export async function updateScene(campaignId, sceneId, data) {
   await updateDoc(doc(db, "campaigns", campaignId, "scenes", sceneId), data);
 }
