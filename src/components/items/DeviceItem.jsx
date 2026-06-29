@@ -1,4 +1,5 @@
 const CONDITION_LABEL = { perfect: "Идеальное", good: "Хорошее", worn: "Потрёпанное", broken: "Сломанное" };
+const DEVICE_TYPE_LABEL = { gadget: "Гаджет", weapon: "Оружие", drone: "Дрон", computer: "Компьютер", medical: "Медицинское", other: "Прочее" };
 
 export default function DeviceItem({ item, isGM, onDelete, onEdit, onUpdateCharges }) {
   return (
@@ -6,7 +7,7 @@ export default function DeviceItem({ item, isGM, onDelete, onEdit, onUpdateCharg
       <div className="kk-item-header">
         <span className="kk-item-icon">⚙</span>
         <span className="kk-item-name">{item.name}</span>
-        {item.deviceType && <span className="kk-item-subtype">{item.deviceType}</span>}
+        {item.deviceType && <span className="kk-item-subtype">{DEVICE_TYPE_LABEL[item.deviceType] || item.deviceType}</span>}
         <span className={`kk-item-condition kk-cond-${item.condition}`}>
           {CONDITION_LABEL[item.condition] || item.condition}
         </span>
@@ -40,6 +41,7 @@ export default function DeviceItem({ item, isGM, onDelete, onEdit, onUpdateCharg
           </span>
         )}
         {item.bonusSkillName && <span className="kk-item-stat">+{item.bonusValue || 1} {item.bonusSkillName}</span>}
+        {item.creator && <span className="kk-item-stat kk-item-stat-muted">{item.creator}</span>}
       </div>
       {item.description && <p className="kk-item-desc">{item.description}</p>}
     </div>
