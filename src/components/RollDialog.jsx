@@ -252,11 +252,23 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
                   : "✘ Провал"}
               </div>
               {result.spellCost > 0 && <div className="kk-roll-tension-res">−{result.spellCost} энергии</div>}
-              {result.outcome?.triggered && result.outcome.increment !== 0 && (
-                <div className="kk-roll-tension-res">
-                  ⚗ Напряжение {result.outcome.increment > 0 ? "+" : ""}{result.outcome.increment}
-                  {result.outcome.addExhaustion ? " · Ментальное истощение!" : ""}
-                </div>
+              {result.outcome?.triggered && (
+                isGM ? (
+                  // GM sees the full tension roll: hidden d100, threshold, exact change.
+                  <div className="kk-roll-tension-res kk-roll-tension-gm">
+                    ⚗ Напряжение {result.outcome.increment > 0 ? "+" : ""}{result.outcome.increment}
+                    {result.outcome.d100 ? <em className="kk-roll-tension-d100"> · d100 {result.outcome.d100.result} / порог {result.outcome.d100.threshold} ({result.outcome.d100.failed ? "провал" : "успех"})</em> : null}
+                    {result.outcome.addExhaustion ? " · Ментальное истощение!" : ""}
+                  </div>
+                ) : (
+                  // Player sees only the qualitative outcome — no numbers.
+                  <div className="kk-roll-tension-res">
+                    {result.outcome.increment > 0 ? "⚗ Напряжение возросло"
+                      : result.outcome.increment < 0 ? "⚗ Напряжение снизилось"
+                      : "⚗ Напряжение без изменений"}
+                    {result.outcome.addExhaustion ? " · Ментальное истощение!" : ""}
+                  </div>
+                )
               )}
               <button className="kk-btn ghost sm" onClick={onClose} style={{ marginTop: ".6rem" }}>Закрыть</button>
             </div>
