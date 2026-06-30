@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import Tip from "./Tip";
+import { skillTipContent } from "./SkillTip";
 import Stat from "./Stat";
 import HealthTrack from "./HealthTrack";
 import StatusBar from "./StatusBar";
@@ -362,10 +363,11 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
             <div className="kk-skill-cat">{CAT_LABEL[g.cat]}</div>
             <div className="kk-skills">{g.items.map(s => {
               const unt = s.die === 4 && s.modifier <= -2;
+              const fallbackTip = `Связан с: ${ATTR_LABEL[s.attr]}. Не выше атрибута.`;
               return (
                 <div className={`kk-skill ${unt ? "untrained" : ""}`} key={s.name}>
                   <span className="kk-skill-name">{s.name}</span>
-                  <Tip text={`Связан с: ${ATTR_LABEL[s.attr]}. Не выше атрибута.`}>
+                  <Tip text={skillTipContent(s, fallbackTip)} label={fallbackTip}>
                     <span className="kk-skill-attr">{ATTR_SHORT[s.attr]}</span>
                   </Tip>
                   <span className="kk-skill-die">{dieStr(s.die, s.modifier)}</span>

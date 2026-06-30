@@ -1,0 +1,6 @@
+# Converter I/O and credentials — never commit these.
+node_modules/
+output/
+input/
+service-account*.json
+*.local

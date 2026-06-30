@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { nextAttrAction, nextAbilAction } from "../lib/advancement";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
+import Tip from "./Tip";
+import { skillTipContent } from "./SkillTip";
 
-function AdvRow({ name, attr, cur, action, changed, onStep, onUndo }) {
+function AdvRow({ name, attr, cur, action, changed, onStep, onUndo, skill }) {
   const can = action && action.can && action.type !== "blocked";
+  const tip = skill ? skillTipContent(skill, null) : null;
   return (
     <div className={`kk-adv-row ${changed ? "changed" : ""}`}>
-      <span className="kk-adv-name">{name}{attr && <span className="kk-skill-attr2"> {attr}</span>}</span>
+      <span className="kk-adv-name">
+        {tip ? <Tip text={tip} label={name}>{name}</Tip> : name}
+        {attr && <span className="kk-skill-attr2"> {attr}</span>}
+      </span>
       <span className="kk-adv-cur">{cur}</span>
       <span className="kk-adv-next">{action ? (action.type === "blocked" ? <em>{action.label}</em> : <>{action.label} · <b>{action.cost}</b></>) : <em>максимум</em>}</span>
       <button className="kk-adv-plus" disabled={!can} onClick={onStep} title={can ? "+ шаг" : "недоступно"}>+</button>
@@ -100,7 +106,7 @@ export default function AdvancementDialog({ ch, settings, onApply, onCancel }) {
             const c = curAbil(i);
             const attr = curAttr(s.attr);
             const a = nextAbilAction(c.die, c.mod, s.categ, { die: attr.die, mod: attr.mod }, settings, remaining);
-            return <AdvRow key={s.name + i} name={s.name} attr={ATTR_SHORT[s.attr]} cur={dieStr(c.die, c.mod)} action={a} changed={!!plan.abilities[i]} onStep={() => stepAbil(i)} onUndo={() => undoAbil(i)}/>;
+            return <AdvRow key={s.name + i} name={s.name} attr={ATTR_SHORT[s.attr]} cur={dieStr(c.die, c.mod)} action={a} changed={!!plan.abilities[i]} onStep={() => stepAbil(i)} onUndo={() => undoAbil(i)} skill={s}/>;
           })}</div>
         </section>
       ))}

@@ -30,6 +30,17 @@ service cloud.firestore {
           && getRole(campaignId) in ["gm", "admin"];
     }
 
+    // True when the caller owns the given character (its ownerUid is theirs).
+    function ownsChar(campaignId, charId) {
+      return get(/databases/$(database)/documents/campaigns/$(campaignId)/characters/$(charId))
+               .data.ownerUid == request.auth.uid;
+    }
+
+    // True when an update touches only the listed keys (and nothing else).
+    function changedOnly(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
     // ── Campaign document ────────────────────────────────────────────────────
 
     match /campaigns/{campaignId} {
@@ -131,15 +142,37 @@ service cloud.firestore {
         // (used by the item roller). No other fields may change via this path.
         allow update: if isMember(campaignId)
                       && resource.data.ownerCharacterId != null
-                      && get(/databases/$(database)/documents/campaigns/$(campaignId)/characters/$(resource.data.ownerCharacterId)).data.ownerUid == request.auth.uid
-                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["active", "equipped"]);
+                      && ownsChar(campaignId, resource.data.ownerCharacterId)
+                      && changedOnly(["active", "equipped"]);
+        // Shop BUY (unique, D-22): claim an unowned catalog item for your own
+        // character — sets ownerCharacterId from null and changes nothing else.
+        allow update: if isMember(campaignId)
+                      && resource.data.ownerCharacterId == null
+                      && changedOnly(["ownerCharacterId"])
+                      && request.resource.data.ownerCharacterId != null
+                      && ownsChar(campaignId, request.resource.data.ownerCharacterId);
+        // Shop SELL (D-22): release your own item back to the catalog (unowned).
+        allow update: if isMember(campaignId)
+                      && resource.data.ownerCharacterId != null
+                      && ownsChar(campaignId, resource.data.ownerCharacterId)
+                      && changedOnly(["ownerCharacterId"])
+                      && request.resource.data.ownerCharacterId == null;
+        // Shop BUY (stackable, D-22): create a purchased item for your own character.
+        allow create: if isMember(campaignId)
+                      && request.resource.data.ownerCharacterId != null
+                      && ownsChar(campaignId, request.resource.data.ownerCharacterId);
       }
 
-      // ── Shops (B-19) ──────────────────────────────────────────────────────
+      // ── Shops (B-19 / FEAT-17) ────────────────────────────────────────────
+      // GM writes any field. D-22: a player may purchase/sell directly, which
+      // means writing ONLY the stock and sell-journal arrays (the restricted
+      // purchase path). Name, mode, and prices stay GM-only.
 
       match /shops/{shopId} {
         allow read:  if isMember(campaignId);
         allow write: if isGMOrAdmin(campaignId);
+        allow update: if isMember(campaignId)
+                      && changedOnly(["uniqueStock", "stackableStock", "journals"]);
       }
 
       // ── Chargen requests (FEAT-10) ────────────────────────────────────────
