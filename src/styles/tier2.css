@@ -213,3 +213,49 @@
 .kk-shop-group-caret { color: var(--kk-text-faint, #9a8f7a); width: 12px; }
 .kk-shop-group-title { flex: 1; }
 .kk-shop-group-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; }
+
+/* ===========================================================
+   FEAT-04 (reshaped) — Библиотека (GM reference: NPC/кураторы/
+   факультеты/спутники/даймоны). Карточки с переключателем
+   видимости игрокам.
+   =========================================================== */
+.kk-lib { padding: 0 0 2rem; }
+.kk-lib-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.kk-lib-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin: .6rem 0 1rem; }
+.kk-lib-tab {
+  font-size: .85rem; padding: .25rem .7rem; cursor: pointer;
+  color: var(--kk-fg, #eee); background: var(--kk-surface-2, rgba(255,255,255,.05));
+  border: 1px solid var(--kk-border, rgba(255,255,255,.14)); border-radius: 999px;
+}
+.kk-lib-tab.on { background: var(--kk-accent, #6b8cff); border-color: var(--kk-accent, #6b8cff); color: #fff; }
+
+.kk-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .8rem; }
+.kk-lib-card {
+  border: 1px solid var(--kk-border, rgba(255,255,255,.14)); border-radius: 10px;
+  padding: .7rem .8rem; background: var(--kk-surface, rgba(255,255,255,.03));
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.kk-lib-visible { border-color: rgba(150,220,150,.55); }
+.kk-lib-head { display: flex; align-items: center; gap: .5rem; }
+.kk-lib-thumb { width: 34px; height: 34px; border-radius: 6px; object-fit: cover; flex: 0 0 auto; }
+.kk-lib-name { font-weight: 600; margin-right: auto; }
+.kk-lib-name-input { flex: 1 1 auto; min-width: 0; }
+.kk-lib-vis { display: flex; align-items: center; gap: .4rem; font-size: .8rem; opacity: .85; }
+.kk-lib-body { display: flex; flex-direction: column; gap: .5rem; border-top: 1px solid var(--kk-border, rgba(255,255,255,.1)); padding-top: .5rem; }
+.kk-lib-desc { margin: 0; font-size: .9rem; opacity: .9; }
+.kk-lib-sub { font-size: .82rem; opacity: .8; }
+
+.kk-lib-field { display: flex; flex-direction: column; gap: .2rem; font-size: .82rem; }
+.kk-lib-field > span { opacity: .75; }
+.kk-lib-field input, .kk-lib-field select, .kk-lib-field textarea {
+  width: 100%; color: var(--kk-fg, #eee); background: var(--kk-input-bg, rgba(0,0,0,.3));
+  border: 1px solid var(--kk-border, rgba(255,255,255,.16)); border-radius: 6px; padding: .3rem .45rem;
+}
+.kk-lib-field textarea { min-height: 3rem; resize: vertical; }
+.kk-lib-field--bool { flex-direction: row; align-items: center; gap: .4rem; }
+.kk-daemon-fields { display: flex; flex-direction: column; gap: .5rem; }
+
+.kk-lib-attrs { display: flex; flex-wrap: wrap; gap: .4rem; }
+.kk-lib-attr { display: flex; flex-direction: column; align-items: center; font-size: .72rem; gap: .15rem; }
+.kk-lib-attr select { padding: .15rem .3rem; }
+.kk-lib-del { align-self: flex-start; }

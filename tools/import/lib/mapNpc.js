@@ -1,6 +1,6 @@
 // Foundry NPC / daemon / companion actors → KK9 Firestore (FEAT-20, TASK-107).
-// NPC light/hard/boss → an `isNpc` character doc. Daemon is gated on D-09 (the
-// daemon feature is still undefined) → skipped with a warning. Companions are
+// NPC light/hard/boss → an `isNpc` character doc. Daemon → a Library entry
+// (kind:"daemon", full schema — D-09 resolved by TASK-074). Companions are
 // embedded on their owner in the current app, not standalone docs → skipped+warned.
 import { stripHtml, num, str, bool } from "./util.js";
 
@@ -16,15 +16,63 @@ function mapNpcAttributes(src = {}) {
   return out;
 }
 
-// Returns { doc } for a mappable NPC, or { skip: reason } for gated/embedded types.
+// Daemon attributes carry the magic axis and keep `modifier` (full schema).
+function mapDaemonAttributes(src = {}) {
+  const out = {};
+  for (const k of ["agility", "smarts", "spirit", "endurance", "magic"]) {
+    const a = src[k] || {};
+    out[k] = { die: num(a.die, 6), modifier: num(a.modifier) };
+  }
+  return out;
+}
+
+// TASK-074 — daemon actor → full-schema Library entry (kind:"daemon").
+function mapDaemon(actor, map, owner) {
+  const s = actor.system || {};
+  return {
+    kind: "daemon",
+    name: str(actor.name),
+    img: str(actor.img),
+    visibleToPlayers: false,
+    description: stripHtml(s.description),
+    is_orb: bool(s.is_orb, true),
+    true_name: str(s.true_name),
+    corporation: str(s.corporation, "taro"),
+    daemon_class: str(s.daemon_class, "1"),
+    major_arcana: str(s.major_arcana, "Дурак"),
+    suit: str(s.suit, "cups"),
+    color: str(s.color, "white"),
+    appearance: str(s.appearance),
+    dream: str(s.dream),
+    fear: str(s.fear),
+    desire: str(s.desire),
+    captor: str(s.captor),
+    used: bool(s.used),
+    gone: bool(s.gone),
+    attributes: mapDaemonAttributes(s.attributes),
+    health: {
+      physical: { value: num(s.health?.physical?.value) },
+      mental: { value: num(s.health?.mental?.value) },
+    },
+    condition: str(s.condition, "good"),
+    owner_id: map.resolve(s.owner_id, "daemon.owner_id", owner) || "",
+    toughness: num(s.toughness, 5),
+    tension: {
+      current: num(s.tension?.current),
+      overcap: num(s.tension?.overcap),
+      energy_penalty: num(s.tension?.energy_penalty),
+    },
+  };
+}
+
+// Returns { doc } for an NPC, { library } for a daemon, or { skip } otherwise.
 export function mapActorNonCharacter(actor, map, warnings) {
   const type = actor.type;
   const owner = actor.name || actor._id;
   const s = actor.system || {};
 
   if (type === "daemon") {
-    warnings.push({ kind: "skipped-actor", type, owner, reason: "daemon gated on D-09 (undefined)" });
-    return { skip: "daemon-gated" };
+    return { library: mapDaemon(actor, map, owner) };
   }
   if (type === "companion") {
     warnings.push({ kind: "skipped-actor", type, owner, reason: "companions are embedded on the owner, not standalone docs" });

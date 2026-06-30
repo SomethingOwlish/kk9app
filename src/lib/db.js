@@ -22,6 +22,17 @@ const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
 
 export const SCHEMA_VERSION = 1;
 
+// FEAT-19 — empty portrait config. zone:"" = not on the portrait layer.
+// emotions[] = [{ id, name, image, effects:[fxId] }] (per-character, like Foundry).
+export const PORTRAIT_DEFAULTS = {
+  portraitImage: "",
+  portraitHeight: 0,
+  zone: "",
+  emotions: [],
+  activeEmotion: "",
+  intensityOverride: "",
+};
+
 // ── Подписки (живое обновление) ─────────────────────────────
 export function watchCharacter(campaignId, characterId, cb) {
   const ref = doc(db, "campaigns", campaignId, "characters", characterId);
@@ -115,6 +126,8 @@ export async function createCharacter(campaignId, characterId, { name, ownerUid,
     skills: baseSkills,
     relations: [],
     refs: { artifacts: [], companions: [], daemons: [], contacts: [] },
+    // FEAT-19 — portrait layer config (per-character). Missing → all defaults.
+    portraitConfig: { ...PORTRAIT_DEFAULTS },
     createdAt: serverTimestamp(),
   });
   // Every character starts with fists as a default weapon
@@ -944,6 +957,82 @@ export async function sellItem(campaignId, shopId, charId, item, price) {
     }
     return { name: item.name || "предмет", price: proceeds };
   });
+}
+
+// ── FEAT-19 · Portrait config (per character) ────────────────
+// Stored on the character doc under portraitConfig. GM-written from the dock;
+// every member reads it (it rides on the character read rule). The "presence"
+// (which zone a portrait is in) is just portraitConfig.zone persisted to
+// Firestore — this is the web-native replacement for the Foundry socket layer,
+// so every client's portrait layer stays in sync via watchCharacterList.
+export async function updatePortraitConfig(campaignId, charId, config) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  const merged = { ...PORTRAIT_DEFAULTS, ...(config || {}) };
+  await updateDoc(ref, { portraitConfig: merged });
+}
+
+// ── FEAT-04 (reshaped) · Library — GM reference collection ───
+// Path: campaigns/{id}/library/{entryId}. GM-curated bestiary/reference for
+// NPCs (all weights), faculty curators, faculties, companions, and daemons.
+// Mirrors the organizations visibility model: each card has visibleToPlayers
+// (default false → GM-only). Players MUST query visible-only or the whole
+// collection listener is denied (a GM-only doc fails the per-doc read rule).
+// kind: "npc-light" | "npc-hard" | "npc-boss" | "curator" | "faculty"
+//       | "companion" | "daemon"
+export function watchLibrary(campaignId, cb, onlyVisible = false) {
+  const col = collection(db, "campaigns", campaignId, "library");
+  const ref = onlyVisible ? query(col, where("visibleToPlayers", "==", true)) : col;
+  return onSnapshot(ref, (snap) => {
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (a.kind || "").localeCompare(b.kind || "") || (a.name || "").localeCompare(b.name || ""));
+    cb(rows);
+  });
+}
+export async function createLibraryEntry(campaignId, data) {
+  const ref = collection(db, "campaigns", campaignId, "library");
+  return addDoc(ref, {
+    kind: "npc-light", name: "Новая запись", img: "", description: "",
+    visibleToPlayers: false,
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+}
+export async function updateLibraryEntry(campaignId, entryId, patch) {
+  await updateDoc(doc(db, "campaigns", campaignId, "library", entryId), patch);
+}
+export async function deleteLibraryEntry(campaignId, entryId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "library", entryId));
+}
+// Batch-seed one kind from a static data array. Idempotent by (kind,name):
+// existing entries of that kind are left untouched. Returns count added.
+export async function seedLibrary(campaignId, kind, dataArr = []) {
+  const col = collection(db, "campaigns", campaignId, "library");
+  const snap = await getDocs(query(col, where("kind", "==", kind)));
+  const existing = new Set(snap.docs.map((d) => d.data().name));
+  const batch = writeBatch(db);
+  let added = 0;
+  for (const entry of dataArr) {
+    if (existing.has(entry.name)) continue;
+    batch.set(doc(col), {
+      kind, visibleToPlayers: false, img: "", description: "",
+      ...entry, createdAt: serverTimestamp(),
+    });
+    added++;
+  }
+  if (added > 0) await batch.commit();
+  return added;
+}
+
+// ── TASK-074 · Daemon links (character.refs.daemons[]) ───────
+// Daemons are full-schema Library entries (kind:"daemon"). A character
+// references the Library entry id; the sheet's Daemons section resolves it.
+export async function linkDaemonToChar(campaignId, charId, daemonId) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  await updateDoc(ref, { "refs.daemons": arrayUnion(daemonId) });
+}
+export async function unlinkDaemonFromChar(campaignId, charId, daemonId) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  await updateDoc(ref, { "refs.daemons": arrayRemove(daemonId) });
 }
 
 export const derive = {

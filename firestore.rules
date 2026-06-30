@@ -131,6 +131,15 @@ service cloud.firestore {
         allow write: if isGMOrAdmin(campaignId);
       }
 
+      // ── Library (FEAT-04 reshaped) — GM reference: NPCs/curators/faculties/
+      //    companions/daemons. Same visibility model as organizations:
+      //    players read only cards flagged visibleToPlayers; writes GM-only.
+      match /library/{entryId} {
+        allow read:  if isGMOrAdmin(campaignId)
+                     || (isMember(campaignId) && resource.data.visibleToPlayers == true);
+        allow write: if isGMOrAdmin(campaignId);
+      }
+
       // ── Items collection (B-14 — rules to be extended there) ─────────────
       // Base read/write rule; B-14 will add the player-purchase exception for
       // shop transfers (D-22 no-approval path).

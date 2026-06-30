@@ -43,5 +43,14 @@ export function validateSeed(seed) {
     if (Array.isArray(it.skillBonuses) === false && it.skillBonuses != null) err(p, "skillBonuses must be an array");
   }
 
+  // Library entries (FEAT-04/TASK-074): daemon and other reference cards.
+  const LIB_KINDS = new Set(["npc-light", "npc-hard", "npc-boss", "curator", "faculty", "companion", "daemon"]);
+  for (const lib of seed.library || []) {
+    const p = `library/${lib._id}`;
+    if (!LIB_KINDS.has(lib.kind)) err(p, `unknown library kind "${lib.kind}"`);
+    if (!isStr(lib.name) || !lib.name.trim()) err(p, "name is required");
+    if (typeof lib.visibleToPlayers !== "boolean") err(p, "visibleToPlayers must be a boolean");
+  }
+
   return errors;
 }

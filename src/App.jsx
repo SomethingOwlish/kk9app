@@ -11,7 +11,22 @@ import {
   linkCharToOrg, unlinkCharToOrg, setCharOrgLevel, applyRollOutcome,
   watchShopList, createShop, updateShop, deleteShop,
   purchaseStackable, purchaseUnique, sellItem,
+  watchLibrary, createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, seedLibrary,
+  linkDaemonToChar, unlinkDaemonFromChar, updatePortraitConfig,
 } from "./lib/db";
+import { libraryDefaultsFor } from "./lib/library";
+import { FACULTIES } from "./lib/seed-faculties";
+import { CURATORS_DATA } from "./lib/seed-curators";
+import { COMPANIONS_DATA } from "./lib/seed-companions";
+import { NPC_LIGHT_DATA } from "./lib/seed-npc-light";
+
+// Library kinds that can be batch-seeded from a static catalog.
+const LIBRARY_SEED = {
+  faculty: FACULTIES,
+  curator: CURATORS_DATA,
+  companion: COMPANIONS_DATA,
+  "npc-light": NPC_LIGHT_DATA,
+};
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
@@ -21,6 +36,7 @@ import { loadPrefs, savePref } from "./lib/userPrefs";
 import "./styles/app.css";
 import "./styles/theme-explorer.css";
 import "./styles/tier2.css";
+import "./styles/portrait.css";
 import CharacterCard from "./components/CharacterCard";
 import AdvancementDialog from "./components/AdvancementDialog";
 import LogView from "./components/LogView";
@@ -39,6 +55,9 @@ import OrganizationsView from "./views/OrganizationsView";
 import RollLogView from "./views/RollLogView";
 import ShopView from "./views/ShopView";
 import ShopManager from "./views/ShopManager";
+import LibraryView from "./views/LibraryView";
+import PortraitLayer from "./components/PortraitLayer";
+import PortraitDock from "./components/PortraitDock";
 
 export default function App({ user, signOut }) {
   const navigate = useNavigate();
@@ -68,6 +87,7 @@ export default function App({ user, signOut }) {
   const [allItems, setAllItems] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [shops, setShops] = useState([]);
+  const [library, setLibrary] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchShopList(CAMPAIGN_ID, setShops), []);
@@ -96,6 +116,7 @@ export default function App({ user, signOut }) {
     : pathname === "/orgs" ? "orgs"
     : pathname === "/rolls" ? "rolls"
     : pathname === "/shop" ? "shop"
+    : pathname === "/library" ? "library"
     : pathname === "/items" ? "items" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
@@ -132,6 +153,10 @@ export default function App({ user, signOut }) {
   const canRoll = role !== "demo" && (isGM || ownChar);
   // Players must query visible-only orgs (collection listener is denied otherwise).
   useEffect(() => watchOrganizations(CAMPAIGN_ID, setOrgs, !isGM), [isGM]);
+  // Library (FEAT-04): same visible-only constraint for players.
+  useEffect(() => watchLibrary(CAMPAIGN_ID, setLibrary, !isGM), [isGM]);
+  const daemonLib = useMemo(() => library.filter((e) => e.kind === "daemon"), [library]);
+  const portraitIntensity = campaign?.portraits?.intensity ?? "normal";
 
   const save = useCallback((patch) => {
     if (!activeId || !viewCh) return;
@@ -263,6 +288,34 @@ export default function App({ user, signOut }) {
     if (!activeId) throw new Error("Нет персонажа");
     return sellItem(CAMPAIGN_ID, shopId, activeId, item, price);
   }, [activeId]);
+  // ── Library (FEAT-04 reshaped) + daemon links + portrait ──
+  const onCreateLibrary = useCallback(async (kind) => {
+    await createLibraryEntry(CAMPAIGN_ID, { kind, name: "Новая запись", ...libraryDefaultsFor(kind) })
+      .catch((e) => alert("Ошибка: " + (e?.message || e)));
+  }, []);
+  const onUpdateLibrary = useCallback(async (id, patch) => {
+    await updateLibraryEntry(CAMPAIGN_ID, id, patch).catch(console.error);
+  }, []);
+  const onDeleteLibrary = useCallback(async (id) => {
+    await deleteLibraryEntry(CAMPAIGN_ID, id).catch((e) => alert("Ошибка: " + (e?.message || e)));
+  }, []);
+  const onSeedLibrary = useCallback(async (kind) => {
+    const data = LIBRARY_SEED[kind];
+    if (!data) return;
+    try {
+      const added = await seedLibrary(CAMPAIGN_ID, kind, data);
+      alert(added > 0 ? `Добавлено записей: ${added}` : "Все записи уже в библиотеке.");
+    } catch (e) { alert("Ошибка: " + (e?.message || e)); }
+  }, []);
+  const onLinkDaemon = useCallback(async (charId, daemonId) => {
+    await linkDaemonToChar(CAMPAIGN_ID, charId, daemonId).catch((e) => alert("Ошибка: " + (e?.message || e)));
+  }, []);
+  const onUnlinkDaemon = useCallback(async (charId, daemonId) => {
+    await unlinkDaemonFromChar(CAMPAIGN_ID, charId, daemonId).catch(console.error);
+  }, []);
+  const onUpdatePortrait = useCallback(async (charId, config) => {
+    await updatePortraitConfig(CAMPAIGN_ID, charId, config).catch(console.error);
+  }, []);
   const onCreateCatalogItem = useCallback(async (data) => {
     await createItem(CAMPAIGN_ID, data);
   }, []);
@@ -291,6 +344,7 @@ export default function App({ user, signOut }) {
     else if (id === "orgs" && role !== "demo") navigate("/orgs");
     else if (id === "rolls" && role !== "demo") navigate("/rolls");
     else if (id === "shop" && role !== "demo") navigate("/shop");
+    else if (id === "library" && role !== "demo") navigate("/library");
     else if (id === "print" && activeId) navigate(`/print/${activeId}`);
   }, [isGM, role, navigate, activeId, campaign]);
   const current = view === "portal" ? "portal"
@@ -303,6 +357,7 @@ export default function App({ user, signOut }) {
     : view === "orgs" ? "orgs"
     : view === "rolls" ? "rolls"
     : view === "shop" ? "shop"
+    : view === "library" ? "library"
     : view === "items" ? "items" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
@@ -351,15 +406,20 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
+        {ready && cl && view === "library" && baseRole && role !== "demo" && <LibraryView entries={library} isGM={isGM} onCreate={onCreateLibrary} onUpdate={onUpdateLibrary} onDelete={onDeleteLibrary} onSeed={onSeedLibrary} seedable={Object.keys(LIBRARY_SEED)}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel} daemonLib={daemonLib} onLinkDaemon={onLinkDaemon} onUnlinkDaemon={onUnlinkDaemon}/>}
         {ready && view === "card" && viewCh && editingBio && <BioEditCard ch={activeChar} onSave={saveBio} onCancel={() => setEditingBio(false)}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}
         {ready && (view === "card" || view === "advance" || view === "log") && !viewCh && <div className="kk-empty">Персонаж не выбран. Вернитесь на портал.</div>}
       </div>
+      {/* FEAT-19 — portrait layer over the live board (portal); GM dock on top */}
+      {ready && cl && view === "portal" && <PortraitLayer characters={partyMembers} intensity={portraitIntensity} />}
+      {ready && cl && view === "portal" && isGM && <PortraitDock characters={partyMembers} onUpdate={onUpdatePortrait} />}
+
       {/* GM Mode overlay — blocks player UI when GM is managing the session */}
       {gmModeData?.active && !isGM && view === "card" && (
         <div className="kk-gmmode-overlay">
