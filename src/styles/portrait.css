@@ -8,7 +8,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;          /* декор — не перехватываем клики */
-  z-index: 5;                    /* над фоном доски, под меню/шапкой */
+  z-index: 12;                   /* над фоном сцены (.kk-scene-fullpage z:10), под кнопками сцены (z:20) */
   overflow: hidden;
   --scene-darkness: 0;
   --kk9-front-h: 72vh;

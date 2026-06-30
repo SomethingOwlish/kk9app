@@ -369,6 +369,9 @@ export default function App({ user, signOut }) {
       <div className={`kk-root${themeClass}`}>
         <div className="kk-bg" aria-hidden/>
         <ScenePlayerView isGM={isGM} onBack={() => navigate("/")}/>
+        {/* FEAT-19 — portraits overlay the scene only; GM dock on top */}
+        <PortraitLayer characters={partyMembers} intensity={portraitIntensity} />
+        {isGM && <PortraitDock characters={partyMembers} onUpdate={onUpdatePortrait} />}
         {!isGM && (
           <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню">
             <span/><span/><span/>
@@ -392,6 +395,7 @@ export default function App({ user, signOut }) {
         {(!ready || !cl) && <div className="kk-load">Загрузка кампании…</div>}
         {ready && cl && !baseRole && <div className="kk-empty">Вы не участник этой кампании. Попросите ГМа добавить ваш UID в <code>members</code>.</div>}
         {ready && cl && role === "demo" && <ScenePlayerView/>}
+        {ready && cl && role === "demo" && <PortraitLayer characters={partyMembers} intensity={portraitIntensity} />}
         {ready && cl && role === "player" && (!myChar || myChar.characterCreated === false) && (
           <CharacterCreationWizard user={user} myChar={myChar} campaign={campaign} />
         )}
@@ -416,10 +420,6 @@ export default function App({ user, signOut }) {
         {ready && view === "advance" && viewCh && !isGM && <AdvancementDialog ch={activeChar} settings={settings} onApply={applyAdvance} onCancel={() => navigate(`/card/${activeId}`)}/>}
         {ready && (view === "card" || view === "advance" || view === "log") && !viewCh && <div className="kk-empty">Персонаж не выбран. Вернитесь на портал.</div>}
       </div>
-      {/* FEAT-19 — portrait layer over the live board (portal); GM dock on top */}
-      {ready && cl && view === "portal" && <PortraitLayer characters={partyMembers} intensity={portraitIntensity} />}
-      {ready && cl && view === "portal" && isGM && <PortraitDock characters={partyMembers} onUpdate={onUpdatePortrait} />}
-
       {/* GM Mode overlay — blocks player UI when GM is managing the session */}
       {gmModeData?.active && !isGM && view === "card" && (
         <div className="kk-gmmode-overlay">
