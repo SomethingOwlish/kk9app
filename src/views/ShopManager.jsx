@@ -23,13 +23,17 @@ function cleanSnapshot(item) {
   return rest;
 }
 
-export default function ShopManager({ shops = [], allItems = [], onCreate, onUpdate, onDelete }) {
+export default function ShopManager({ shops = [], allItems = [], sellRequests = [], characters = [], onCreate, onUpdate, onDelete, onApproveSell, onRejectSell }) {
   return (
     <div className="kk-shop-mgr">
       <div className="kk-board-topbar">
         <div className="kk-h2">Магазины <span className="kk-count">{shops.length}</span></div>
         <button className="kk-btn sm" onClick={onCreate}>+ Магазин</button>
       </div>
+
+      {sellRequests.length > 0 && (
+        <SellRequests requests={sellRequests} characters={characters} onApprove={onApproveSell} onReject={onRejectSell} />
+      )}
 
       {shops.length === 0 && <div className="kk-empty">Нет магазинов. Создайте первый.</div>}
 
@@ -38,6 +42,39 @@ export default function ShopManager({ shops = [], allItems = [], onCreate, onUpd
           <ShopCard key={shop.id} shop={shop} allItems={allItems} onUpdate={onUpdate} onDelete={onDelete} />
         ))}
       </div>
+    </div>
+  );
+}
+
+// B-50/D1: GM-side approval queue for player sell requests. The GM sets the
+// final price (pre-filled with the player's suggestion) and confirms; the payout
+// transaction releases the item and credits the seller. Reject just drops it.
+function SellRequests({ requests, characters, onApprove, onReject }) {
+  const nameOf = (charId) => characters.find((c) => c.id === charId)?.name || "Игрок";
+  return (
+    <section className="kk-shop-sec">
+      <div className="kk-shop-sec-title">Запросы на продажу <span className="kk-count">{requests.length}</span></div>
+      {requests.map((req) => (
+        <SellRequestRow key={req.id} req={req} sellerName={nameOf(req.charId)} onApprove={onApprove} onReject={onReject} />
+      ))}
+    </section>
+  );
+}
+
+function SellRequestRow({ req, sellerName, onApprove, onReject }) {
+  const [price, setPrice] = useState(req.suggestedPrice ?? 0);
+  const [busy, setBusy] = useState(false);
+  const run = async (fn) => { setBusy(true); try { await fn(); } catch (e) { alert("Ошибка: " + (e?.message || e)); } finally { setBusy(false); } };
+  return (
+    <div className="kk-shop-row">
+      <div className="kk-shop-main">
+        <span className="kk-shop-name">{req.itemName}</span>
+        <span className="kk-shop-sub">{sellerName} · просит ◈ {req.suggestedPrice ?? 0}</span>
+      </div>
+      <input className="kk-input kk-shop-price-input" type="number" min={0} value={price}
+        onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))} />
+      <button className="kk-btn sm" disabled={busy} onClick={() => run(() => onApprove(req, price))}>Подтвердить</button>
+      <button className="kk-btn ghost sm" disabled={busy} onClick={() => run(() => onReject(req.id))}>Отклонить</button>
     </div>
   );
 }
