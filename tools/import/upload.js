@@ -54,6 +54,10 @@ function buildWrites(seed, campaignId) {
     const { _id, ...data } = it;
     writes.push({ path: `${root}/items/${_id}`, data });
   }
+  for (const lib of seed.library || []) {
+    const { _id, ...data } = lib;
+    writes.push({ path: `${root}/library/${_id}`, data });
+  }
   return writes;
 }
 

@@ -100,6 +100,7 @@ async function main() {
   // ── Pass 2 — map docs; cross-refs resolve against the now-complete map ──
   const characters = [];
   const items = [];
+  const library = []; // FEAT-04/TASK-074 — daemon reference entries
   let skipped = 0;
 
   for (const { a } of actors) {
@@ -110,6 +111,7 @@ async function main() {
     } else {
       const res = mapActorNonCharacter(a, map, warnings);
       if (res.doc) characters.push({ _id: actorId, ...res.doc });
+      else if (res.library) library.push({ _id: actorId, ...res.library });
       else skipped++;
     }
     // Embedded items → collection docs (only collection-bearing types).
@@ -121,7 +123,7 @@ async function main() {
     }
   }
 
-  const seed = { characters, items };
+  const seed = { characters, items, library };
   map.warnings.forEach((w) => warnings.push(w));
 
   // ── Validation (TASK-105) ──
@@ -132,7 +134,7 @@ async function main() {
   await writeFile(path.join(args.output, "uuid-map.json"), JSON.stringify(map.toJSON(), null, 2));
   await writeFile(path.join(args.output, "warnings.json"), JSON.stringify(warnings, null, 2));
 
-  console.log(`Actors: ${actors.length}  Characters/NPCs: ${characters.length}  Items: ${items.length}  Skipped: ${skipped}`);
+  console.log(`Actors: ${actors.length}  Characters/NPCs: ${characters.length}  Items: ${items.length}  Library: ${library.length}  Skipped: ${skipped}`);
   console.log(`Warnings: ${warnings.length}  (see output/warnings.json)`);
 
   if (errors.length) {

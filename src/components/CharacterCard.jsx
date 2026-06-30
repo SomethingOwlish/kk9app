@@ -10,6 +10,7 @@ import ItemList from "./ItemList";
 import LkLink from "./LkLink";
 import RelationsList from "./RelationsList";
 import CompanionRefs from "./CompanionRefs";
+import DaemonRefs from "./DaemonRefs";
 import ContactsList from "./ContactsList";
 import RollDialog from "./RollDialog";
 import DiceIcon from "./DiceIcon";
@@ -30,7 +31,7 @@ const DEMO_FIELDS = [
 
 const FEATURE_KIND_LABEL = { character: "Черта характера", unique: "Уникальная возможность" };
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem, peers = [], orgs = [], campaign, canRoll = false, onCommitRoll, onLinkOrg, onUnlinkOrg, onSetOrgLevel }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem, peers = [], orgs = [], campaign, canRoll = false, onCommitRoll, onLinkOrg, onUnlinkOrg, onSetOrgLevel, daemonLib = [], onLinkDaemon, onUnlinkDaemon }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -387,6 +388,15 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         companions={companions}
         canEdit={canEditRelations}
         onChange={(next) => save({ companions: next })}
+      />
+
+      {/* 8b — Даймоны (TASK-074): ссылки на записи библиотеки */}
+      <DaemonRefs
+        daemonIds={Array.isArray(ch.refs?.daemons) ? ch.refs.daemons : []}
+        library={daemonLib}
+        isGM={isGM}
+        onLink={(id) => onLinkDaemon?.(ch.id, id)}
+        onUnlink={(id) => onUnlinkDaemon?.(ch.id, id)}
       />
 
       {/* 9 — Предметы (с активацией и бросками) */}
