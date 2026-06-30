@@ -821,6 +821,131 @@ export async function setCharOrgLevel(campaignId, charId, orgId, level) {
   await updateDoc(charRef, { "refs.contacts": contacts });
 }
 
+// ── Shop (FEAT-17 / B-19) ────────────────────────────────────
+// Collection: campaigns/{id}/shops/{shopId}
+// Schema: { name, mode: "buy"|"sell", allowSellBack, uniqueStock: [{ itemId, price }],
+//           stackableStock: [{ itemData:{…snapshot}, quantity, price }],
+//           journals: [{ itemName, soldPrice, at }], defaultPrices: { [type]: number } }
+//
+// D-22: players purchase/sell directly (no GM approval). The purchase/sell helpers
+// run as Firestore transactions so stock decrement + money change + item transfer
+// either all commit or none do. Security: GM writes any shop field; a player may
+// only touch the stock/journal arrays (the restricted purchase path) and may only
+// claim/release/create items tied to their own character (firestore.rules).
+export function watchShopList(campaignId, cb) {
+  const col = collection(db, "campaigns", campaignId, "shops");
+  return onSnapshot(col, (snap) => {
+    const shops = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    shops.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    cb(shops);
+  });
+}
+export async function createShop(campaignId, data = {}) {
+  const col = collection(db, "campaigns", campaignId, "shops");
+  return addDoc(col, {
+    name: "Новый магазин", mode: "buy", allowSellBack: false,
+    uniqueStock: [], stackableStock: [], journals: [], defaultPrices: {},
+    ...data, createdAt: serverTimestamp(),
+  });
+}
+export async function updateShop(campaignId, shopId, data) {
+  await updateDoc(doc(db, "campaigns", campaignId, "shops", shopId), data);
+}
+export async function deleteShop(campaignId, shopId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "shops", shopId));
+}
+
+// Strip non-template fields off a snapshot before it is stored/re-created.
+function _cleanItemSnapshot(data = {}) {
+  // eslint-disable-next-line no-unused-vars
+  const { id: _id, createdAt: _ca, ownerCharacterId: _oc, ...rest } = data;
+  return rest;
+}
+
+// Atomic stackable purchase: decrement shop stock, debit buyer money, create the
+// item copy for the buyer — all or nothing. Throws on stock-gone / insufficient money.
+export async function purchaseStackable(campaignId, shopId, stockIndex, buyerCharId, quantity) {
+  const shopRef = doc(db, "campaigns", campaignId, "shops", shopId);
+  const charRef = doc(db, "campaigns", campaignId, "characters", buyerCharId);
+  const itemRef = doc(collection(db, "campaigns", campaignId, "items"));
+  return runTransaction(db, async (tx) => {
+    const [shopSnap, charSnap] = await Promise.all([tx.get(shopRef), tx.get(charRef)]);
+    if (!shopSnap.exists()) throw new Error("Магазин не найден");
+    if (!charSnap.exists()) throw new Error("Персонаж не найден");
+    const stock = Array.isArray(shopSnap.data().stackableStock) ? [...shopSnap.data().stackableStock] : [];
+    const entry = stock[stockIndex];
+    if (!entry) throw new Error("Товара больше нет");
+    const qty = Math.max(1, Math.floor(quantity || 1));
+    if (qty > (entry.quantity ?? 0)) throw new Error("Недостаточно на складе");
+    const total = (entry.price ?? 0) * qty;
+    const money = charSnap.data().money ?? 0;
+    if (money < total) throw new Error("Недостаточно денег");
+
+    stock[stockIndex] = { ...entry, quantity: (entry.quantity ?? 0) - qty };
+    tx.update(shopRef, { stackableStock: stock });
+    tx.update(charRef, { money: money - total });
+    tx.set(itemRef, {
+      ..._cleanItemSnapshot(entry.itemData || {}),
+      quantity: qty,
+      ownerCharacterId: buyerCharId,
+      createdAt: serverTimestamp(),
+    });
+    return { name: entry.itemData?.name || "товар", price: total };
+  });
+}
+
+// Atomic unique purchase: remove the entry from uniqueStock, debit buyer money,
+// reassign the existing catalog item's ownerCharacterId to the buyer.
+export async function purchaseUnique(campaignId, shopId, itemId, buyerCharId) {
+  const shopRef = doc(db, "campaigns", campaignId, "shops", shopId);
+  const charRef = doc(db, "campaigns", campaignId, "characters", buyerCharId);
+  const itemRef = doc(db, "campaigns", campaignId, "items", itemId);
+  return runTransaction(db, async (tx) => {
+    const [shopSnap, charSnap, itemSnap] = await Promise.all([tx.get(shopRef), tx.get(charRef), tx.get(itemRef)]);
+    if (!shopSnap.exists()) throw new Error("Магазин не найден");
+    if (!charSnap.exists()) throw new Error("Персонаж не найден");
+    if (!itemSnap.exists()) throw new Error("Предмет не найден");
+    const uniqueStock = Array.isArray(shopSnap.data().uniqueStock) ? shopSnap.data().uniqueStock : [];
+    const idx = uniqueStock.findIndex((u) => u.itemId === itemId);
+    if (idx === -1) throw new Error("Предмет уже продан");
+    if (itemSnap.data().ownerCharacterId != null) throw new Error("Предмет уже занят");
+    const total = uniqueStock[idx].price ?? 0;
+    const money = charSnap.data().money ?? 0;
+    if (money < total) throw new Error("Недостаточно денег");
+
+    tx.update(shopRef, { uniqueStock: uniqueStock.filter((_, i) => i !== idx) });
+    tx.update(charRef, { money: money - total });
+    tx.update(itemRef, { ownerCharacterId: buyerCharId });
+    return { name: itemSnap.data().name || "предмет", price: total };
+  });
+}
+
+// Atomic sell: release the player's item back to the catalog (ownerCharacterId=null),
+// credit the proceeds to their money, and append a sell record to shop.journals[].
+// Price-0 items are still sellable.
+export async function sellItem(campaignId, shopId, charId, item, price) {
+  const shopRef = doc(db, "campaigns", campaignId, "shops", shopId);
+  const charRef = doc(db, "campaigns", campaignId, "characters", charId);
+  const itemRef = doc(db, "campaigns", campaignId, "items", item.id);
+  return runTransaction(db, async (tx) => {
+    const [shopSnap, charSnap, itemSnap] = await Promise.all([tx.get(shopRef), tx.get(charRef), tx.get(itemRef)]);
+    if (!charSnap.exists()) throw new Error("Персонаж не найден");
+    if (!itemSnap.exists()) throw new Error("Предмет не найден");
+    if (itemSnap.data().ownerCharacterId !== charId) throw new Error("Это не ваш предмет");
+    const proceeds = Math.max(0, Math.floor(price || 0));
+    const money = charSnap.data().money ?? 0;
+
+    tx.update(itemRef, { ownerCharacterId: null });
+    tx.update(charRef, { money: money + proceeds });
+    if (shopSnap.exists()) {
+      const journals = Array.isArray(shopSnap.data().journals) ? shopSnap.data().journals : [];
+      // serverTimestamp() is not allowed inside array elements — use an ISO stamp.
+      tx.update(shopRef, { journals: [...journals, { itemName: item.name || "предмет", soldPrice: proceeds, at: new Date().toISOString() }] });
+    }
+    return { name: item.name || "предмет", price: proceeds };
+  });
+}
+
 export const derive = {
   toughness: derivePhysicalToughness,
   energyMax: deriveEnergyMax,

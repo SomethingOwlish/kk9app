@@ -9,6 +9,8 @@ import {
   assignItem, unassignItem, addLanguageToChar, saveBioFields,
   watchOrganizations, createOrganization, updateOrganization, deleteOrganization,
   linkCharToOrg, unlinkCharToOrg, setCharOrgLevel, applyRollOutcome,
+  watchShopList, createShop, updateShop, deleteShop,
+  purchaseStackable, purchaseUnique, sellItem,
 } from "./lib/db";
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
@@ -35,6 +37,8 @@ import ItemsView from "./views/ItemsView";
 import GuideView from "./views/GuideView";
 import OrganizationsView from "./views/OrganizationsView";
 import RollLogView from "./views/RollLogView";
+import ShopView from "./views/ShopView";
+import ShopManager from "./views/ShopManager";
 
 export default function App({ user, signOut }) {
   const navigate = useNavigate();
@@ -63,8 +67,10 @@ export default function App({ user, signOut }) {
   const [activeItems, setActiveItems] = useState([]);
   const [allItems, setAllItems] = useState([]);
   const [orgs, setOrgs] = useState([]);
+  const [shops, setShops] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
+  useEffect(() => watchShopList(CAMPAIGN_ID, setShops), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
   useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
@@ -89,6 +95,7 @@ export default function App({ user, signOut }) {
     : pathname === "/guide" ? "guide"
     : pathname === "/orgs" ? "orgs"
     : pathname === "/rolls" ? "rolls"
+    : pathname === "/shop" ? "shop"
     : pathname === "/items" ? "items" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
@@ -235,6 +242,27 @@ export default function App({ user, signOut }) {
   const onDeleteOrg = useCallback(async (orgId) => {
     await deleteOrganization(CAMPAIGN_ID, orgId).catch(e => alert("Ошибка: " + (e?.message || e)));
   }, []);
+  const onCreateShop = useCallback(async () => {
+    await createShop(CAMPAIGN_ID, {}).catch(e => alert("Ошибка: " + (e?.message || e)));
+  }, []);
+  const onUpdateShop = useCallback(async (shopId, patch) => {
+    await updateShop(CAMPAIGN_ID, shopId, patch).catch(console.error);
+  }, []);
+  const onDeleteShop = useCallback(async (shopId) => {
+    await deleteShop(CAMPAIGN_ID, shopId).catch(e => alert("Ошибка: " + (e?.message || e)));
+  }, []);
+  const onBuyUnique = useCallback(async (shopId, itemId) => {
+    if (!activeId) throw new Error("Нет персонажа");
+    return purchaseUnique(CAMPAIGN_ID, shopId, itemId, activeId);
+  }, [activeId]);
+  const onBuyStackable = useCallback(async (shopId, stockIndex, qty) => {
+    if (!activeId) throw new Error("Нет персонажа");
+    return purchaseStackable(CAMPAIGN_ID, shopId, stockIndex, activeId, qty);
+  }, [activeId]);
+  const onSellItem = useCallback(async (shopId, item, price) => {
+    if (!activeId) throw new Error("Нет персонажа");
+    return sellItem(CAMPAIGN_ID, shopId, activeId, item, price);
+  }, [activeId]);
   const onCreateCatalogItem = useCallback(async (data) => {
     await createItem(CAMPAIGN_ID, data);
   }, []);
@@ -262,6 +290,7 @@ export default function App({ user, signOut }) {
     else if (id === "items" && isGM) navigate("/items");
     else if (id === "orgs" && role !== "demo") navigate("/orgs");
     else if (id === "rolls" && role !== "demo") navigate("/rolls");
+    else if (id === "shop" && role !== "demo") navigate("/shop");
     else if (id === "print" && activeId) navigate(`/print/${activeId}`);
   }, [isGM, role, navigate, activeId, campaign]);
   const current = view === "portal" ? "portal"
@@ -273,6 +302,7 @@ export default function App({ user, signOut }) {
     : view === "guide" ? "guide"
     : view === "orgs" ? "orgs"
     : view === "rolls" ? "rolls"
+    : view === "shop" ? "shop"
     : view === "items" ? "items" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
@@ -316,6 +346,8 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg}/>}
         {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID} isGM={isGM}/>}
+        {ready && cl && view === "shop" && baseRole && role !== "demo" && isGM && <ShopManager shops={shops} allItems={allItems} onCreate={onCreateShop} onUpdate={onUpdateShop} onDelete={onDeleteShop}/>}
+        {ready && cl && view === "shop" && baseRole && role !== "demo" && !isGM && <ShopView shops={shops} char={activeChar || myChar} ownedItems={activeItems} allItems={allItems} onBuyUnique={onBuyUnique} onBuyStackable={onBuyStackable} onSell={onSellItem}/>}
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}

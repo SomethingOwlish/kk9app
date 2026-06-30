@@ -164,3 +164,44 @@
 .kk-rl-tension { color: var(--kk-tension, #a855f7); }
 
 .kk-vital-overcap { color: var(--kk-danger, #c0563f); }
+
+/* ── IMP-05a — extended skill tooltip (Что это / Когда бросать) ── */
+.kk-skill-tip { display: flex; flex-direction: column; gap: 7px; }
+.kk-skill-tip-sec { display: flex; flex-direction: column; gap: 2px; }
+.kk-skill-tip-sec b { font-size: 11px; letter-spacing: .03em; text-transform: uppercase; color: var(--kk-text-faint, #9a8f7a); }
+
+/* ── FEAT-17 — Shop ──────────────────────────────────────────── */
+.kk-shop, .kk-shop-mgr { display: flex; flex-direction: column; gap: 14px; }
+.kk-shop-money { font-family: var(--kk-font-d); font-size: 18px; color: var(--kk-gold, #c8a14e); }
+.kk-shop-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.kk-btn.ghost.sm.on { border-color: var(--kk-gold, #c8a14e); color: var(--kk-gold, #c8a14e); }
+.kk-shop-msg { padding: 9px 12px; border-radius: var(--kk-r-sm); font-size: 13px; }
+.kk-shop-msg.ok { background: rgba(76,175,106,.14); color: var(--kk-green, #4caf6a); border: 1px solid var(--kk-green, #4caf6a); }
+.kk-shop-msg.err { background: rgba(192,86,63,.14); color: var(--kk-danger, #c0563f); border: 1px solid var(--kk-danger, #c0563f); }
+.kk-shop-stock { display: flex; flex-direction: column; gap: 16px; }
+.kk-shop-sec { display: flex; flex-direction: column; gap: 6px; }
+.kk-shop-sec-title { font-family: var(--kk-font-d); font-size: 14px; color: var(--kk-text-dim); margin-top: 6px; }
+.kk-shop-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--kk-surface-2); border: 1px solid var(--kk-line-soft); border-radius: var(--kk-r-sm); }
+.kk-shop-av { width: 36px; height: 36px; border-radius: var(--kk-r-sm); object-fit: cover; }
+.kk-shop-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.kk-shop-name { font-weight: 600; }
+.kk-shop-sub { font-size: 12px; color: var(--kk-text-faint, #9a8f7a); }
+.kk-shop-price { font-family: var(--kk-font-d); color: var(--kk-gold, #c8a14e); white-space: nowrap; }
+.kk-shop-price-input { width: 90px; text-align: right; }
+.kk-shop-qty-input { width: 72px; text-align: right; }
+.kk-shop-add { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.kk-shop-add > :first-child { flex: 1; min-width: 140px; }
+.kk-shop-mgr-grid, .kk-shop-mgr-body { display: flex; flex-direction: column; gap: 10px; }
+.kk-shop-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--kk-surface); border: 1px solid var(--kk-line); border-radius: var(--kk-r); }
+.kk-shop-mode { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.kk-shop-mode-toggle { display: flex; gap: 6px; }
+.kk-shop-check, .kk-shop-prices .kk-shop-price-field { display: flex; align-items: center; gap: 6px; }
+.kk-shop-prices { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.kk-shop-journal { display: flex; flex-direction: column; gap: 4px; }
+.kk-shop-journal-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.kk-shop-journal-at { color: var(--kk-text-faint, #9a8f7a); font-size: 12px; }
+.kk-shop-dialog-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.kk-shop-dialog-name { font-family: var(--kk-font-d); font-size: 16px; }
+.kk-shop-dialog-total { font-size: 14px; }
+.kk-shop-err { color: var(--kk-danger, #c0563f); }
+.kk-modal-foot { padding: 0 20px 16px; }

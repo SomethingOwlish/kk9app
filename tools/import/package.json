@@ -1,0 +1,14 @@
+{
+  "name": "kk9-import",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Developer-only converter: Foundry VTT KK9 actor exports → KK9 Firestore seed (FEAT-20).",
+  "scripts": {
+    "convert": "node convert.js",
+    "upload": "node upload.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
