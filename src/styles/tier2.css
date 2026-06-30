@@ -205,3 +205,11 @@
 .kk-shop-dialog-total { font-size: 14px; }
 .kk-shop-err { color: var(--kk-danger, #c0563f); }
 .kk-modal-foot { padding: 0 20px 16px; }
+
+/* ── FEAT-17 — shop collapsible groups ── */
+.kk-shop-group { border: 1px solid var(--kk-line-soft); border-radius: var(--kk-r-sm); overflow: hidden; }
+.kk-shop-group-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; background: var(--kk-surface-2); border: 0; cursor: pointer; text-align: left; color: var(--kk-text); font-family: var(--kk-font-d); font-size: 14px; }
+.kk-shop-group-head:hover { color: var(--kk-gold, #c8a14e); }
+.kk-shop-group-caret { color: var(--kk-text-faint, #9a8f7a); width: 12px; }
+.kk-shop-group-title { flex: 1; }
+.kk-shop-group-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; }

@@ -9,10 +9,17 @@
 // Они подхватываются всплывающей подсказкой на карточке и в окне прокачки;
 // без них показывается обычная однострочная подсказка (никакой регрессии).
 // Сам контент (~200 записей) наполняется отдельно в IMP-05b.
+// Пример заполнения (наведите на бейдж атрибута навыка на карточке):
+//   { name:"Плавание", attr:"endurance", base:true, categ:"learned",
+//     description:"...", whenToRoll:"..." },
 // ============================================================
 export const SKILLS_DATA = [
-  { name:"Плавание", attr:"endurance", base:true, categ:"learned" },
-  { name:"Атлетика", attr:"endurance", base:true, categ:"common" },
+  { name:"Плавание", attr:"endurance", base:true, categ:"learned",
+    description:"Умение держаться на воде и плыть в одежде или со снаряжением.",
+    whenToRoll:"Когда нужно переплыть, нырнуть или удержаться на плаву в опасных условиях." },
+  { name:"Атлетика", attr:"endurance", base:true, categ:"common",
+    description:"Бег, прыжки, лазание и общая физическая ловкость тела.",
+    whenToRoll:"При погоне, прыжке через препятствие, лазании или рывке на пределе сил." },
   { name:"Общая эрудиция", attr:"smarts", base:true, categ:"common" },
   { name:"Техника", attr:"smarts", base:true, categ:"learned" },
   { name:"Электроника", attr:"smarts", base:true, categ:"common" },

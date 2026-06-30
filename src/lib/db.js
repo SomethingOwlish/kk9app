@@ -843,7 +843,7 @@ export function watchShopList(campaignId, cb) {
 export async function createShop(campaignId, data = {}) {
   const col = collection(db, "campaigns", campaignId, "shops");
   return addDoc(col, {
-    name: "Новый магазин", mode: "buy", allowSellBack: false,
+    name: "Новый магазин", mode: "buy", allowSellBack: false, isOpen: true,
     uniqueStock: [], stackableStock: [], journals: [], defaultPrices: {},
     ...data, createdAt: serverTimestamp(),
   });

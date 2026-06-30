@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import SearchableSelect from "../components/SearchableSelect";
+import Group from "../components/shop/Group";
 
 // GM shop management (FEAT-17, TASK-086).
-// Create N shops, toggle buy/sell mode, curate unique + stackable stock, set the
-// per-type sell-back prices, and read each shop's sell journal.
+// Create N shops, toggle open/closed + buy/sell mode, curate unique + stackable
+// stock (each section is its own collapsible group), set the per-type sell-back
+// prices, and read each shop's sell journal.
 // Props:
 //   shops[], allItems[], onCreate(), onUpdate(shopId, patch), onDelete(shopId)
 const TYPE_LABELS = {
@@ -11,7 +13,9 @@ const TYPE_LABELS = {
   spell: "Заклинание", device: "Устройство", vehicle: "Транспорт",
   language: "Язык", feature: "Особенность",
 };
-const SELL_PRICE_TYPES = ["weapon", "gear", "artifact", "spell", "device", "vehicle", "language"];
+// Languages are NOT physical stock — excluded from shop trade entirely.
+const STACKABLE_TYPES = ["weapon", "gear", "spell", "device", "vehicle"];
+const SELL_PRICE_TYPES = ["weapon", "gear", "artifact", "spell", "device", "vehicle"];
 
 function cleanSnapshot(item) {
   // eslint-disable-next-line no-unused-vars
@@ -39,8 +43,8 @@ export default function ShopManager({ shops = [], allItems = [], onCreate, onUpd
 }
 
 function ShopCard({ shop, allItems, onUpdate, onDelete }) {
-  const [open, setOpen] = useState(false);
   const save = (patch) => onUpdate(shop.id, patch);
+  const isOpen = shop.isOpen !== false; // missing → open by default
 
   const itemsById = useMemo(() => Object.fromEntries(allItems.map((i) => [i.id, i])), [allItems]);
   // Unique stock = unowned artifacts (single-owner items). Exclude ones already listed.
@@ -48,9 +52,9 @@ function ShopCard({ shop, allItems, onUpdate, onDelete }) {
   const uniqueOptions = allItems
     .filter((i) => i.type === "artifact" && i.ownerCharacterId == null && !listedIds.has(i.id))
     .map((i) => ({ value: i.id, label: i.name || "Артефакт", hint: TYPE_LABELS[i.type] }));
-  // Stackable templates = unowned non-artifact catalog items.
+  // Stackable templates = unowned catalog items of tradeable types (no languages).
   const stackableOptions = allItems
-    .filter((i) => i.ownerCharacterId == null && i.type !== "artifact")
+    .filter((i) => i.ownerCharacterId == null && STACKABLE_TYPES.includes(i.type))
     .map((i) => ({ value: i.id, label: i.name || "Предмет", hint: TYPE_LABELS[i.type] }));
 
   const [uniquePrice, setUniquePrice] = useState(0);
@@ -84,6 +88,9 @@ function ShopCard({ shop, allItems, onUpdate, onDelete }) {
       </div>
 
       <div className="kk-shop-mode">
+        <button className={`kk-btn ghost sm ${isOpen ? "on" : ""}`} onClick={() => save({ isOpen: !isOpen })}>
+          {isOpen ? "🟢 Открыт" : "🔴 Закрыт"}
+        </button>
         <div className="kk-shop-mode-toggle">
           {[["buy", "Продажа игрокам"], ["sell", "Скупка у игроков"]].map(([m, lbl]) => (
             <button key={m} className={`kk-btn ghost sm ${shop.mode === m ? "on" : ""}`} onClick={() => save({ mode: m })}>{lbl}</button>
@@ -97,12 +104,8 @@ function ShopCard({ shop, allItems, onUpdate, onDelete }) {
         )}
       </div>
 
-      <button className="kk-btn ghost sm" onClick={() => setOpen((v) => !v)}>{open ? "Свернуть" : "Управление складом"}</button>
-
-      {open && (
-        <div className="kk-shop-mgr-body">
-          {/* Unique stock */}
-          <div className="kk-shop-sec-title">Уникальные товары (артефакты)</div>
+      <div className="kk-shop-mgr-body">
+        <Group title="Уникальные товары (артефакты)" count={(shop.uniqueStock || []).length} defaultOpen={false}>
           {(shop.uniqueStock || []).map((u) => (
             <div className="kk-shop-row" key={u.itemId}>
               <div className="kk-shop-main"><span className="kk-shop-name">{itemsById[u.itemId]?.name || "(удалён)"}</span></div>
@@ -116,9 +119,9 @@ function ShopCard({ shop, allItems, onUpdate, onDelete }) {
               onChange={(e) => setUniquePrice(e.target.value)} />
             <button className="kk-btn sm" disabled={!uniquePick} onClick={addUnique}>Добавить</button>
           </div>
+        </Group>
 
-          {/* Stackable stock */}
-          <div className="kk-shop-sec-title">Товары на складе</div>
+        <Group title="Товары на складе" count={(shop.stackableStock || []).length} defaultOpen={false}>
           {(shop.stackableStock || []).map((s, i) => (
             <div className="kk-shop-row" key={i}>
               <div className="kk-shop-main">
@@ -137,40 +140,36 @@ function ShopCard({ shop, allItems, onUpdate, onDelete }) {
               onChange={(e) => setStackPrice(e.target.value)} />
             <button className="kk-btn sm" disabled={!stackPick} onClick={addStackable}>Добавить</button>
           </div>
+        </Group>
 
-          {/* Sell-back default prices */}
-          {(shop.mode === "sell" || shop.allowSellBack) && (
-            <>
-              <div className="kk-shop-sec-title">Цены скупки по типу</div>
-              <div className="kk-shop-prices">
-                {SELL_PRICE_TYPES.map((t) => (
-                  <label className="kk-sc-field kk-shop-price-field" key={t}>
-                    <span>{TYPE_LABELS[t]}</span>
-                    <input className="kk-input" type="number" min={0} defaultValue={shop.defaultPrices?.[t] ?? 0}
-                      onBlur={(e) => save({ defaultPrices: { ...(shop.defaultPrices || {}), [t]: Number(e.target.value) || 0 } })} />
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
+        {(shop.mode === "sell" || shop.allowSellBack) && (
+          <Group title="Цены скупки по типу" defaultOpen={false}>
+            <div className="kk-shop-prices">
+              {SELL_PRICE_TYPES.map((t) => (
+                <label className="kk-sc-field kk-shop-price-field" key={t}>
+                  <span>{TYPE_LABELS[t]}</span>
+                  <input className="kk-input" type="number" min={0} defaultValue={shop.defaultPrices?.[t] ?? 0}
+                    onBlur={(e) => save({ defaultPrices: { ...(shop.defaultPrices || {}), [t]: Number(e.target.value) || 0 } })} />
+                </label>
+              ))}
+            </div>
+          </Group>
+        )}
 
-          {/* Sell journal */}
-          {(shop.journals || []).length > 0 && (
-            <>
-              <div className="kk-shop-sec-title">Журнал скупки</div>
-              <div className="kk-shop-journal">
-                {(shop.journals || []).slice().reverse().map((j, i) => (
-                  <div className="kk-shop-journal-row" key={i}>
-                    <span>{j.itemName}</span>
-                    <span className="kk-shop-price">◈ {j.soldPrice ?? 0}</span>
-                    <span className="kk-shop-journal-at">{(j.at || "").slice(0, 10)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+        {(shop.journals || []).length > 0 && (
+          <Group title="Журнал скупки" count={(shop.journals || []).length} defaultOpen={false}>
+            <div className="kk-shop-journal">
+              {(shop.journals || []).slice().reverse().map((j, i) => (
+                <div className="kk-shop-journal-row" key={i}>
+                  <span>{j.itemName}</span>
+                  <span className="kk-shop-price">◈ {j.soldPrice ?? 0}</span>
+                  <span className="kk-shop-journal-at">{(j.at || "").slice(0, 10)}</span>
+                </div>
+              ))}
+            </div>
+          </Group>
+        )}
+      </div>
     </div>
   );
 }
