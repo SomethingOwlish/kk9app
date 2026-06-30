@@ -55,8 +55,8 @@ export default function ShopView({ shops = [], char, ownedItems = [], allItems =
   };
   const runSell = async (item, price) => {
     setBusy(true);
-    try { const r = await onSell(shop.id, item, price); flash("ok", `Продано: ${r?.name || item.name} за ◈ ${r?.price ?? price}`); }
-    catch (e) { flash("err", e?.message || "Не удалось продать"); }
+    try { await onSell(shop.id, item, price); flash("ok", `Запрос на продажу отправлен ГМ: ${item.name} (◈ ${price}). ГМ подтвердит и зачислит деньги.`); }
+    catch (e) { flash("err", e?.message || "Не удалось отправить запрос"); }
     finally { setBusy(false); }
   };
 
@@ -130,6 +130,7 @@ function SellList({ shop, ownedItems, busy, onSell, typeLabels, defaultItemPrice
   return (
     <section className="kk-shop-sec">
       <div className="kk-shop-sec-title">Продать</div>
+      <div className="kk-note">Продажа подтверждается ГМ — укажите желаемую цену, ГМ её утвердит или изменит.</div>
       {groups.map(([type, list]) => (
         <Group key={type} title={`${typeLabels[type] || type} (${list.length})`}>
           {list.map((item) => (
@@ -151,7 +152,7 @@ function SellRow({ item, suggested, busy, onSell, typeLabel }) {
       </div>
       <input className="kk-input kk-shop-price-input" type="number" min={0} value={price}
         onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))} />
-      <button className="kk-btn sm" disabled={busy} onClick={() => onSell(item, price)}>Продать</button>
+      <button className="kk-btn sm" disabled={busy} onClick={() => onSell(item, price)}>Запросить продажу</button>
     </div>
   );
 }

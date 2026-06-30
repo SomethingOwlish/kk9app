@@ -10,7 +10,7 @@ import {
   watchOrganizations, createOrganization, updateOrganization, deleteOrganization,
   linkCharToOrg, unlinkCharToOrg, setCharOrgLevel, applyRollOutcome,
   watchShopList, createShop, updateShop, deleteShop,
-  purchaseStackable, purchaseUnique, sellItem,
+  purchaseStackable, purchaseUnique, requestSell, watchSellRequests, approveSell, rejectSell,
   watchLibrary, createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, seedLibrary,
   linkDaemonToChar, unlinkDaemonFromChar, updatePortraitConfig,
 } from "./lib/db";
@@ -87,10 +87,12 @@ export default function App({ user, signOut }) {
   const [allItems, setAllItems] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [shops, setShops] = useState([]);
+  const [sellRequests, setSellRequests] = useState([]);
   const [library, setLibrary] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchShopList(CAMPAIGN_ID, setShops), []);
+  useEffect(() => watchSellRequests(CAMPAIGN_ID, setSellRequests), []);
   useEffect(() => watchCharacterList(CAMPAIGN_ID, (list) => { setCharacters(list); setReady(true); }), []);
   useEffect(() => watchAdvancementConfig(CAMPAIGN_ID, (cfg) => { setAdvancementConfig(cfg); setAdvConfigReady(true); }), []);
   useEffect(() => watchGmMode(CAMPAIGN_ID, setGmModeData), []);
@@ -284,10 +286,17 @@ export default function App({ user, signOut }) {
     if (!activeId) throw new Error("Нет персонажа");
     return purchaseStackable(CAMPAIGN_ID, shopId, stockIndex, activeId, qty);
   }, [activeId]);
+  // B-50/D1: players file a sell request instead of selling directly.
   const onSellItem = useCallback(async (shopId, item, price) => {
     if (!activeId) throw new Error("Нет персонажа");
-    return sellItem(CAMPAIGN_ID, shopId, activeId, item, price);
-  }, [activeId]);
+    return requestSell(CAMPAIGN_ID, shopId, activeId, user.uid, item, price);
+  }, [activeId, user.uid]);
+  const onApproveSell = useCallback(async (req, finalPrice) => {
+    return approveSell(CAMPAIGN_ID, req, finalPrice);
+  }, []);
+  const onRejectSell = useCallback(async (reqId) => {
+    return rejectSell(CAMPAIGN_ID, reqId);
+  }, []);
   // ── Library (FEAT-04 reshaped) + daemon links + portrait ──
   const onCreateLibrary = useCallback(async (kind) => {
     await createLibraryEntry(CAMPAIGN_ID, { kind, name: "Новая запись", ...libraryDefaultsFor(kind) })
@@ -401,7 +410,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg}/>}
         {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID} isGM={isGM}/>}
-        {ready && cl && view === "shop" && baseRole && role !== "demo" && isGM && <ShopManager shops={shops} allItems={allItems} onCreate={onCreateShop} onUpdate={onUpdateShop} onDelete={onDeleteShop}/>}
+        {ready && cl && view === "shop" && baseRole && role !== "demo" && isGM && <ShopManager shops={shops} allItems={allItems} sellRequests={sellRequests} characters={characters} onCreate={onCreateShop} onUpdate={onUpdateShop} onDelete={onDeleteShop} onApproveSell={onApproveSell} onRejectSell={onRejectSell}/>}
         {ready && cl && view === "shop" && baseRole && role !== "demo" && !isGM && <ShopView shops={shops} char={activeChar || myChar} ownedItems={activeItems} allItems={allItems} defaultItemPrice={campaign?.shop?.defaultItemPrice ?? 0} onBuyUnique={onBuyUnique} onBuyStackable={onBuyStackable} onSell={onSellItem}/>}
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}

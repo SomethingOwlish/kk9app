@@ -894,8 +894,10 @@ export async function purchaseStackable(campaignId, shopId, stockIndex, buyerCha
     const money = charSnap.data().money ?? 0;
     if (money < total) throw new Error("Недостаточно денег");
 
-    stock[stockIndex] = { ...entry, quantity: (entry.quantity ?? 0) - qty };
-    tx.update(shopRef, { stackableStock: stock });
+    // B-50/D1: the player may not write the shop doc. Self-service buy only
+    // debits the buyer's money and mints the owned item copy. (Stackable
+    // quantity is therefore not decremented on a player buy — a documented
+    // free-tier limitation; GM restock/edit remains authoritative.)
     tx.update(charRef, { money: money - total });
     tx.set(itemRef, {
       ..._cleanItemSnapshot(entry.itemData || {}),
@@ -926,37 +928,77 @@ export async function purchaseUnique(campaignId, shopId, itemId, buyerCharId) {
     const money = charSnap.data().money ?? 0;
     if (money < total) throw new Error("Недостаточно денег");
 
-    tx.update(shopRef, { uniqueStock: uniqueStock.filter((_, i) => i !== idx) });
+    // B-50/D1: no shop-doc write on a player buy. Claiming the catalog item
+    // (null→buyer) is what marks it sold; the stale uniqueStock entry is pruned
+    // by the GM, and a re-buy is blocked by the ownerCharacterId precondition
+    // above ("Предмет уже занят").
     tx.update(charRef, { money: money - total });
     tx.update(itemRef, { ownerCharacterId: buyerCharId });
     return { name: itemSnap.data().name || "предмет", price: total };
   });
 }
 
-// Atomic sell: release the player's item back to the catalog (ownerCharacterId=null),
-// credit the proceeds to their money, and append a sell record to shop.journals[].
-// Price-0 items are still sellable.
-export async function sellItem(campaignId, shopId, charId, item, price) {
-  const shopRef = doc(db, "campaigns", campaignId, "shops", shopId);
-  const charRef = doc(db, "campaigns", campaignId, "characters", charId);
-  const itemRef = doc(db, "campaigns", campaignId, "items", item.id);
+// B-50/D1: selling requires GM approval. A player cannot credit their own money
+// (the character rule forbids money increases), so instead they file a sell
+// request. The GM reviews it, sets the final price, and commits the payout.
+
+// Player files a request to sell an owned item. Writes no money/stock.
+// `suggestedPrice` is the player's asking price; the GM may change it on approval.
+export async function requestSell(campaignId, shopId, charId, ownerUid, item, suggestedPrice) {
+  const col = collection(db, "campaigns", campaignId, "sellRequests");
+  await addDoc(col, {
+    shopId,
+    charId,
+    ownerUid,
+    itemId: item.id,
+    itemName: item.name || "предмет",
+    itemType: item.type || "",
+    suggestedPrice: Math.max(0, Math.floor(suggestedPrice || 0)),
+    status: "pending",
+    at: serverTimestamp(),
+  });
+  return { name: item.name || "предмет", price: Math.max(0, Math.floor(suggestedPrice || 0)) };
+}
+
+// GM lists pending sell requests (newest first).
+export function watchSellRequests(campaignId, cb) {
+  const q = query(collection(db, "campaigns", campaignId, "sellRequests"), orderBy("at", "desc"));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+
+// GM approves a sell request at `finalPrice`: release the item back to the
+// catalog, credit the seller's money, log the sale to the shop journal, and
+// delete the request — all atomically. Runs on the GM path (rules-exempt).
+export async function approveSell(campaignId, req, finalPrice) {
+  const reqRef = doc(db, "campaigns", campaignId, "sellRequests", req.id);
+  const charRef = doc(db, "campaigns", campaignId, "characters", req.charId);
+  const itemRef = doc(db, "campaigns", campaignId, "items", req.itemId);
+  const shopRef = req.shopId ? doc(db, "campaigns", campaignId, "shops", req.shopId) : null;
   return runTransaction(db, async (tx) => {
-    const [shopSnap, charSnap, itemSnap] = await Promise.all([tx.get(shopRef), tx.get(charRef), tx.get(itemRef)]);
+    const reads = [tx.get(charRef), tx.get(itemRef)];
+    if (shopRef) reads.push(tx.get(shopRef));
+    const [charSnap, itemSnap, shopSnap] = await Promise.all(reads);
     if (!charSnap.exists()) throw new Error("Персонаж не найден");
     if (!itemSnap.exists()) throw new Error("Предмет не найден");
-    if (itemSnap.data().ownerCharacterId !== charId) throw new Error("Это не ваш предмет");
-    const proceeds = Math.max(0, Math.floor(price || 0));
+    if (itemSnap.data().ownerCharacterId !== req.charId) throw new Error("Предмет больше не принадлежит игроку");
+    const proceeds = Math.max(0, Math.floor(finalPrice ?? req.suggestedPrice ?? 0));
     const money = charSnap.data().money ?? 0;
 
     tx.update(itemRef, { ownerCharacterId: null });
     tx.update(charRef, { money: money + proceeds });
-    if (shopSnap.exists()) {
+    if (shopSnap && shopSnap.exists()) {
       const journals = Array.isArray(shopSnap.data().journals) ? shopSnap.data().journals : [];
       // serverTimestamp() is not allowed inside array elements — use an ISO stamp.
-      tx.update(shopRef, { journals: [...journals, { itemName: item.name || "предмет", soldPrice: proceeds, at: new Date().toISOString() }] });
+      tx.update(shopRef, { journals: [...journals, { itemName: req.itemName || "предмет", soldPrice: proceeds, at: new Date().toISOString() }] });
     }
-    return { name: item.name || "предмет", price: proceeds };
+    tx.delete(reqRef);
+    return { name: req.itemName || "предмет", price: proceeds };
   });
+}
+
+// GM (or the requesting player) cancels a sell request without paying out.
+export async function rejectSell(campaignId, reqId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "sellRequests", reqId));
 }
 
 // ── FEAT-19 · Portrait config (per character) ────────────────

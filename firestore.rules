@@ -51,13 +51,30 @@ service cloud.firestore {
 
       match /characters/{charId} {
         allow read: if isMember(campaignId);
-        // Players may write only their own character document and may not
-        // change ownerUid (which would transfer write access to another user).
-        allow write: if isGMOrAdmin(campaignId)
-                     || (isNotAnonymous()
-                         && getRole(campaignId) == "player"
-                         && resource.data.ownerUid == request.auth.uid
-                         && request.resource.data.ownerUid == request.auth.uid);
+
+        // Player may create only their own character (the chargen wizard).
+        allow create: if isGMOrAdmin(campaignId)
+                      || (isNotAnonymous()
+                          && getRole(campaignId) == "player"
+                          && request.resource.data.ownerUid == request.auth.uid);
+
+        // Player may update only their OWN character, may not transfer ownerUid,
+        // and — the anti-cheat core (B-50/D1) — may never INCREASE money or
+        // experience, nor raise bennies. Decreases are allowed: buying spends
+        // money, advancement debits XP, a future reroll spends a bennie. Every
+        // economy CREDIT (sell proceeds, salary, GM grants) goes through the GM
+        // path, which bypasses these constraints.
+        allow update: if isGMOrAdmin(campaignId)
+                      || (isNotAnonymous()
+                          && getRole(campaignId) == "player"
+                          && resource.data.ownerUid == request.auth.uid
+                          && request.resource.data.ownerUid == request.auth.uid
+                          && request.resource.data.money <= resource.data.money
+                          && request.resource.data.experience <= resource.data.experience
+                          && request.resource.data.bennies <= resource.data.bennies);
+
+        // Only GM/admin may delete a character.
+        allow delete: if isGMOrAdmin(campaignId);
 
         // GM-only private sub-document (gmNotes — D-04).
         match /private/{doc} {
@@ -172,16 +189,41 @@ service cloud.firestore {
                       && ownsChar(campaignId, request.resource.data.ownerCharacterId);
       }
 
-      // ── Shops (B-19 / FEAT-17) ────────────────────────────────────────────
-      // GM writes any field. D-22: a player may purchase/sell directly, which
-      // means writing ONLY the stock and sell-journal arrays (the restricted
-      // purchase path). Name, mode, and prices stay GM-only.
+      // ── Shops (B-19 / FEAT-17, revised B-50/D1) ───────────────────────────
+      // Shop documents (stock, prices, journals) are GM-only. Players can no
+      // longer write the shop doc — the previous member-update on stock/journals
+      // let a player rewrite prices, restock, or forge journal entries (Firestore
+      // rules cannot validate array contents, so that path was unsafe).
+      //
+      // SELF-SERVICE BUY still works without a GM and without writing the shop:
+      //   - unique  → claim the catalog item (items rule: ownerCharacterId null→self)
+      //               + decrease own money (character rule). Double-buy is blocked
+      //               by the item-ownership precondition, not the shop array.
+      //   - stackable → create the purchased item for self (items rule) + decrease
+      //               own money. (Residual free-tier gap: stackable quantity is not
+      //               decremented by the player, and item creation is not bound to
+      //               payment. Only Cloud Functions could close this fully.)
+      // SELLING is GM-approved via sellRequests below.
 
       match /shops/{shopId} {
         allow read:  if isMember(campaignId);
         allow write: if isGMOrAdmin(campaignId);
-        allow update: if isMember(campaignId)
-                      && changedOnly(["uniqueStock", "stackableStock", "journals"]);
+      }
+
+      // ── Sell requests (B-50/D1) ───────────────────────────────────────────
+      // A player asks to sell an owned item; this write changes no money or stock.
+      // The GM reviews, sets the final price, and commits the payout (GM path on
+      // the item + character + shop journal), then deletes the request.
+      match /sellRequests/{reqId} {
+        allow read:   if isGMOrAdmin(campaignId)
+                      || (isMember(campaignId) && resource.data.ownerUid == request.auth.uid);
+        allow create: if isNotAnonymous()
+                      && getRole(campaignId) == "player"
+                      && request.resource.data.ownerUid == request.auth.uid
+                      && ownsChar(campaignId, request.resource.data.charId);
+        allow delete: if isGMOrAdmin(campaignId)
+                      || (isMember(campaignId) && resource.data.ownerUid == request.auth.uid);
+        allow update: if isGMOrAdmin(campaignId);
       }
 
       // ── Chargen requests (FEAT-10) ────────────────────────────────────────
