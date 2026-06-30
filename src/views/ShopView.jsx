@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import StockList from "../components/shop/StockList";
 import PurchaseDialog from "../components/shop/PurchaseDialog";
+import Group from "../components/shop/Group";
+import { groupByType } from "../components/shop/groupUtils";
 
 // Player-facing shop (FEAT-17, TASK-087/088/089).
 // Props:
@@ -17,7 +19,7 @@ const TYPE_LABELS = {
   language: "Язык", feature: "Особенность",
 };
 
-export default function ShopView({ shops = [], char, ownedItems = [], allItems = [], onBuyUnique, onBuyStackable, onSell }) {
+export default function ShopView({ shops = [], char, ownedItems = [], allItems = [], defaultItemPrice = 0, onBuyUnique, onBuyStackable, onSell }) {
   const [selectedId, setSelectedId] = useState(shops[0]?.id || null);
   const [dialog, setDialog] = useState(null); // { kind, ... }
   const [msg, setMsg] = useState(null);        // { kind: "ok"|"err", text }
@@ -58,9 +60,12 @@ export default function ShopView({ shops = [], char, ownedItems = [], allItems =
     finally { setBusy(false); }
   };
 
+  // Missing isOpen is treated as open (shops default to open).
+  const open = shop.isOpen !== false;
   const isBuy = shop.mode === "buy";
   const isSell = shop.mode === "sell";
-  const showSell = isSell || (isBuy && shop.allowSellBack);
+  const showBuy = open && isBuy;
+  const showSell = open && (isSell || (isBuy && shop.allowSellBack));
 
   return (
     <div className="kk-shop">
@@ -81,18 +86,18 @@ export default function ShopView({ shops = [], char, ownedItems = [], allItems =
 
       {msg && <div className={`kk-shop-msg ${msg.kind === "ok" ? "ok" : "err"}`}>{msg.text}</div>}
 
-      {!isBuy && !isSell && <div className="kk-empty">Магазин закрыт.</div>}
+      {!open && <div className="kk-empty">Магазин закрыт. Зайдите позже.</div>}
 
-      {isBuy && (
+      {showBuy && (
         <StockList
-          shop={shop} money={money} itemsById={itemsById}
+          shop={shop} money={money} itemsById={itemsById} typeLabels={TYPE_LABELS}
           onBuyUnique={(u) => setDialog({ kind: "unique", u, name: u.item?.name || "товар", price: u.price ?? 0, max: 1 })}
           onBuyStackable={(s) => setDialog({ kind: "stackable", stockIndex: s.index, name: s.itemData?.name || "товар", price: s.price ?? 0, max: Math.min(s.quantity ?? 1, (s.price ?? 0) > 0 ? Math.floor(money / s.price) : (s.quantity ?? 1)) })}
         />
       )}
 
       {showSell && (
-        <SellList shop={shop} ownedItems={ownedItems} busy={busy} onSell={runSell} typeLabels={TYPE_LABELS} />
+        <SellList shop={shop} ownedItems={ownedItems} busy={busy} onSell={runSell} typeLabels={TYPE_LABELS} defaultItemPrice={defaultItemPrice} />
       )}
 
       {dialog && (
@@ -106,10 +111,13 @@ export default function ShopView({ shops = [], char, ownedItems = [], allItems =
   );
 }
 
-// Sell section: lists the player's owned items with a suggested price (editable)
-// from shop.defaultPrices[type]. Price-0 items are still sellable.
-function SellList({ shop, ownedItems, busy, onSell, typeLabels }) {
+// Sell section: lists the player's owned items grouped by type, each group
+// independently collapsible. Suggested price = shop.defaultPrices[type] when the
+// GM set one, otherwise the campaign default price from settings (never a bare 0).
+// Price-0 items are still sellable. Grouped sale items are kept separate per type.
+function SellList({ shop, ownedItems, busy, onSell, typeLabels, defaultItemPrice }) {
   const sellable = ownedItems.filter((i) => i.name !== "Кулаки"); // never sell the default fists
+  const groups = useMemo(() => groupByType(sellable), [sellable]);
   if (sellable.length === 0) {
     return (
       <section className="kk-shop-sec">
@@ -118,11 +126,16 @@ function SellList({ shop, ownedItems, busy, onSell, typeLabels }) {
       </section>
     );
   }
+  const priceFor = (type) => shop.defaultPrices?.[type] ?? defaultItemPrice ?? 0;
   return (
     <section className="kk-shop-sec">
       <div className="kk-shop-sec-title">Продать</div>
-      {sellable.map((item) => (
-        <SellRow key={item.id} item={item} suggested={shop.defaultPrices?.[item.type] ?? 0} busy={busy} onSell={onSell} typeLabel={typeLabels[item.type] || item.type} />
+      {groups.map(([type, list]) => (
+        <Group key={type} title={`${typeLabels[type] || type} (${list.length})`}>
+          {list.map((item) => (
+            <SellRow key={item.id} item={item} suggested={priceFor(type)} busy={busy} onSell={onSell} typeLabel={typeLabels[type] || type} />
+          ))}
+        </Group>
       ))}
     </section>
   );
