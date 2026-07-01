@@ -3,7 +3,10 @@
 // Pure module — no imports, no Firestore. Matches Foundry Roll math.
 // ============================================================
 
-export const DIE_SCALE = [4, 6, 8, 10, 12, 20];
+// Roll-time die-step scale. Includes d100 at the top so a +die-step status/feature
+// can push d20 → d100 (mirrors Foundry _applyDieChange SCALE = [4,6,8,10,12,20,100]).
+// NB: character-advancement scales (advancement.js/chargen.js) stay capped at d20.
+export const DIE_SCALE = [4, 6, 8, 10, 12, 20, 100];
 
 // Ability names that trigger a tension check on a failed roll.
 // Ported from docs/OldCode/kk9/module/relations.mjs
@@ -111,27 +114,66 @@ export function stepDie(currentDie, steps) {
 }
 
 /**
- * Calculate success degree from a final total.
- * If halfHealth is true, halve the total before the check (pip-4 penalty).
- * Returns { success, raises }.
+ * Roll `count` plain (non-exploding) dice of `faces` and return their summed total.
+ * Extra dice from statuses/features are added straight into the roll total, before
+ * the half-result and success checks. Mirrors Foundry's `new Roll("1d{faces}")` per
+ * extra die (non-exploding).
+ *
+ * NB: the NEW status/feature schema currently only carries a numeric extra-die COUNT
+ * (statusEngine `extra_dice`), so faces default to d6 and all extras are additive.
+ * Reconciling per-die faces/mode (extra_die_faces/extra_die_mode) is scoped to B-53.
  */
-export function calcSuccessDegree(total, halfHealth = false) {
-  const effective = halfHealth ? Math.floor(total / 2) : total;
-  if (effective < 5) {
-    return { success: false, raises: 0 };
+export function rollExtraDice(count, faces = 6) {
+  let total = 0;
+  for (let i = 0; i < count; i++) {
+    total += Math.floor(Math.random() * faces) + 1;
   }
-  const raises = Math.floor((effective - 5) / 4);
-  return { success: true, raises };
+  return total;
 }
 
 /**
- * Full single-roll pipeline: apply modifier to raw total, then calcSuccessDegree.
- * Returns { total, success, raises }.
+ * Success degree from a final total — mirrors Foundry `_getSuccessDegreeFromTotal`.
+ * Order of operations (must match Foundry exactly):
+ *   1. Critical failure ("snake eyes") if `allOnes` (every natural die = 1) OR the
+ *      FULL total ≤ 0. Checked on the full total, BEFORE any half-result division.
+ *   2. Otherwise apply half-result: total → floor(total / 2).
+ *   3. total < 5 → plain failure.
+ *   4. total ≥ 5 → success with `successes = 1 + floor((total - 5) / 4)`.
+ *
+ * @param {number} total - kept die + extra dice + all numeric modifiers (pre-half)
+ * @param {{ halfResult?: boolean, allOnes?: boolean }} opts
+ * @returns {{ type:"snake_eyes"|"failure"|"success", success:boolean,
+ *             successes:number, raises:number }}
+ *   `raises` = successes - 1 (the NEW UI counts extra successes as "raises").
  */
-export function buildRollResult(raw, modifier = 0, halfHealth = false) {
-  const total = raw + modifier;
-  const degree = calcSuccessDegree(total, halfHealth);
-  return { total, ...degree };
+export function successDegreeFromTotal(total, { halfResult = false, allOnes = false } = {}) {
+  if (allOnes || total <= 0) {
+    return { type: "snake_eyes", success: false, successes: 0, raises: 0 };
+  }
+  const eff = halfResult ? Math.floor(total / 2) : total;
+  if (eff < 5) {
+    return { type: "failure", success: false, successes: 0, raises: 0 };
+  }
+  const successes = 1 + Math.floor((eff - 5) / 4);
+  return { type: "success", success: true, successes, raises: successes - 1 };
+}
+
+/**
+ * Apply a success-count modifier (from statuses/features) to a degree.
+ * Can DEMOTE a success to a failure when it drops successes to 0 or below.
+ * Never affects a snake-eyes result. Mirrors Foundry's post-degree successMod block.
+ *
+ * @param {object} degree     - result of successDegreeFromTotal
+ * @param {number} successMod - signed success modifier
+ * @returns {object} new degree (same shape)
+ */
+export function applySuccessMod(degree, successMod = 0) {
+  if (!successMod || degree.type === "snake_eyes") return degree;
+  const s = Math.max(0, (degree.successes ?? 0) + successMod);
+  if (s === 0) {
+    return { type: "failure", success: false, successes: 0, raises: 0 };
+  }
+  return { type: "success", success: true, successes: s, raises: s - 1 };
 }
 
 /** Returns true if the ability name triggers tension checks on failure. */

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { rollPool, rollSnakeEyes, stepDie, buildRollResult, formatFaces } from "../lib/dice";
+import { rollPool, rollSnakeEyes, stepDie, successDegreeFromTotal, applySuccessMod, rollExtraDice, formatFaces } from "../lib/dice";
 import { collectRollModifiers, collectHealthPenalties } from "../lib/statusEngine";
 import { canCastSpell } from "../lib/items";
 import {
@@ -47,7 +47,11 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
     () => collectRollModifiers(ch, { attribute: target.attribute, skillName: skillNameForMods }, items),
     [ch, target, items, skillNameForMods],
   );
-  const health = useMemo(() => collectHealthPenalties(ch), [ch]);
+  // Health penalties depend on which track the roll's attribute belongs to.
+  const health = useMemo(
+    () => collectHealthPenalties(ch, target.attribute, false),
+    [ch, target.attribute],
+  );
   const [situational, setSituational] = useState(0);
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -61,12 +65,14 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   // Ring dependency for spell items.
   const castCheck = isItem && target.itemType === "spell" ? canCastSpell(target.item, items) : { ok: true };
 
-  const blocked = isTensionBlocked(ch, abilityName, target.attribute);
+  const tensionBlocked = isTensionBlocked(ch, abilityName, target.attribute);
+  const healthBlocked = health.blocked;
+  const blocked = tensionBlocked || healthBlocked;
   const willTrigger = abilityTriggersTension(ch, abilityName);
   const effDie = stepDie(target.die, mods.dieSteps);
   const attackMod = isItem ? Number(target.attackModifier || 0) : 0;
   const baseSkillMod = (target.modifier ?? 0) - attackMod; // skill/attr part only
-  const baseMod = (target.modifier ?? 0) + mods.numericMod + Number(situational || 0);
+  const baseMod = (target.modifier ?? 0) + mods.numericMod + Number(situational || 0) + health.mod;
   const spellCost = isItem ? Number(target.spellCost || 0) : 0;
 
   const canRollNow = !blocked && castCheck.ok;
@@ -85,6 +91,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
     modParts.push({ label: `${SRC_LABEL[s.kind] || ""}: ${s.label}`, detail: bits.join(", "), kind: s.kind });
   }
   if (Number(situational)) modParts.push({ label: "Ситуативный", value: Number(situational) });
+  if (health.mod) modParts.push({ label: "Штраф здоровья", value: health.mod, kind: "health" });
 
   async function roll() {
     if (busy || !canRollNow) return;
@@ -108,15 +115,31 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
         keptFaces = pool.keptFaces;
       }
 
-      const built = buildRollResult(keptRaw, baseMod, health.halfResult);
-      const raises = Math.max(0, built.raises + (mods.successMod || 0));
-      const mainRoll = { success: built.success && !snakeEyes, raises, snakeEyes };
+      // Extra dice from statuses/features (non-exploding), added to the total
+      // before the half-result and success checks — Foundry order.
+      const extraDiceTotal = rollExtraDice(mods.extraDice || 0);
+      const rawTotal = keptRaw + extraDiceTotal + baseMod;
+
+      // Success degree mirrors Foundry: snake-eyes/negative first (on the FULL,
+      // pre-half total), then half, then success count; successMod can demote
+      // a success down to a plain failure.
+      const degreeBase = successDegreeFromTotal(rawTotal, {
+        halfResult: health.halfResult,
+        allOnes: snakeEyes,
+      });
+      const degree = applySuccessMod(degreeBase, mods.successMod || 0);
+      const isSnake = degree.type === "snake_eyes";
+      const raises = degree.raises;
+      const finalTotal = isSnake
+        ? rawTotal
+        : (health.halfResult ? Math.floor(rawTotal / 2) : rawTotal);
+      const mainRoll = { success: degree.success, raises, snakeEyes: isSnake };
 
       const outcome = willTrigger ? computeTensionOutcome(ch, abilityName, mainRoll, settings) : null;
 
       // Spell energy cost: deduct on a successful cast (or snake-eyes), like old code.
       let charPatch = null;
-      if (spellCost > 0 && (mainRoll.success || snakeEyes)) {
+      if (spellCost > 0 && (mainRoll.success || isSnake)) {
         const cur = ch.energy?.value ?? 0;
         charPatch = { "energy.value": Math.max(0, cur - spellCost) };
       }
@@ -129,8 +152,9 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
         modifier: baseMod,
         skillRaw, wildRaw, keptRaw,
         keptFaces,
-        finalTotal: built.total,
-        snakeEyes,
+        extraDiceTotal,
+        finalTotal,
+        snakeEyes: isSnake,
         manualEntry: manual,
         halfResult: health.halfResult,
         success: mainRoll.success,
@@ -141,6 +165,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
           extraDice: mods.extraDice, successMod: mods.successMod,
           situational: Number(situational || 0),
           attackModifier: attackMod,
+          healthMod: health.mod,
         },
         tension: outcome ? { increment: outcome.increment, zone: outcome.zoneAfter } : null,
       };
@@ -190,7 +215,8 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
           {spellCost > 0 && <div className="kk-roll-tension-note">Стоимость каста: {spellCost} энергии (при успехе).</div>}
           {target.missingSkill && <div className="kk-roll-warn">Навык «{target.skillName}» не найден у персонажа — бросок идёт как d4.</div>}
           {target.needsSkill && <div className="kk-roll-warn">У предмета не задан навык — бросок идёт как d4.</div>}
-          {blocked && <div className="kk-roll-warn kk-roll-blocked">Ментальное истощение: этот бросок заблокирован.</div>}
+          {tensionBlocked && <div className="kk-roll-warn kk-roll-blocked">Ментальное истощение: этот бросок заблокирован.</div>}
+          {healthBlocked && <div className="kk-roll-warn kk-roll-blocked">Ранение: {health.reasons.join(", ") || "бросок заблокирован"} — бросок невозможен.</div>}
           {!castCheck.ok && <div className="kk-roll-warn kk-roll-blocked">{castCheck.reason}</div>}
 
           {!result && (
@@ -244,7 +270,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
               </div>
               <div className="kk-roll-total">
                 Итог: <b>{result.finalTotal}</b>{" "}
-                <em>({result.keptRaw}{result.modifier ? signed(result.modifier) : ""}{result.halfResult ? " ÷2" : ""})</em>
+                <em>({result.keptRaw}{result.extraDiceTotal ? ` +${result.extraDiceTotal} доп.куб` : ""}{result.modifier ? signed(result.modifier) : ""}{result.halfResult ? " ÷2" : ""})</em>
               </div>
               <div className="kk-roll-verdict">
                 {result.snakeEyes ? "💀 Критический провал (глаза змеи)"
