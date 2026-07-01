@@ -7,10 +7,16 @@
 //   - spirit.die changes → health.physical.toughness, energy.max
 //   - spirit.die or Concentration skill changes → tension.max
 //   - age changes → energy.max, tension.max
-//   - skills array changes → tension.max (Concentration die may have changed)
+//   - skills array changes → tension.max (Concentration die/modifier may have changed)
 // ============================================================
 
 export const CONCENTRATION_SKILL = "Концентрация";
+
+// Attribute → health-track membership. Physical track scales off endurance,
+// mental track off spirit. Magic is dependent on BOTH tracks.
+// Ported from docs/OldCode/kk9/module/documents.mjs (PHYS_ATTRS / MENTAL_ATTRS).
+const PHYS_ATTRS = new Set(["agility", "endurance", "magic"]);
+const MENTAL_ATTRS = new Set(["smarts", "spirit", "magic"]);
 
 function _attrPipSizes(die) {
   switch (die) {
@@ -45,7 +51,8 @@ export function deriveEnergyMax(ch) {
 
 /**
  * Maximum psychic tension threshold.
- * Formula: spirit.die + Concentration skill die + floor(age / 2)
+ * Formula (Foundry data-models.mjs:243): spirit.die + Concentration die
+ *   + Concentration modifier + floor(age / 2).
  * @param {object} ch - character document
  * @returns {number}
  */
@@ -53,20 +60,139 @@ export function deriveTensionMax(ch) {
   const spiritDie = ch.attributes?.spirit?.die ?? 4;
   const conc = (ch.skills ?? []).find((s) => s.name === CONCENTRATION_SKILL);
   const concDie = conc?.die ?? 4;
-  return spiritDie + concDie + Math.floor((ch.age ?? 15) / 2);
+  const concMod = conc?.modifier ?? 0;
+  return spiritDie + concDie + concMod + Math.floor((ch.age ?? 15) / 2);
 }
 
 /**
- * Whether pip 4 of physical health is started (halves roll results).
- * Pip 4 starts when physical health value exceeds the cumulative first-3-pip threshold.
- * @param {object} ch - character document
- * @returns {boolean}
+ * Index (1-5) of the last started pip on a health track, or 0 if untouched.
+ * A pip is "started" when the track value exceeds the pip's lower boundary.
+ * Physical track scales off endurance, mental track off spirit.
+ * Ported from documents.mjs `_activePipIndex` (buffer-free, matches
+ * derivePhysical/mental pip sizing).
+ * @param {object} ch    - character document
+ * @param {"physical"|"mental"} track
+ * @returns {number} 0..5
  */
-export function derivePipHealthPenalty(ch) {
-  const die = ch.attributes?.endurance?.die ?? 4;
+export function deriveActivePip(ch, track) {
+  const attrKey = track === "mental" ? "spirit" : "endurance";
+  const die = ch.attributes?.[attrKey]?.die ?? 4;
   const sizes = _attrPipSizes(die);
-  const pip4Threshold = sizes[0] + sizes[1] + sizes[2];
-  return (ch.health?.physical?.value ?? 0) > pip4Threshold;
+  const value = track === "mental"
+    ? (ch.health?.mental?.value ?? 0)
+    : (ch.health?.physical?.value ?? 0);
+  let cumulative = 0;
+  let last = 0;
+  for (let i = 0; i < 5; i++) {
+    if (value > cumulative) last = i + 1; // value > lower boundary of pip i+1
+    cumulative += sizes[i];
+  }
+  return last;
+}
+
+/**
+ * Raw per-track health penalties, computed from both tracks together.
+ * Mirrors Foundry `_getHealthPenalties` (documents.mjs:108).
+ * @param {object} ch - character document
+ * @returns {{ physPenalty:number, mentalPenalty:number,
+ *             physHalf:boolean, mentalHalf:boolean, onlyToughness:boolean }}
+ */
+export function deriveHealthPenalties(ch) {
+  const phys = deriveActivePip(ch, "physical");
+  const mental = deriveActivePip(ch, "mental");
+
+  const none = {
+    physPenalty: 0, mentalPenalty: 0,
+    physHalf: false, mentalHalf: false, onlyToughness: false,
+  };
+  if (phys === 0 && mental === 0) return none;
+
+  // Пип 5: только стойкость, результат пополам.
+  if (phys >= 5 || mental >= 5) {
+    return { ...none, onlyToughness: true, physHalf: phys >= 5, mentalHalf: mental >= 5 };
+  }
+
+  // Пип 4: своя шкала → результат/2, чужая → -4.
+  if (phys >= 4 || mental >= 4) {
+    return {
+      physPenalty:   mental >= 4 && phys < 4 ? -4 : 0,
+      mentalPenalty: phys   >= 4 && mental < 4 ? -4 : 0,
+      physHalf:   phys   >= 4,
+      mentalHalf: mental >= 4,
+      onlyToughness: false,
+    };
+  }
+
+  // Пип 3: своя шкала → -3, чужая → -1.
+  if (phys >= 3 || mental >= 3) {
+    return {
+      physPenalty:   phys   >= 3 ? -3 : (mental >= 3 ? -1 : 0),
+      mentalPenalty: mental >= 3 ? -3 : (phys   >= 3 ? -1 : 0),
+      physHalf: false, mentalHalf: false, onlyToughness: false,
+    };
+  }
+
+  // Пип 2: своя шкала → -2.
+  if (phys >= 2 || mental >= 2) {
+    return {
+      physPenalty:   phys   >= 2 ? -2 : 0,
+      mentalPenalty: mental >= 2 ? -2 : 0,
+      physHalf: false, mentalHalf: false, onlyToughness: false,
+    };
+  }
+
+  // Пип 1: своя шкала → -1.
+  return {
+    physPenalty:   phys   >= 1 ? -1 : 0,
+    mentalPenalty: mental >= 1 ? -1 : 0,
+    physHalf: false, mentalHalf: false, onlyToughness: false,
+  };
+}
+
+/**
+ * Health modifier for a specific attribute roll.
+ * Mirrors Foundry `_getHealthModForAttr` (documents.mjs:161).
+ * @param {object} ch          - character document
+ * @param {string} attrKey     - agility|smarts|spirit|endurance|magic (or null)
+ * @param {boolean} isToughness - true for a toughness (стойкость) roll
+ * @returns {{ mod:number, halfResult:boolean, blocked:boolean, reasons:string[] }}
+ */
+export function deriveHealthModForAttr(ch, attrKey, isToughness = false) {
+  const p = deriveHealthPenalties(ch);
+  const isPhys = PHYS_ATTRS.has(attrKey);
+  const isMental = MENTAL_ATTRS.has(attrKey);
+
+  // Пип 5: только стойкость, результат/2.
+  if (p.onlyToughness) {
+    if (!isToughness) {
+      return { mod: 0, halfResult: false, blocked: true, reasons: ["последний пип — только стойкость"] };
+    }
+    return { mod: 0, halfResult: true, blocked: false, reasons: ["результат пополам (пип 5)"] };
+  }
+
+  // Пип 4: своя шкала → halfResult, чужая → -4.
+  if (p.physHalf || p.mentalHalf) {
+    const myHalf = (p.physHalf && isPhys) || (p.mentalHalf && isMental)
+      || (attrKey === "magic" && (p.physHalf || p.mentalHalf));
+    if (myHalf) {
+      return { mod: 0, halfResult: true, blocked: false, reasons: ["результат пополам (пип 4)"] };
+    }
+    const crossPenalty = (p.physHalf && isMental) ? -4
+      : (p.mentalHalf && isPhys) ? -4
+      : 0;
+    const reasons = crossPenalty !== 0 ? [`штраф здоровья ${crossPenalty}`] : [];
+    return { mod: crossPenalty, halfResult: false, blocked: false, reasons };
+  }
+
+  // Пип 1-3: штраф по типу атрибута (магия — наихудший из двух).
+  let finalMod = 0;
+  if (attrKey === "magic") finalMod = Math.min(p.physPenalty, p.mentalPenalty);
+  else if (isPhys) finalMod = p.physPenalty;
+  else if (isMental) finalMod = p.mentalPenalty;
+
+  const reasons = [];
+  if (finalMod < 0) reasons.push(`штраф здоровья ${finalMod}`);
+  return { mod: finalMod, halfResult: false, blocked: false, reasons };
 }
 
 /**
@@ -105,11 +231,12 @@ export function enrichPatch(ch, patch) {
     result["energy.max"] = age + spiritDie;
   }
 
-  // spirit.die or Concentration skill or age → tension.max
+  // spirit.die or Concentration skill (die/modifier) or age → tension.max
   if (spiritDieChanged || skillsChanged || ageChanged) {
     const conc = skills.find((s) => s.name === CONCENTRATION_SKILL);
     const concDie = conc?.die ?? 4;
-    result["tension.max"] = spiritDie + concDie + Math.floor(age / 2);
+    const concMod = conc?.modifier ?? 0;
+    result["tension.max"] = spiritDie + concDie + concMod + Math.floor(age / 2);
   }
 
   return result;

@@ -4,7 +4,7 @@
 // и тик периодических статусов (урон/исцеление по времени).
 // ============================================================
 
-import { derivePipHealthPenalty } from "./derive";
+import { deriveHealthModForAttr } from "./derive";
 
 // Категория 1 — тикает на каждом броске.
 const TICK_EVERY_ROLL = new Set(["bleed", "burn", "acid", "electric", "shock_mental"]);
@@ -108,11 +108,15 @@ export function collectRollModifiers(ch, ctx = {}, items = []) {
 }
 
 /**
- * Штрафы здоровья к броску. Pip 4/5 физического трека → результат пополам.
- * @returns {{ halfResult: boolean }}
+ * Штрафы здоровья к конкретному броску (оба трека: физ = Выносливость,
+ * мент = Дух). Полный порт `_getHealthModForAttr` из Foundry.
+ * @param {object}  ch          — персонаж
+ * @param {string}  attrKey     — agility|smarts|spirit|endurance|magic (или null)
+ * @param {boolean} isToughness — бросок стойкости
+ * @returns {{ mod:number, halfResult:boolean, blocked:boolean, reasons:string[] }}
  */
-export function collectHealthPenalties(ch) {
-  return { halfResult: derivePipHealthPenalty(ch) };
+export function collectHealthPenalties(ch, attrKey = null, isToughness = false) {
+  return deriveHealthModForAttr(ch, attrKey, isToughness);
 }
 
 // Применяет один эффект-пейлоад к аккумулятору значений (изменяет acc).
