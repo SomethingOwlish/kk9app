@@ -21,7 +21,7 @@ export default function RollLogView({ campaignId, isGM = false }) {
             <div className={`kk-rolllog-row kk-rl-${verdict}`} key={r.id}>
               <div className="kk-rl-head">
                 <span className="kk-rl-name">{r.characterName || "—"}</span>
-                <span className="kk-rl-ability">{r.abilityName}</span>
+                <span className="kk-rl-ability">{r.abilityName}{r.isReroll ? <span className="kk-rl-reroll"> ↻ переброс</span> : null}</span>
                 <span className="kk-rl-time">{time}</span>
               </div>
               <div className="kk-rl-body">

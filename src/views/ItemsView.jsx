@@ -59,7 +59,7 @@ function defaultsFor(type) {
     gear: { condition:"perfect", gearType:"utility", size:"small", quantity:1, equipped:"home", energyRestore:0, soakType:"bonus", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, soakBonusDie:0, soakBonusModifier:0, soakUses:0, healthBufferPip:0, healthBufferTrack:"physical", damageLevel:"light", damageType:"physical", skillName:"", attackModifier:0, conditionChance:0, hasStatus:false, statusName:"" },
     artifact: { condition:"good", artifactType:"ring", artifactClass:"simple", artifactAge:0, rarity:"common", size:"finger", ringMaterial:"", ringStone:"", creator:"", lkArticleUrl:"", activationCondition:"", equipped:"home", energyRestore:0, bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[], soakType:"bonus", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, soakBonusDie:0, soakBonusModifier:0, soakBonusUses:0, healthBufferPip:0, healthBufferTrack:"physical", active:false, destroyed:false, damageLevel:"light", damageType:"physical", skillName:"", attackModifier:0, conditionChance:0, hasStatus:false, statusName:"" },
     spell: { spellType:"utility", effectColor:"#a855f7", effectDescription:"", cost:1, range:0, uses:1, durationHours:0, upkeepCost:0, skillName:"", folder:"", noWandNeeded:false, isAoe:false, snakeEyesStatusName:"", active:false, hasStatus:false, statusName:"", bypassSoak:false, unresistable:false, damageType:"physical", soakType:"absolute", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, toughnessBonus:0, bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[], healthBufferPip:0, healthBufferTrack:"physical", contestedSkillName:"" },
-    device: { condition:"perfect", deviceType:"gadget", charges:0, folder:"", creator:"", equipped:"home", worksUpper:true, worksLower:true, bonusSkillName:"", bonusValue:0, damageLevel:"light", damageType:"physical", range:0, attackSkillName:"", attackModifier:0, conditionChance:0, hasStatus:false, statusName:"", soakBonusDie:0, soakBonusModifier:0 },
+    device: { condition:"perfect", deviceType:"gadget", charges:0, maxCharges:-1, folder:"", creator:"", equipped:"home", worksUpper:true, worksLower:true, bonusSkillName:"", bonusValue:0, damageLevel:"light", damageType:"physical", range:0, attackSkillName:"", attackModifier:0, conditionChance:0, hasStatus:false, statusName:"", soakBonusDie:0, soakBonusModifier:0 },
     vehicle: { vehicleType:"ground", speed:0, toughness:0, capacity:0, notes:"" },
     language: { world:"lower", isDead:false },
   };
@@ -762,6 +762,7 @@ function AddItemForm({
         <div className="kk-item-form-row">
           <label className="kk-item-form-label">Тип:</label>{sel("deviceType", DEV_TYPE)}
           <label className="kk-item-form-label" style={{ marginLeft: ".5rem" }}>Заряды (−1=∞):</label>{numf("charges", { min: -1 })}
+          <label className="kk-item-form-label" style={{ marginLeft: ".5rem" }} title="Полный запас — восстанавливается при тайм-ревинде (−1=∞, не восстанавливается)">Макс. зарядов:</label>{numf("maxCharges", { min: -1 })}
         </div>
         <div className="kk-item-form-row">
           <label className="kk-item-form-label">Создатель:</label>

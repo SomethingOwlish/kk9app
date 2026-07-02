@@ -259,3 +259,22 @@
 .kk-lib-attr { display: flex; flex-direction: column; align-items: center; font-size: .72rem; gap: .15rem; }
 .kk-lib-attr select { padding: .15rem .3rem; }
 .kk-lib-del { align-self: flex-start; }
+
+/* ── B-57 pre-roll traits + reroll toast ─────────────────────── */
+.kk-roll-feats { display: flex; flex-direction: column; gap: .25rem; padding: .4rem .5rem;
+  border: 1px dashed rgba(255,255,255,.18); border-radius: 8px; }
+.kk-roll-feats-title { font-size: .72rem; letter-spacing: .04em; text-transform: uppercase;
+  opacity: .7; margin-bottom: .1rem; }
+.kk-roll-feat { display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+  gap: .4rem; font-size: .84rem; cursor: pointer; }
+.kk-roll-feat.weak .kk-roll-feat-name { color: var(--kk-danger, #c0563f); }
+.kk-roll-feat-eff { font-size: .76rem; opacity: .75; color: var(--kk-gold, #c8a14e); }
+.kk-roll-manual-mods { display: flex; gap: .5rem; }
+.kk-roll-manual-mods .kk-sc-field { flex: 1; }
+.kk-roll-reroll-badge { font-size: .74rem; color: var(--kk-gold, #c8a14e); opacity: .9; margin-bottom: .2rem; }
+.kk-roll-reroll-btn { margin-top: .5rem; border-color: var(--kk-gold, #c8a14e); color: var(--kk-gold, #c8a14e); }
+.kk-roll-reroll-confirm { margin-top: .5rem; padding: .5rem; border: 1px solid var(--kk-gold, #c8a14e);
+  border-radius: 8px; font-size: .82rem; display: flex; flex-direction: column; gap: .4rem; }
+.kk-roll-reroll-actions { display: flex; gap: .5rem; }
+.kk-stat-tough { display: flex; align-items: center; gap: .3rem; }
+.kk-rl-reroll { font-size: .72rem; color: var(--kk-gold, #c8a14e); opacity: .85; }
