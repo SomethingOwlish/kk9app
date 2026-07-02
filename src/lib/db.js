@@ -146,6 +146,49 @@ export async function createCharacter(campaignId, characterId, { name, ownerUid,
   return characterId;
 }
 
+// ── Импорт карточки из Foundry (FEAT-20 in-app) ─────────────
+// Пишет разобранный документ персонажа (parseFoundryActor) с досчётом
+// производных полей, gm-док с заметками и встроенные предметы.
+// `parsed` = { doc, gmNotes, items } из lib/foundryImport.js.
+export async function createCharacterFromImport(campaignId, characterId, parsed, { ownerUid = null } = {}) {
+  const { doc: mapped, gmNotes = "", items = [] } = parsed;
+
+  // Досчитываем производные, если Foundry их не передал (0 = не задано).
+  const toughness = mapped.health?.physical?.toughness || derivePhysicalToughness(mapped);
+  const energyMax = mapped.energy?.max || deriveEnergyMax(mapped);
+  const tensionMax = mapped.tension?.max || deriveTensionMax(mapped);
+
+  const docData = {
+    ...mapped,
+    schemaVersion: SCHEMA_VERSION,
+    ownerUid,
+    characterCreated: true,
+    health: {
+      physical: { value: mapped.health?.physical?.value ?? 0, toughness },
+      mental: { value: mapped.health?.mental?.value ?? 0 },
+    },
+    energy: { value: mapped.energy?.value || energyMax, max: energyMax },
+    tension: { ...mapped.tension, max: tensionMax },
+    portraitConfig: { ...PORTRAIT_DEFAULTS, portraitImage: mapped.portrait || "" },
+    createdAt: serverTimestamp(),
+  };
+
+  const ref = doc(db, "campaigns", campaignId, "characters", characterId);
+  await setDoc(ref, docData);
+
+  // private/gm — заметки ГМа.
+  const gmRef = doc(db, "campaigns", campaignId, "characters", characterId, "private", "gm");
+  await setDoc(gmRef, { gmNotes });
+
+  // Встроенные предметы Foundry → коллекция items, привязанные к новой карточке.
+  await Promise.all(items.map((it) =>
+    addDoc(collection(db, "campaigns", campaignId, "items"),
+      { ...it, ownerCharacterId: characterId, createdAt: serverTimestamp() })
+  ));
+
+  return characterId;
+}
+
 // ── Выбор факультета ────────────────────────────────────────
 // Пишет faculty{} и ДОКИДЫВАЕТ недостающие навыки факультета в skills[]
 // (нетренированными d4-2). Существующие навыки не трогает — прокачку не теряем.
