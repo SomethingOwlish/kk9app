@@ -196,6 +196,36 @@ export function deriveHealthModForAttr(ch, attrKey, isToughness = false) {
 }
 
 /**
+ * Sum of active-status "max" modifiers to the energy / tension pools.
+ * Mirrors Foundry `prepareDerivedData` folding energy.mode==="max" and
+ * tension.mode==="max" effect amounts into the effective maximum (B-53).
+ * These are transient (never written to the stored derived field) — callers
+ * fold them into effective maxima at read time.
+ *
+ * NB: kept here (the dependency-free leaf module) so both statusEngine and
+ * tension can consume it without an import cycle.
+ *
+ * @param {object} ch - character document
+ * @returns {{ energyMaxMod:number, tensionMaxMod:number }}
+ */
+export function deriveStatusMaxMods(ch) {
+  let energyMaxMod = 0;
+  let tensionMaxMod = 0;
+  for (const inst of ch?.activeStatuses || []) {
+    for (const eff of inst.effects || []) {
+      if (eff.enabled === false) continue;
+      if (eff.type === "energy" && eff.energy?.mode === "max") {
+        energyMaxMod += Number(eff.energy.amount || 0);
+      }
+      if (eff.type === "tension" && eff.tension?.mode === "max") {
+        tensionMaxMod += Number(eff.tension.amount || 0);
+      }
+    }
+  }
+  return { energyMaxMod, tensionMaxMod };
+}
+
+/**
  * Enrich a Firestore patch with derived-value recalculations triggered by the changes.
  * Handles both dot-notation patches (e.g. "attributes.spirit.die": 8)
  * and nested object patches (e.g. attributes: { spirit: { die: 8 } }).

@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { updateCharacterNow } from "../lib/db";
-import { tensionAdjustPatch, tensionClearPatch, tensionSettings } from "../lib/tension";
+import { tensionAdjustPatch, tensionClearPatch, tensionSettings, effectiveEnergyMax } from "../lib/tension";
 
 export default function PartyRow({ ch, campaignId, campaign, onOpen, onRemove }) {
   const [modal, setModal] = useState(null); // 'xp' | 'money' | null
@@ -10,8 +10,8 @@ export default function PartyRow({ ch, campaignId, campaign, onOpen, onRemove })
   const physFilled = ch.health?.physical?.value ?? 0;
   const mentFilled = ch.health?.mental?.value ?? 0;
   const energyCur = ch.energy?.value ?? 0;
-  const penalty = ch.tension?.energyPenalty ?? 0;
-  const energyMax = Math.max(0, (ch.energy?.max ?? 0) - penalty);
+  // Effective max = base − tension penalty + status energy.mode=max modifiers (B-53).
+  const energyMax = effectiveEnergyMax(ch);
   const tension = ch.tension?.current ?? 0;
   const overcap = ch.tension?.overcap ?? 0;
   const tensionMax = ch.tension?.max ?? 0;

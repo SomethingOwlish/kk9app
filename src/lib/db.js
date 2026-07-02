@@ -16,6 +16,7 @@ import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
 import { derivePhysicalToughness, deriveEnergyMax, deriveTensionMax } from "./derive";
 import { tickStatuses } from "./statusEngine";
+import { tensionSettings } from "./tension";
 
 // Навык по имени — для подтягивания attr/categ при добавлении.
 const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
@@ -529,17 +530,28 @@ export async function seedStatuses(campaignId, statusesData) {
 }
 
 // Applies a status instance to character.activeStatuses[].
-// Instance includes: { _uid, definitionId, name, durationMode, durationRemaining, effects[], source }
+// Instance includes: { _uid, definitionId, name, status_types, apply_stun,
+//   durationMode, durationRemaining, effects[], progresses, progress_every,
+//   progress_into_names, progressCount, tickCount, source }
 export async function applyStatus(campaignId, charId, instance) {
   const ref = doc(db, "campaigns", campaignId, "characters", charId);
-  await updateDoc(ref, { activeStatuses: arrayUnion(instance) });
+  const patch = { activeStatuses: arrayUnion(instance) };
+  if (instance.apply_stun) patch.is_stunned = true; // B-53: apply_stun → stun
+  await updateDoc(ref, patch);
 }
 
 // Removes a specific status instance from character.activeStatuses[].
 // Must pass the exact same object that was stored (arrayRemove uses deep equality).
-export async function removeStatus(campaignId, charId, instance) {
+// Pass activeStatuses to recompute is_stunned (stun drops when the last apply_stun
+// status leaves). Omit it to leave is_stunned untouched (back-compat).
+export async function removeStatus(campaignId, charId, instance, activeStatuses = null) {
   const ref = doc(db, "campaigns", campaignId, "characters", charId);
-  await updateDoc(ref, { activeStatuses: arrayRemove(instance) });
+  const patch = { activeStatuses: arrayRemove(instance) };
+  if (Array.isArray(activeStatuses)) {
+    // Stun holds while any OTHER apply_stun status remains on the character.
+    patch.is_stunned = activeStatuses.some((s) => s.apply_stun && s._uid !== instance._uid);
+  }
+  await updateDoc(ref, patch);
 }
 
 // Returns summed numeric roll modifier for a given attribute/context from all active statuses.
@@ -716,8 +728,12 @@ export function watchRolls(campaignId, cb, n = 50) {
 // patch to avoid races, then writes the roll-log entry.
 //   outcome: result of computeTensionOutcome (or null)
 //   exhaustionInstance: status instance to add when outcome.addExhaustion
-export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, rollData, charPatch }) {
-  const tickPatch = tickStatuses(ch) || {};
+export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, rollData, charPatch, campaignStatuses, campaign }) {
+  const tickPatch = tickStatuses(ch, {
+    campaignStatuses: campaignStatuses || [],
+    settings: tensionSettings(campaign),
+    chargesPerTrigger: campaign?.statusChargesPerTrigger,
+  }) || {};
   const merged = { ...tickPatch };
 
   if (outcome?.tensionPatch) Object.assign(merged, outcome.tensionPatch);

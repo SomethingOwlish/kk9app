@@ -246,9 +246,9 @@ export default function App({ user, signOut }) {
     const snapshot = characters.find(c => c.id === charId) || activeChar;
     if (!snapshot) return;
     try {
-      await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData, charPatch });
+      await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData, charPatch, campaignStatuses, campaign });
     } catch (e) { alert("Не удалось сохранить бросок: " + (e?.message || e)); }
-  }, [characters, activeChar]);
+  }, [characters, activeChar, campaignStatuses, campaign]);
   const onLinkOrg = useCallback(async (ch, orgId) => {
     try { await linkCharToOrg(CAMPAIGN_ID, ch.id, ch.name || "", orgId, 0); }
     catch (e) { alert("Не удалось привязать организацию: " + (e?.message || e)); }
