@@ -74,8 +74,8 @@ function parseExtra(campaign) {
 
 function parseRewind(campaign) {
   return {
-    idleExpPerDay:        campaign?.idleExpPerDay        ?? 5,
-    graduateDailyExpense: campaign?.graduateDailyExpense ?? 0,
+    idleExpPerDay:        campaign?.idleExpPerDay        ?? 0.5,
+    graduateDailyExpense: campaign?.graduateDailyExpense ?? 10,
     salaryByGrade:        campaign?.salaryByGrade        ?? {},
     semesterBreak1:       campaign?.semesterBreak1       ?? "",
     semesterBreak2:       campaign?.semesterBreak2       ?? "",
@@ -327,7 +327,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
           {[1, 2, 3, 4].map(grade => (
             <SettingsField
               key={grade}
-              label={`Стипендия ${grade} курс (₴/день)`}
+              label={`Стипендия ${grade} курс (₴/месяц)`}
               value={rw.salaryByGrade[grade] ?? 0}
               onChange={e => setRw(p => ({
                 ...p,

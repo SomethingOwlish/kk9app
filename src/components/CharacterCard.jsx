@@ -318,7 +318,13 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
 
       {/* 6 — Стойкость / инициатива / энергия / жетоны */}
       <section className="kk-strip">
-        <Stat label="Стойкость" value={toughness} tip="2 + ⌊Дух/2⌋. Считается автоматически." accent="var(--kk-gold)"/>
+        <div className="kk-stat kk-stat-tough">
+          <Stat label="Стойкость" value={toughness} tip="2 + ⌊Дух/2⌋. Считается автоматически. Бросок стойкости — по Духу." accent="var(--kk-gold)"/>
+          {showRoll && (
+            <button className="kk-roll-btn" title="Бросок стойкости (Дух)"
+              onClick={() => setRollTarget({ kind: "toughness", name: "Стойкость", die: ch.attributes.spirit.die, modifier: ch.attributes.spirit.modifier, attribute: "spirit", isToughness: true })}><DiceIcon/></button>
+          )}
+        </div>
         <div className="kk-stat kk-stat-wide">
           <Tip text="Пул инициативы: Ловкость + Смекалка + Wild Die d6, 2 лучших. Бросок — вне карточки.">
             <span className="kk-stat-label kk-dotted">Инициатива</span>
@@ -491,6 +497,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
 
       {rollTarget && (
         <RollDialog
+          key={`${rollTarget.kind}:${rollTarget.name}`}
           ch={ch}
           target={rollTarget}
           campaign={campaign}

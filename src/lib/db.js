@@ -431,24 +431,154 @@ export async function addMoney(campaignId, charId, amount) {
   await updateDoc(ref, { money: (snap.data().money ?? 0) + amount });
 }
 
-// ── Time Rewind (B-12) ───────────────────────────────────────
-// Computes per-character proposals for N idle days.
-export function buildTimeRewindProposals(partyMembers, days, campaign) {
-  return partyMembers.map((ch) => {
-    const idleXp = Math.round((campaign.idleExpPerDay ?? 5) * days);
-    const salary = campaign.salaryByGrade?.[ch.academyYear] ?? 0;
-    const graduateExpense = Math.round((campaign.graduateDailyExpense ?? 0) * days);
-    const moneyDelta = salary - graduateExpense;
-    const tensionReduction = Math.min(ch.tension?.current ?? 0, days);
+// ── Time Rewind (B-56, Foundry parity) ───────────────────────
+// Ported from docs/OldCode/kk9/module/gm-board.mjs (_calcProposed +
+// _calcNewSemesterAndGrade). Sleep coefficient k=0.8 → sleeps = floor(days*k).
+const REWIND_SLEEP_K = 0.8;
+const REWIND_DEFAULT_IDLE_XP = 0.5;
+const REWIND_DEFAULT_GRADUATE_EXPENSE = 10;
+
+// Whole days between two "YYYY-MM-DD" strings (never negative).
+export function rewindDaysBetween(from, to) {
+  if (!from || !to) return 0;
+  const a = new Date(from);
+  const b = new Date(to);
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 0;
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+// Semester/grade recompute across all break dates strictly after `from` and
+// ≤ `to`. Ported verbatim from _calcNewSemesterAndGrade. Both dates are
+// "YYYY-MM-DD" strings. semesterBreak1 → sem 1→2; semesterBreak2 → sem 2→1
+// AND grade++ (unless "graduate"). Returns null if no crossing.
+export function computeSemesterAndGrade(fromStr, toStr, curSemester, curGrade, campaign) {
+  const b1 = campaign?.semesterBreak1 || "06-01";
+  const b2 = campaign?.semesterBreak2 || "12-01";
+  const from = new Date(fromStr);
+  const to = new Date(toStr);
+  if (isNaN(from.getTime()) || isNaN(to.getTime())) return null;
+  const [m1, d1] = b1.split("-").map(Number);
+  const [m2, d2] = b2.split("-").map(Number);
+  if ([m1, d1, m2, d2].some((n) => !Number.isFinite(n))) return null;
+
+  const crossings = [];
+  for (let y = from.getFullYear(); y <= to.getFullYear(); y++) {
+    const brk1 = new Date(y, m1 - 1, d1);
+    if (brk1 > from && brk1 <= to) crossings.push({ date: brk1, type: "b1" });
+    const brk2 = new Date(y, m2 - 1, d2);
+    if (brk2 > from && brk2 <= to) crossings.push({ date: brk2, type: "b2" });
+  }
+  crossings.sort((x, y) => x.date - y.date);
+
+  let sem = curSemester ?? 1;
+  let grade = curGrade ?? null;
+  for (const { type } of crossings) {
+    if (type === "b1") {
+      sem = 2;
+    } else {
+      sem = 1;
+      if (grade !== null && grade !== "graduate") {
+        const n = parseInt(grade, 10);
+        if (!isNaN(n)) grade = String(n + 1);
+      }
+    }
+  }
+  return crossings.length > 0 ? { semester: sem, grade } : null;
+}
+
+// Device charge restorations for one character. A device is restored to its
+// `maxCharges` when it has a finite max (>= 0) and current `charges` is below it.
+// NOTE: this app's device schema stores only `charges` (with -1 = infinite);
+// `maxCharges`/`max_charges` are optional. Items missing a max are skipped
+// (there is no known full value). Returns [{ itemId, name, from, toCharges }].
+export async function fetchDeviceRestorations(campaignId, charId) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "items"),
+    where("ownerCharacterId", "==", charId),
+  );
+  const snap = await getDocs(q);
+  const out = [];
+  snap.docs.forEach((d) => {
+    const it = d.data();
+    if (it.type !== "device") return;
+    const max = it.maxCharges ?? it.max_charges;
+    if (max == null || max < 0) return;      // infinite / unknown → skip
+    const cur = it.charges ?? max;
+    if (cur >= max) return;                   // already full
+    out.push({ itemId: d.id, name: it.name || "устройство", from: cur, toCharges: max });
+  });
+  return out;
+}
+
+// Computes per-character proposals for N idle days at Foundry fidelity.
+// Every numeric field is a proposed ABSOLUTE value the GM may edit before apply
+// (except xp/money which are deltas — accumulated, not clamped).
+// `campaign` provides settings; `currentGameDate`/`targetDate` drive semester math.
+export function buildTimeRewindProposals(chars, days, campaign, currentGameDate, targetDate) {
+  const k = REWIND_SLEEP_K;
+  const sleeps = Math.floor(days * k);
+  const idleExpPerDay = campaign?.idleExpPerDay ?? REWIND_DEFAULT_IDLE_XP;
+  const graduateExpense = campaign?.graduateDailyExpense ?? REWIND_DEFAULT_GRADUATE_EXPENSE;
+  const salaryMap = campaign?.salaryByGrade || {};
+
+  return chars.map((ch) => {
+    const step = ch.type === "npc-light" ? 2 : 1;
+    const physCur = ch.health?.physical?.value ?? 0;
+    const mentCur = ch.health?.mental?.value ?? 0;
+    const energyCur = ch.energy?.value ?? 0;
+    const energyMax = ch.energy?.max ?? 0;
+    const tensionCur = ch.tension?.current ?? 0;
+
+    const xpDelta = Math.floor(days * idleExpPerDay);
+
+    // Money: graduate spends; enrolled with a monthly stipend earns; else unchanged.
+    const grade = ch.academyYear ?? null;
+    const money = ch.money ?? 0;
+    let moneyTo = money;
+    let moneyDelta = 0;
+    if (grade === "graduate") {
+      moneyTo = Math.max(0, money - Math.floor(days * graduateExpense));
+      moneyDelta = moneyTo - money;
+    } else if (grade != null && salaryMap[grade] !== undefined) {
+      moneyTo = money + Math.floor(days * ((salaryMap[grade] || 0) / 30));
+      moneyDelta = moneyTo - money;
+    }
+
+    // Semester/grade crossing (may be null → no change).
+    const semCalc = computeSemesterAndGrade(
+      currentGameDate, targetDate, ch.semester ?? 1, grade, campaign,
+    );
+
+    // Relations (companions) — editable proposed levels, default = current.
+    const relations = Array.isArray(ch.relations) ? ch.relations : [];
+    const companionLevels = relations.map((r) => ({
+      id: r.id, name: r.name || "—", from: r.level ?? 0, to: r.level ?? 0,
+    }));
+
+    // Contacts — editable proposed levels, default = current.
+    const contacts = Array.isArray(ch.refs?.contacts) ? ch.refs.contacts : [];
+    const contactLevels = contacts.map((c) => ({
+      orgId: c.orgId, from: c.level ?? 0, to: c.level ?? 0,
+    }));
+
     return {
       charId: ch.id,
       name: ch.name || "—",
-      xpDelta: idleXp,
+      isExtra: false,
+      xpDelta,
       moneyDelta,
-      energyTo: ch.energy?.max ?? 0,
-      healthPhysTo: 0,
-      healthMentTo: 0,
-      tensionDelta: -tensionReduction,
+      moneyTo,
+      energyTo: Math.min(energyMax, energyCur + sleeps * 8),
+      healthPhysTo: Math.max(0, physCur - sleeps * step),
+      healthMentTo: Math.max(0, mentCur - sleeps * step),
+      tensionTo: Math.max(0, tensionCur - sleeps),
+      semesterTo: semCalc ? semCalc.semester : (ch.semester ?? 1),
+      academyYearTo: semCalc ? (semCalc.grade ?? grade) : grade,
+      semesterChanged: !!semCalc,
+      restoreDevices: true,      // toggle for device recharge
+      deviceRestorations: [],    // filled async by the dialog
+      companionLevels,
+      contactLevels,
     };
   });
 }
@@ -462,45 +592,112 @@ function _advanceDate(gameDate, days) {
 }
 
 // Applies time rewind independently per character (D-20: partial failure OK).
-// Returns array of { charId, ok, error }.
+// Returns array of { charId, ok, error, applied }. `applied` echoes what was
+// written so the caller can build an accurate journal summary.
 // targetDate: explicit new game date string (YYYY-MM-DD); takes precedence over
-// computing it from currentGameDate+days, which avoids rounding/timezone issues.
-export async function applyTimeRewind(campaignId, proposals, days, currentGameDate, targetDate) {
+// computing it from currentGameDate+days.
+export async function applyTimeRewind(campaignId, proposals, days, currentGameDate, targetDate, weather) {
   const results = await Promise.allSettled(
-    proposals.map(({ charId, xpDelta, moneyDelta, energyTo, healthPhysTo, healthMentTo, tensionDelta }) => {
-      const ref = doc(db, "campaigns", campaignId, "characters", charId);
-      return getDoc(ref).then((snap) => {
-        if (!snap.exists()) throw new Error("not found");
-        const ch = snap.data();
-        // Tick counter-duration statuses: decrement durationRemaining, remove at 0.
-        const statuses = ch.activeStatuses || [];
-        const tickedStatuses = statuses
-          .map(s => s.durationMode === "counter" && s.durationRemaining != null
-            ? { ...s, durationRemaining: s.durationRemaining - 1 }
-            : s)
-          .filter(s => !(s.durationMode === "counter" && (s.durationRemaining ?? 1) <= 0));
-
-        return updateDoc(ref, {
-          experience: (ch.experience ?? 0) + xpDelta,
-          money: (ch.money ?? 0) + moneyDelta,
-          "energy.value": energyTo,
-          "health.physical.value": healthPhysTo,
-          "health.mental.value": healthMentTo,
-          "tension.current": Math.max(0, (ch.tension?.current ?? 0) + tensionDelta),
-          activeStatuses: tickedStatuses,
-        });
-      });
-    })
+    proposals.map((p) => _applyRewindToChar(campaignId, p)),
   );
+
+  const campaignPatch = {};
   const newDate = targetDate || _advanceDate(currentGameDate, days);
-  if (newDate) {
-    await updateDoc(doc(db, "campaigns", campaignId), { gameDate: newDate });
+  if (newDate) campaignPatch.gameDate = newDate;
+  if (weather !== undefined) campaignPatch.weather = weather;
+  if (Object.keys(campaignPatch).length) {
+    await updateDoc(doc(db, "campaigns", campaignId), campaignPatch);
   }
+
   return proposals.map((p, i) => ({
     charId: p.charId,
+    name: p.name,
     ok: results[i].status === "fulfilled",
     error: results[i].reason?.message,
+    applied: results[i].status === "fulfilled" ? results[i].value : null,
   }));
+}
+
+// Writes one character's rewind. Returns an `applied` summary object.
+async function _applyRewindToChar(campaignId, p) {
+  const ref = doc(db, "campaigns", campaignId, "characters", p.charId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("персонаж не найден");
+  const ch = snap.data();
+
+  // Statuses: tick counter-duration (decrement/remove at 0) AND drop charge-mode.
+  const statuses = ch.activeStatuses || [];
+  const nextStatuses = statuses
+    .filter((s) => s.durationMode !== "charges" && s.duration?.mode !== "charges")
+    .map((s) => (s.durationMode === "counter" && s.durationRemaining != null
+      ? { ...s, durationRemaining: s.durationRemaining - 1 }
+      : s))
+    .filter((s) => !(s.durationMode === "counter" && (s.durationRemaining ?? 1) <= 0));
+
+  const patch = {
+    experience: (ch.experience ?? 0) + (p.xpDelta ?? 0),
+    money: (ch.money ?? 0) + (p.moneyDelta ?? 0),
+    "energy.value": p.energyTo,
+    "health.physical.value": p.healthPhysTo,
+    "health.mental.value": p.healthMentTo,
+    "tension.current": p.tensionTo,
+    activeStatuses: nextStatuses,
+  };
+  if (p.semesterTo != null) patch.semester = p.semesterTo;
+  if (p.academyYearTo != null) patch.academyYear = p.academyYearTo;
+
+  // Companion (relation) levels: overwrite matching entries by id.
+  const companionEdits = (p.companionLevels || []).filter((c) => c.to !== c.from);
+  if (companionEdits.length && Array.isArray(ch.relations)) {
+    const byId = new Map(companionEdits.map((c) => [c.id, c.to]));
+    patch.relations = ch.relations.map((r) =>
+      byId.has(r.id) ? { ...r, level: byId.get(r.id) } : r);
+  }
+
+  // Contact levels (char side): overwrite matching entries by orgId.
+  const contactEdits = (p.contactLevels || []).filter((c) => c.to !== c.from);
+  if (contactEdits.length && Array.isArray(ch.refs?.contacts)) {
+    const byOrg = new Map(contactEdits.map((c) => [c.orgId, c.to]));
+    patch["refs.contacts"] = ch.refs.contacts.map((c) =>
+      byOrg.has(c.orgId) ? { ...c, level: byOrg.get(c.orgId) } : c);
+  }
+
+  await updateDoc(ref, patch);
+
+  // Device recharges — one write per device item.
+  const deviceEdits = p.restoreDevices ? (p.deviceRestorations || []) : [];
+  await Promise.allSettled(deviceEdits.map((d) =>
+    updateDoc(doc(db, "campaigns", campaignId, "items", d.itemId), { charges: d.toCharges })));
+
+  // Contact org-side mirror (organizations/{orgId}.actorRefs[].level).
+  await Promise.allSettled(contactEdits.map((c) =>
+    _mirrorContactLevelToOrg(campaignId, p.charId, c.orgId, c.to)));
+
+  return {
+    xpDelta: p.xpDelta ?? 0,
+    moneyDelta: p.moneyDelta ?? 0,
+    healthPhysTo: p.healthPhysTo,
+    healthMentTo: p.healthMentTo,
+    energyTo: p.energyTo,
+    tensionTo: p.tensionTo,
+    semesterTo: patch.semester,
+    academyYearTo: patch.academyYear,
+    semesterChanged: p.semesterChanged,
+    devices: deviceEdits.map((d) => d.name),
+    companions: companionEdits,
+    contacts: contactEdits,
+  };
+}
+
+// Best-effort org-side update of a contact level (mirrors setCharOrgLevel's org half).
+async function _mirrorContactLevelToOrg(campaignId, charId, orgId, level) {
+  if (!orgId) return;
+  const orgRef = doc(db, "campaigns", campaignId, "organizations", orgId);
+  const orgSnap = await getDoc(orgRef);
+  if (!orgSnap.exists()) return;
+  const actorRefs = orgSnap.data().actorRefs || [];
+  const next = actorRefs.map((a) => (a.charId === charId ? { ...a, level } : a));
+  await updateDoc(orgRef, { actorRefs: next });
 }
 
 // ── Journal (B-13) ───────────────────────────────────────────
@@ -801,6 +998,26 @@ export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaus
   if (Object.keys(merged).length > 0) {
     await updateCharacterNow(campaignId, charId, merged);
   }
+  if (rollData) await addRollEntry(campaignId, rollData);
+}
+
+// Reroll (B-57, жетон судьбы / «Долг судьбы»): spends one bennie, appends the
+// fate-debt status, and logs the replayed roll. NO status tick and NO tension —
+// the original roll already consumed those (Foundry: no status-charge recharge).
+// The player self-decrements their own bennies (rules allow decrease-only, so no
+// GM approval is needed — unlike sells).
+export async function applyReroll(campaignId, charId, { rollData, fateDebtInstance }) {
+  const ref = doc(db, "campaigns", campaignId, "characters", charId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("not found");
+  const ch = snap.data();
+  const bennies = ch.bennies ?? 0;
+  if (bennies < 1) throw new Error("Нет жетонов судьбы");
+  const statuses = ch.activeStatuses || [];
+  await updateDoc(ref, {
+    bennies: Math.max(0, bennies - 1),
+    activeStatuses: fateDebtInstance ? [...statuses, fateDebtInstance] : statuses,
+  });
   if (rollData) await addRollEntry(campaignId, rollData);
 }
 
