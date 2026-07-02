@@ -31,7 +31,7 @@ export default function DeviceItem({ item, isGM, onDelete, onEdit, onUpdateCharg
         )}
         {item.charges !== undefined && item.charges !== null && (
           <span className="kk-item-stat kk-device-charges">
-            {item.charges === -1 ? "∞ зарядов" : `Заряды: ${item.charges}`}
+            {item.charges === -1 ? "∞ зарядов" : `Заряды: ${item.charges}${item.maxCharges > 0 ? ` / ${item.maxCharges}` : ""}`}
             {onUpdateCharges && item.charges !== -1 && (
               <>
                 <button className="kk-charge-btn" onClick={() => onUpdateCharges(item.charges - 1)} disabled={item.charges <= 0}>−</button>

@@ -66,7 +66,7 @@ function extraDiceFromRm(rm) {
  *   extraDiceList — [{ faces, mode }] к броску (см. rollExtraDiceList).
  *   sources — вклады { label, kind, numericMod, dieSteps, extraCount, successMod }.
  */
-export function collectRollModifiers(ch, ctx = {}, items = []) {
+export function collectRollModifiers(ch, ctx = {}, items = [], opts = {}) {
   let numericMod = 0, dieSteps = 0, successMod = 0;
   const extraDiceList = [];
   const sources = [];
@@ -106,17 +106,22 @@ export function collectRollModifiers(ch, ctx = {}, items = []) {
     }
   }
 
-  // 2 — черты персонажа (imена полей совпадают со статусом)
-  for (const feat of ch?.features || []) {
-    const rm = feat?.modifier;
-    if (!rm || typeof rm !== "object") continue;
-    if (!modifierHits(rm, ctx, tKey)) continue;
-    add(feat.name || "Черта", "feature", {
-      numericMod: rm.modifier ?? 0,
-      dieSteps: rm.die_change ?? 0,
-      successMod: rm.success_modifier ?? 0,
-      extra: extraDiceFromRm(rm),
-    });
+  // 2 — черты персонажа (imена полей совпадают со статусом).
+  // Пре-ролл (B-57): черты — выбираемые. По умолчанию collectRollModifiers их
+  // включает (обратная совместимость); RollDialog передаёт opts.skipFeatures и
+  // добавляет только отмеченные галочками через collectApplicableFeatures.
+  if (!opts.skipFeatures) {
+    for (const feat of ch?.features || []) {
+      const rm = feat?.modifier;
+      if (!rm || typeof rm !== "object") continue;
+      if (!modifierHits(rm, ctx, tKey)) continue;
+      add(feat.name || "Черта", "feature", {
+        numericMod: rm.modifier ?? 0,
+        dieSteps: rm.die_change ?? 0,
+        successMod: rm.success_modifier ?? 0,
+        extra: extraDiceFromRm(rm),
+      });
+    }
   }
 
   // 3 — активные артефакты (бонусы к атрибуту/навыку; с учётом состояния — B-54)
@@ -135,6 +140,39 @@ export function collectRollModifiers(ch, ctx = {}, items = []) {
   }
 
   return { numericMod, dieSteps, extraDiceList, successMod, sources };
+}
+
+/**
+ * Пре-ролл (B-57): применимые к текущему броску черты персонажа — для
+ * чек-боксов в диалоге броска. Фильтр тот же, что и в collectRollModifiers
+ * (modifierHits), но каждая черта отдаётся отдельно, чтобы игрок мог выбрать,
+ * какие применить (порт preroll.mjs `_isApplicable` + список черт).
+ *
+ * @param {object} ch  — персонаж
+ * @param {object} ctx — { attribute, skillName, itemType, isToughness }
+ * @returns {Array<{ id, name, isWeakness, numericMod, dieSteps, successMod, extra }>}
+ */
+export function collectApplicableFeatures(ch, ctx = {}) {
+  const tKey = attrTargetKey[ctx.attribute];
+  const out = [];
+  const feats = ch?.features || [];
+  feats.forEach((feat, i) => {
+    const rm = feat?.modifier;
+    if (!rm || typeof rm !== "object") return;
+    if (!modifierHits(rm, ctx, tKey)) return;
+    const numericMod = rm.modifier ?? 0;
+    const dieSteps = rm.die_change ?? 0;
+    const successMod = rm.success_modifier ?? 0;
+    const extra = extraDiceFromRm(rm);
+    if (!numericMod && !dieSteps && !successMod && extra.length === 0) return;
+    out.push({
+      id: feat.id || `${feat.name || "feat"}#${i}`,
+      name: feat.name || "Черта",
+      isWeakness: !!feat.is_weakness,
+      numericMod, dieSteps, successMod, extra,
+    });
+  });
+  return out;
 }
 
 // Коэффициент состояния предмета для бонусов (B-54 groundwork):

@@ -161,6 +161,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
       <TimeRewindDialog
         campaign={campaign}
         partyMembers={partyMembers}
+        extraActors={nonParty}
         onClose={() => setRewindOpen(false)}
       />
     )}

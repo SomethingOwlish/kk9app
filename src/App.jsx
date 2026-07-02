@@ -8,7 +8,7 @@ import {
   watchItemsByOwner, watchAllItems, createItem, deleteItem, updateItem,
   assignItem, unassignItem, addLanguageToChar, saveBioFields,
   watchOrganizations, createOrganization, updateOrganization, deleteOrganization,
-  linkCharToOrg, unlinkCharToOrg, setCharOrgLevel, applyRollOutcome,
+  linkCharToOrg, unlinkCharToOrg, setCharOrgLevel, applyRollOutcome, applyReroll,
   watchShopList, createShop, updateShop, deleteShop,
   purchaseStackable, purchaseUnique, requestSell, watchSellRequests, approveSell, rejectSell,
   watchLibrary, createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, seedLibrary,
@@ -242,11 +242,15 @@ export default function App({ user, signOut }) {
     await addLanguageToChar(CAMPAIGN_ID, charId, entry);
   }, []);
   // Persist a roll: merged status-tick + tension patch, then roll-log entry.
-  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance, charPatch }) => {
+  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance, charPatch, reroll, fateDebtInstance }) => {
     const snapshot = characters.find(c => c.id === charId) || activeChar;
     if (!snapshot) return;
     try {
-      await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData, charPatch, campaignStatuses, campaign });
+      if (reroll) {
+        await applyReroll(CAMPAIGN_ID, charId, { rollData, fateDebtInstance });
+      } else {
+        await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData, charPatch, campaignStatuses, campaign });
+      }
     } catch (e) { alert("Не удалось сохранить бросок: " + (e?.message || e)); }
   }, [characters, activeChar, campaignStatuses, campaign]);
   const onLinkOrg = useCallback(async (ch, orgId) => {
