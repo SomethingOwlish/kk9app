@@ -411,6 +411,92 @@
 }
 
 /* ── Print media ────────────────────────────────────────────── */
+/* ── Features / statuses / relations / languages (full-card print) ── */
+.pr-feats {
+  display: flex;
+  flex-direction: column;
+  gap: 5pt;
+}
+
+.pr-feat {
+  border-left: 2pt solid var(--pr-gold);
+  padding: 1pt 0 1pt 6pt;
+}
+
+.pr-feat-weak { border-left-color: var(--pr-danger); }
+
+.pr-feat-head {
+  display: flex;
+  align-items: baseline;
+  gap: 5pt;
+  flex-wrap: wrap;
+}
+
+.pr-feat-icon { font-size: 8pt; color: var(--pr-gold); }
+.pr-feat-weak .pr-feat-icon { color: var(--pr-danger); }
+
+.pr-feat-name { font-size: 9.5pt; font-weight: 600; }
+
+.pr-feat-kind {
+  font-size: 7pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pr-text-dim);
+}
+
+.pr-feat-desc {
+  font-size: 8.5pt;
+  line-height: 1.45;
+  margin: 1pt 0 0;
+  color: var(--pr-text);
+}
+
+.pr-feat-restr { font-style: italic; color: var(--pr-text-dim); }
+
+.pr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4pt;
+}
+
+.pr-chip {
+  font-size: 8.5pt;
+  padding: 1.5pt 7pt;
+  border: 1pt solid var(--pr-line);
+  border-radius: 999pt;
+}
+
+.pr-chip-meta { color: var(--pr-text-dim); }
+
+.pr-langs { margin-top: 4pt; }
+
+.pr-rels {
+  display: flex;
+  flex-direction: column;
+  gap: 2pt;
+}
+
+.pr-rel {
+  display: flex;
+  align-items: baseline;
+  gap: 6pt;
+  font-size: 9pt;
+  padding: 1pt 0;
+}
+
+.pr-rel-name { font-weight: 600; }
+
+.pr-rel-level {
+  font-family: var(--pr-font-d);
+  color: var(--pr-gold);
+  font-size: 8.5pt;
+}
+
+.pr-rel-tags {
+  font-size: 8pt;
+  color: var(--pr-text-dim);
+}
+
 @media print {
   @page {
     size: A4 portrait;

@@ -38,6 +38,7 @@ export const MENU = [
   { id: "scene", label: "Сцена" },
   { id: "board", label: "Доска ГМ", gmOnly: true },
   { id: "items", label: "Снаряжение", gmOnly: true },
+  { id: "import", label: "Импорт из Foundry", gmOnly: true },
   { id: "shop", label: "Магазин" },
   { id: "journal", label: "Журнал кампании", on: true },
   { id: "orgs", label: "Организации" },

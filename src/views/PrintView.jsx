@@ -65,6 +65,8 @@ const DEMO_FIELDS = [
   ["weaknesses", "Слабости"],
 ];
 
+const FEATURE_KIND_LABEL = { character: "Черта характера", unique: "Уникальная возможность" };
+
 export default function PrintView() {
   const { charId } = useParams();
   const [authUser, setAuthUser] = useState(undefined);
@@ -123,6 +125,11 @@ export default function PrintView() {
   const notesArr = Array.isArray(ch.notes) ? ch.notes : [];
   const notesStr = typeof ch.notes === "string" ? ch.notes : "";
   const hasNotes = notesArr.length > 0 || notesStr.length > 0;
+  // Player-facing fields added for full-card print (tension/overcap stay GM-only per IMP-01).
+  const languages = (Array.isArray(ch.languages) ? ch.languages : []).filter(l => l?.name);
+  const features = Array.isArray(ch.features) ? ch.features : [];
+  const statuses = (Array.isArray(ch.activeStatuses) ? ch.activeStatuses : []).filter(s => s?.name);
+  const relations = (Array.isArray(ch.relations) ? ch.relations : []).filter(r => r?.name);
 
   return (
     <div className="pr-sheet" style={{ "--fac-color": fac.color || "#c8a14e" }}>
@@ -217,7 +224,40 @@ export default function PrintView() {
         ))}
       </section>
 
-      {(demoFields.length > 0 || ch.biography) && (
+      {features.length > 0 && (
+        <section className="pr-section">
+          <h2 className="pr-h2">Черты и возможности</h2>
+          <div className="pr-feats">
+            {features.map((f, i) => (
+              <div className={`pr-feat${f.isWeakness ? " pr-feat-weak" : ""}`} key={i}>
+                <div className="pr-feat-head">
+                  <span className="pr-feat-icon">{f.isWeakness ? "⬇" : "★"}</span>
+                  <span className="pr-feat-name">{f.name}</span>
+                  {f.kind && <span className="pr-feat-kind">{FEATURE_KIND_LABEL[f.kind] || f.kind}</span>}
+                </div>
+                {f.description && <p className="pr-feat-desc">{f.description}</p>}
+                {f.restrictions && <p className="pr-feat-desc pr-feat-restr">{f.restrictions}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {statuses.length > 0 && (
+        <section className="pr-section">
+          <h2 className="pr-h2">Активные статусы</h2>
+          <div className="pr-chips">
+            {statuses.map((s, i) => (
+              <span className="pr-chip" key={i}>
+                {s.name}
+                {s.durationRemaining > 0 && <span className="pr-chip-meta"> · {s.durationRemaining}</span>}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {(demoFields.length > 0 || ch.biography || languages.length > 0) && (
         <section className="pr-section">
           <h2 className="pr-h2">Анкета</h2>
           {demoFields.length > 0 && (
@@ -230,7 +270,28 @@ export default function PrintView() {
               ))}
             </div>
           )}
+          {languages.length > 0 && (
+            <div className="pr-demo-field pr-langs">
+              <span className="pr-demo-label">Языки</span>
+              <span className="pr-demo-val">{languages.map(l => l.name).join(", ")}</span>
+            </div>
+          )}
           {ch.biography && <p className="pr-bio">{ch.biography}</p>}
+        </section>
+      )}
+
+      {relations.length > 0 && (
+        <section className="pr-section">
+          <h2 className="pr-h2">Связи</h2>
+          <div className="pr-rels">
+            {relations.map((r, i) => (
+              <div className="pr-rel" key={i}>
+                <span className="pr-rel-name">{r.name}</span>
+                {typeof r.level === "number" && r.level !== 0 && <span className="pr-rel-level">{r.level > 0 ? `+${r.level}` : r.level}</span>}
+                {Array.isArray(r.tags) && r.tags.length > 0 && <span className="pr-rel-tags">{r.tags.join(", ")}</span>}
+              </div>
+            ))}
+          </div>
         </section>
       )}
 

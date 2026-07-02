@@ -56,6 +56,7 @@ import RollLogView from "./views/RollLogView";
 import ShopView from "./views/ShopView";
 import ShopManager from "./views/ShopManager";
 import LibraryView from "./views/LibraryView";
+import FoundryImportView from "./views/FoundryImportView";
 import PortraitLayer from "./components/PortraitLayer";
 import PortraitDock from "./components/PortraitDock";
 
@@ -119,6 +120,7 @@ export default function App({ user, signOut }) {
     : pathname === "/rolls" ? "rolls"
     : pathname === "/shop" ? "shop"
     : pathname === "/library" ? "library"
+    : pathname === "/import" ? "import"
     : pathname === "/items" ? "items" : "portal";
   const baseRole = campaign?.members?.[user.uid];
   const isAdmin = baseRole === "admin";
@@ -350,6 +352,7 @@ export default function App({ user, signOut }) {
     else if (id === "guide" && role !== "demo") navigate("/guide");
     else if (id === "lk" && campaign?.lk?.projectUrl) window.open(campaign.lk.projectUrl, "_blank", "noopener,noreferrer");
     else if (id === "items" && isGM) navigate("/items");
+    else if (id === "import" && isGM) navigate("/import");
     else if (id === "orgs" && role !== "demo") navigate("/orgs");
     else if (id === "rolls" && role !== "demo") navigate("/rolls");
     else if (id === "shop" && role !== "demo") navigate("/shop");
@@ -367,6 +370,7 @@ export default function App({ user, signOut }) {
     : view === "rolls" ? "rolls"
     : view === "shop" ? "shop"
     : view === "library" ? "library"
+    : view === "import" ? "import"
     : view === "items" ? "items" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
@@ -419,6 +423,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
+        {ready && cl && view === "import" && isGM && <FoundryImportView onOpenChar={openCard} members={campaign?.members || {}}/>}
         {ready && cl && view === "library" && baseRole && role !== "demo" && <LibraryView entries={library} isGM={isGM} onCreate={onCreateLibrary} onUpdate={onUpdateLibrary} onDelete={onDeleteLibrary} onSeed={onSeedLibrary} seedable={Object.keys(LIBRARY_SEED)}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}

@@ -259,3 +259,60 @@
 .kk-lib-attr { display: flex; flex-direction: column; align-items: center; font-size: .72rem; gap: .15rem; }
 .kk-lib-attr select { padding: .15rem .3rem; }
 .kk-lib-del { align-self: flex-start; }
+
+/* ── FEAT-20 (in-app) — импорт из Foundry ─────────────────────────── */
+.kk-import { display: flex; flex-direction: column; gap: 14px; }
+.kk-import-hint { font-size: 13px; color: var(--kk-text-dim); line-height: 1.5; margin: 0; }
+.kk-import-io { display: flex; flex-direction: column; gap: 10px; }
+.kk-import-ta {
+  width: 100%; min-height: 180px; resize: vertical; padding: 11px 13px;
+  border-radius: var(--kk-r-sm); border: 1px solid var(--kk-line);
+  background: var(--kk-stone); color: var(--kk-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5;
+}
+.kk-import-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* базовый .kk-btn без варианта — даём фон, чтобы «Разобрать» был виден */
+.kk-import-actions .kk-btn:not(.ghost):not(.primary):not(.danger) {
+  background: var(--kk-surface-2); border: 1px solid var(--kk-line); color: var(--kk-text);
+}
+.kk-import-actions .kk-btn:not(.ghost):not(.primary):not(.danger):hover:not(:disabled) { border-color: var(--kk-gold); }
+.kk-import-actions .kk-btn:disabled { opacity: .45; cursor: default; }
+.kk-import-error {
+  padding: 10px 13px; border-radius: var(--kk-r-sm);
+  border: 1px solid var(--kk-danger-dim); background: rgba(189,90,58,.12);
+  color: var(--kk-danger); font-size: 13px; white-space: pre-wrap;
+}
+.kk-import-preview {
+  display: flex; flex-direction: column; gap: 13px;
+  padding: 15px; border-radius: var(--kk-r); border: 1px solid var(--kk-line-soft); background: var(--kk-bg-2);
+}
+.kk-import-name { font-family: var(--kk-font-d); font-size: 21px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kk-import-preview .kk-fac-badge {
+  font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+  background: var(--kk-surface-2); border: 1px solid var(--kk-line); color: var(--kk-text-dim);
+}
+.kk-import-meta { font-size: 13px; color: var(--kk-text-dim); margin-top: -6px; }
+.kk-import-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.kk-import-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 9px 6px; border-radius: var(--kk-r-sm); background: var(--kk-stone); border: 1px solid var(--kk-line-soft);
+}
+.kk-import-stat.zero { opacity: .45; }
+.kk-import-stat-n { font-size: 20px; font-weight: 700; color: var(--kk-gold); }
+.kk-import-stat-l { font-size: 11px; color: var(--kk-text-dim); text-align: center; }
+.kk-import-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.kk-import-chip {
+  font-size: 12px; padding: 4px 10px; border-radius: 999px;
+  background: var(--kk-stone); border: 1px solid var(--kk-line-soft); color: var(--kk-text-dim);
+}
+.kk-import-owner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.kk-import-owner label { color: var(--kk-text-dim); }
+.kk-import-owner select {
+  padding: 7px 10px; border-radius: var(--kk-r-sm); border: 1px solid var(--kk-line);
+  background: var(--kk-stone); color: var(--kk-text); font-family: inherit; font-size: 13px;
+}
+.kk-import-warns { font-size: 12px; }
+.kk-import-warns summary { cursor: pointer; color: var(--kk-text-dim); padding: 4px 0; }
+.kk-import-warns ul { margin: 6px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; color: var(--kk-text-dim); }
+.kk-import-wkind { color: var(--kk-text-faint); }
+.kk-import-preview .kk-btn.primary { align-self: flex-start; }
