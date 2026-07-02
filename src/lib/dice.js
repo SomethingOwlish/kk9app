@@ -119,14 +119,33 @@ export function stepDie(currentDie, steps) {
  * the half-result and success checks. Mirrors Foundry's `new Roll("1d{faces}")` per
  * extra die (non-exploding).
  *
- * NB: the NEW status/feature schema currently only carries a numeric extra-die COUNT
- * (statusEngine `extra_dice`), so faces default to d6 and all extras are additive.
- * Reconciling per-die faces/mode (extra_die_faces/extra_die_mode) is scoped to B-53.
+ * Legacy numeric form — kept for the count-only extra-die shape. New per-die
+ * faces/mode entries go through rollExtraDiceList (B-53).
  */
 export function rollExtraDice(count, faces = 6) {
   let total = 0;
   for (let i = 0; i < count; i++) {
     total += Math.floor(Math.random() * faces) + 1;
+  }
+  return total;
+}
+
+/**
+ * Roll a list of per-die extra dice and return their signed summed total.
+ * Each entry: { faces, mode } where mode is "add" (default) or "subtract".
+ * Mirrors Foundry `collectStatusModifiers` extra_die handling (extra_die_faces,
+ * extra_die_mode). Non-exploding, added into the total before the half/success
+ * checks. B-53 reconciles the extra_die_* schema with the roll pipeline.
+ *
+ * @param {Array<{faces:number, mode?:string}>} list
+ * @returns {number} signed total (positive for add, negative for subtract)
+ */
+export function rollExtraDiceList(list = []) {
+  let total = 0;
+  for (const ed of list) {
+    const faces = ed?.faces || 6;
+    const sign = ed?.mode === "subtract" ? -1 : 1;
+    total += sign * (Math.floor(Math.random() * faces) + 1);
   }
   return total;
 }

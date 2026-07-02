@@ -11,6 +11,7 @@
 import {
   TENSION_ABILITIES, TENSION_HEAVY, TENSION_RESTORE,
 } from "./dice";
+import { deriveStatusMaxMods } from "./derive";
 
 export const MENTAL_EXHAUSTION = "Ментальное истощение";
 
@@ -52,13 +53,20 @@ function hasExhaustionStatus(ch) {
   return (ch?.activeStatuses || []).some((s) => s.name === MENTAL_EXHAUSTION);
 }
 
+// Эффективный максимум напряжения с учётом статус-модификаторов (tension.mode=max).
+export function effectiveTensionMax(ch) {
+  const raw = ch?.tension?.max ?? 0;
+  return Math.max(0, raw + deriveStatusMaxMods(ch).tensionMaxMod);
+}
+
 // Зона напряжения: green | yellow | red | exhausted.
 export function getTensionZone(ch, settings = TENSION_DEFAULTS) {
   const t = ch?.tension;
   if (!t) return "none";
+  const max = effectiveTensionMax(ch);
   if ((t.overcap ?? 0) >= settings.overcapLimit) return "exhausted";
-  if ((t.current ?? 0) >= (t.max ?? 0)) return "red";
-  if ((t.current ?? 0) >= Math.floor((t.max ?? 0) * 0.5)) return "yellow";
+  if ((t.current ?? 0) >= max) return "red";
+  if ((t.current ?? 0) >= Math.floor(max * 0.5)) return "yellow";
   return "green";
 }
 
@@ -105,8 +113,9 @@ function applyIncrease(t, amount, settings) {
  *   { triggered, restore, d100, increment, tensionPatch, addExhaustion, removeExhaustion, zoneBefore, zoneAfter }
  */
 export function computeTensionOutcome(ch, abilityName, mainRoll, settings = TENSION_DEFAULTS) {
-  const t = ch?.tension;
-  if (!t) return null;
+  if (!ch?.tension) return null;
+  // Work against the effective max (folds tension.mode=max status modifiers).
+  const t = { ...ch.tension, max: effectiveTensionMax(ch) };
 
   const zoneBefore = getTensionZone(ch, settings);
 
@@ -201,8 +210,9 @@ function tensionToPatch(state) {
   };
 }
 
-// Эффективный максимум энергии с учётом штрафа напряжения.
+// Эффективный максимум энергии: база − штраф напряжения + статус-моды (energy.mode=max).
 export function effectiveEnergyMax(ch) {
   const raw = ch?.energy?.max ?? 0;
-  return Math.max(0, raw - (ch?.tension?.energyPenalty ?? 0));
+  const statusMod = deriveStatusMaxMods(ch).energyMaxMod;
+  return Math.max(0, raw - (ch?.tension?.energyPenalty ?? 0) + statusMod);
 }

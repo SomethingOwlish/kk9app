@@ -1,4 +1,4 @@
-import { deriveEnergyMax } from "../lib/derive";
+import { deriveEnergyMax, deriveStatusMaxMods } from "../lib/derive";
 
 // FEAT-18 — condensed, read-only party member card for the landing page.
 // Health pip max mirrors HealthTrack's attr-die scaling. Tension is NOT shown
@@ -16,7 +16,8 @@ function healthMax(die) {
 export default function PartyCard({ ch, onOpen }) {
   const fac = ch.faculty || {};
   const color = fac.color || "#c8a14e";
-  const energyMax = ch.energy?.max ?? deriveEnergyMax(ch);
+  // Raw max + status energy.mode=max mods; tension penalty stays hidden here (IMP-01).
+  const energyMax = Math.max(0, (ch.energy?.max ?? deriveEnergyMax(ch)) + deriveStatusMaxMods(ch).energyMaxMod);
   const energyVal = ch.energy?.value ?? 0;
   const energyPct = energyMax > 0 ? Math.max(0, Math.min(100, (energyVal / energyMax) * 100)) : 0;
   const physMax = healthMax(ch.attributes?.endurance?.die ?? 4);

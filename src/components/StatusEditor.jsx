@@ -32,9 +32,18 @@ export default function StatusEditor({ campaignStatuses = [], activeStatuses = [
       _uid: uid(),
       definitionId: selected.id,
       name: selected.name,
+      // Carried from the definition so the tick engine can categorise, progress,
+      // and stun (previously dropped → tick never fired for GM-applied statuses).
+      status_types: selected.status_types || [],
+      apply_stun: selected.apply_stun ?? false,
       durationMode: dur.mode || "time",
       durationRemaining,
       effects: selected.effects || [],
+      progresses: selected.progresses ?? false,
+      progress_every: selected.progress_every ?? 1,
+      progress_into_names: selected.progress_into_names || [],
+      progressCount: 0,
+      tickCount: 0,
       source: "gm",
     };
     onApply(instance);

@@ -170,7 +170,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         <StatusBar
           statuses={activeStatuses}
           isGM={isGM}
-          onRemove={(s) => campaignId && removeStatus(campaignId, ch.id, s).catch(console.error)}
+          onRemove={(s) => campaignId && removeStatus(campaignId, ch.id, s, activeStatuses).catch(console.error)}
           onAdd={() => setStatusEditorOpen(true)}
           onView={(s) => {
             // Resolve to definition if possible (for full effects/description data)
