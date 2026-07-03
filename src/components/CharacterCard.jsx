@@ -433,6 +433,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         contacts={contacts}
         orgs={orgs}
         isGM={isGM}
+        isOwner={isOwner}
         canSetLevel={canEditRelations}
         onLink={(orgId) => onLinkOrg?.(ch, orgId)}
         onUnlink={(orgId) => onUnlinkOrg?.(ch.id, orgId)}

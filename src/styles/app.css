@@ -425,15 +425,25 @@
 .kk-dw-note{font-size:13px;color:var(--kk-text-dim);border-top:1px solid var(--kk-line-soft);padding-top:8px;white-space:pre-wrap;}
 .kk-scene-panel{display:flex;flex-direction:column;}
 .kk-scene-panel--empty{padding:24px;align-items:center;justify-content:center;min-height:120px;display:flex;}
-.kk-scene-thumb{width:100%;aspect-ratio:16/9;overflow:hidden;background:var(--kk-stone);}
-.kk-scene-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
-.kk-scene-title{padding:10px 14px;font-family:var(--kk-font-d);font-size:16px;color:var(--kk-text);}
+/* IMP-13/BUG-05 — landing scene banner; distinct classes so they don't collide
+   with SceneManager's compact .kk-scene-thumb/.kk-scene-title row styles. */
+.kk-scene-banner-thumb{width:100%;aspect-ratio:16/9;overflow:hidden;background:var(--kk-stone);}
+.kk-scene-banner-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.kk-scene-banner-title{padding:10px 14px;font-family:var(--kk-font-d);font-size:16px;color:var(--kk-text);}
+/* IMP-13 — landing Session block. */
+.kk-session-panel{padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.kk-session-row{display:flex;align-items:baseline;gap:10px;}
+.kk-session-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--kk-text-faint);flex:none;}
+.kk-session-next{color:var(--kk-text);font-weight:600;}
+.kk-session-last{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--kk-line-soft);padding-top:8px;}
+.kk-session-log-title{font-family:var(--kk-font-d);font-size:15px;color:var(--kk-text);}
+.kk-session-log-body{font-size:13px;color:var(--kk-text-dim);margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .kk-landing-party{display:flex;flex-direction:column;gap:12px;}
 .kk-party-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
 .kk-pcard{display:flex;flex-direction:row;gap:12px;padding:12px;border:1px solid var(--kk-line-soft);border-left:3px solid var(--fac-color,var(--kk-gold));border-radius:var(--kk-r);background:var(--kk-surface);text-align:left;}
 .kk-pcard--clickable{cursor:pointer;transition:border-color .15s,transform .1s;}
 .kk-pcard--clickable:hover{border-color:var(--fac-color,var(--kk-gold));transform:translateY(-2px);}
-.kk-party-card-portrait{width:56px;height:56px;border-radius:50%;overflow:hidden;flex:none;background:var(--kk-stone);display:flex;align-items:center;justify-content:center;border:2px solid var(--fac-color,var(--kk-gold));}
+.kk-party-card-portrait{width:72px;height:72px;border-radius:50%;overflow:hidden;flex:none;background:var(--kk-stone);display:flex;align-items:center;justify-content:center;border:2px solid var(--fac-color,var(--kk-gold));}
 .kk-party-card-portrait img{width:100%;height:100%;object-fit:cover;}
 .kk-party-card-ph{font-family:var(--kk-font-d);font-size:22px;color:var(--kk-text-dim);}
 .kk-party-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;}

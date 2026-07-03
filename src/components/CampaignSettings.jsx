@@ -99,6 +99,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   const [rw, setRw] = useState(() => parseRewind(campaign));
   const [ex, setEx] = useState(() => parseExtra(campaign));
   const [journalThreshold, setJournalThreshold] = useState(() => campaign?.journalArchiveThreshold ?? 20);
+  const [nextSession, setNextSession] = useState(() => campaign?.nextSession || "");
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState("");
   const [seedingItems, setSeedingItems] = useState({});
@@ -202,7 +203,7 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   );
 
   function handleSave() {
-    onSave({ advancement: d, chargen: cg, rewind: rw, journalArchiveThreshold: journalThreshold, extra: ex });
+    onSave({ advancement: d, chargen: cg, rewind: rw, journalArchiveThreshold: journalThreshold, nextSession, extra: ex });
   }
 
   return (
@@ -415,6 +416,11 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
             <input type="checkbox" checked={ex.scene.allowPlayerEmotions} onChange={e => setEx(p => ({ ...p, scene: { ...p.scene, allowPlayerEmotions: e.target.checked } }))}/>
             <span>Игрок может управлять эмоцией портрета</span>
           </label>
+          {/* IMP-13 — next-session note shown in the landing "Сессия" block. */}
+          <label className="kk-field kk-field-wide" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+            <span>Следующая сессия</span>
+            <input className="kk-input" value={nextSession} onChange={e => setNextSession(e.target.value)} placeholder="напр. Суббота, 19:00"/>
+          </label>
         </div>
       </section>
 
@@ -439,8 +445,8 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
       </section>
 
       <section className="kk-block">
-        <h2 className="kk-h2">Legend Keeper</h2>
-        <p className="kk-note">Базовый URL проекта вики. Ссылки на статьи задаются в карточках персонажей.</p>
+        <h2 className="kk-h2">Библиотека</h2>
+        <p className="kk-note">Базовый URL проекта вики (Legend Keeper). Ссылки на статьи задаются в карточках персонажей.</p>
         <label className="kk-field" style={{ flexDirection: "column", alignItems: "flex-start" }}>
           <span>URL проекта</span>
           <input

@@ -28,7 +28,7 @@ export default function LandingPage({ signOut }) {
       <header className="kk-landing-head">
         <div className="kk-landing-title">
           <span className="kk-logo">КК<span>9</span></span>
-          <span className="kk-landing-campaign">{campaign?.name || "Кампания"}</span>
+          {/* IMP-13 — campaign name lives in CampaignHead below; not duplicated here. */}
         </div>
         <div className="kk-landing-head-actions">
           <a className="kk-btn ghost sm" href="#/">Открыть приложение</a>

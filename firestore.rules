@@ -140,12 +140,23 @@ service cloud.firestore {
         allow update, delete: if isGMOrAdmin(campaignId);
       }
 
-      // ── Organizations / Contacts (FEAT-14) ────────────────────────────────
-      // GM-curated. Players read only cards flagged visibleToPlayers; writes GM-only.
+      // ── Organizations / Contacts (FEAT-14, IMP-17) ───────────────────────
+      // GM-curated. Players read only cards flagged visibleToPlayers.
+      // IMP-17: a member may link/unlink themselves to a VISIBLE org — the
+      // bidirectional mirror writes org.actorRefs. That is the ONLY field a
+      // non-GM may touch, and only while the card stays visible. Residual
+      // griefing (editing another char's actorRefs entry on a visible org) is
+      // accepted — no economy impact; the authoritative level also lives on the
+      // player's own character.refs.contacts (guarded by the character rule).
       match /organizations/{orgId} {
-        allow read:  if isGMOrAdmin(campaignId)
-                     || (isMember(campaignId) && resource.data.visibleToPlayers == true);
-        allow write: if isGMOrAdmin(campaignId);
+        allow read:   if isGMOrAdmin(campaignId)
+                      || (isMember(campaignId) && resource.data.visibleToPlayers == true);
+        allow create, delete: if isGMOrAdmin(campaignId);
+        allow update: if isGMOrAdmin(campaignId)
+                      || (isMember(campaignId)
+                          && resource.data.visibleToPlayers == true
+                          && request.resource.data.visibleToPlayers == true
+                          && changedOnly(['actorRefs']));
       }
 
       // ── Library (FEAT-04 reshaped) — GM reference: NPCs/curators/faculties/

@@ -115,6 +115,16 @@
 .kk-org-actor { display: flex; align-items: center; gap: .5rem; font-size: .82rem; padding: 2px 0; }
 .kk-org-actor span:first-child { flex: 1; }
 .kk-org-actor-lvl { font-variant-numeric: tabular-nums; opacity: .8; }
+/* IMP-16 — org members (object rows, clickable when linked to a character) */
+.kk-org-member { display: inline; }
+.kk-org-member + .kk-org-member::before { content: ", "; }
+.kk-org-member--link { color: var(--kk-gold, #d8b46a); cursor: pointer; text-decoration: underline dotted; }
+.kk-org-member--link:hover { text-decoration: underline; }
+.kk-org-member-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin: .2rem 0; }
+.kk-org-member-chip { display: inline-flex; align-items: center; gap: .2rem; padding: 1px 4px 1px 8px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; font-size: .8rem; }
+.kk-org-member-chip .kk-org-member::before { content: none; }
+.kk-org-member-add { display: flex; gap: .3rem; margin-top: .3rem; }
+.kk-org-member-add .kk-input { flex: 1; }
 
 /* ── Roll dialog ─────────────────────────────────────────── */
 .kk-roll-modal { max-width: 440px; }

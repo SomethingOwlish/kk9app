@@ -1,18 +1,10 @@
 import { deriveEnergyMax, deriveStatusMaxMods } from "../lib/derive";
+import { healthMax } from "../lib/portrait";
 
 // FEAT-18 — condensed, read-only party member card for the landing page.
-// Health pip max mirrors HealthTrack's attr-die scaling. Tension is NOT shown
-// here (GM-only mechanic, see IMP-01), and energy max is the raw maximum.
-function healthMax(die) {
-  switch (die) {
-    case 20: return 9;
-    case 12: return 8;
-    case 10: return 7;
-    case 8:  return 6;
-    default: return 5;
-  }
-}
-
+// Health pip max mirrors HealthTrack's attr-die scaling (shared healthMax in
+// lib/portrait). Tension is NOT shown here (GM-only mechanic, see IMP-01), and
+// energy max is the raw maximum.
 export default function PartyCard({ ch, onOpen }) {
   const fac = ch.faculty || {};
   const color = fac.color || "#c8a14e";

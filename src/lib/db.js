@@ -715,13 +715,30 @@ export function watchJournalPages(campaignId, stream, cb, threshold = 20) {
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((p) => !p.isArchived);
     cb(pages);
-    if (pages.length > threshold) {
+    // Foundry parity (gm-board.mjs:_writeToJournal): archive once the page count
+    // reaches the threshold, keeping the newest `threshold - 1` pages visible.
+    if (pages.length >= threshold) {
       const batch = writeBatch(db);
-      pages.slice(threshold).forEach((p) => {
+      pages.slice(threshold - 1).forEach((p) => {
         batch.update(doc(db, "campaigns", campaignId, "journal", stream, "pages", p.id), { isArchived: true });
       });
       batch.commit().catch(console.error);
     }
+  });
+}
+
+// Read-only newest non-archived page of a stream (for the landing Session block).
+// Unlike watchJournalPages it never writes archive flags — safe for players.
+export function watchLatestJournalPage(campaignId, stream, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "journal", stream, "pages"),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(q, (snap) => {
+    const first = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .find((p) => !p.isArchived) || null;
+    cb(first);
   });
 }
 
@@ -1023,9 +1040,18 @@ export async function applyReroll(campaignId, charId, { rollData, fateDebtInstan
 
 // ── Organizations / Contacts (FEAT-14, reshaped) ─────────────
 // NOT items. Collection: campaigns/{id}/organizations/{orgId}.
-// Schema: { name, description, orgType, accessLevel, members[], events[],
-//           visibleToPlayers: bool, actorRefs: [{ charId, charName, level }] }
+// Schema (IMP-16, Foundry ContactDataModel parity):
+//   { name, description, orgType, accessLevel, leader, representative, goals,
+//     notes, members: [{charId,charName}], formerMembers: [{charName,comment}],
+//     events[], visibleToPlayers: bool, actorRefs: [{ charId, charName, level }] }
 // Character side mirror: character.refs.contacts[] = [{ orgId, level }].
+
+// Lazy migration: old org.members were plain strings; normalize to objects.
+export function normalizeMembers(members) {
+  return (Array.isArray(members) ? members : [])
+    .map((m) => (typeof m === "string" ? { charId: null, charName: m } : m))
+    .filter((m) => m && (m.charName || m.charId));
+}
 // onlyVisible: players MUST constrain the query to visibleToPlayers==true, else
 // the collection listener is denied wholesale (a GM-only doc fails the read rule).
 export function watchOrganizations(campaignId, cb, onlyVisible = false) {
@@ -1040,8 +1066,9 @@ export function watchOrganizations(campaignId, cb, onlyVisible = false) {
 export async function createOrganization(campaignId, data) {
   const ref = collection(db, "campaigns", campaignId, "organizations");
   return addDoc(ref, {
-    name: "Новая организация", description: "", orgType: "", accessLevel: "",
-    members: [], events: [], visibleToPlayers: false, actorRefs: [],
+    name: "Новая организация", description: "", orgType: "other", accessLevel: "open",
+    leader: "", representative: "", goals: "", notes: "",
+    members: [], formerMembers: [], events: [], visibleToPlayers: false, actorRefs: [],
     ...data, createdAt: serverTimestamp(),
   });
 }

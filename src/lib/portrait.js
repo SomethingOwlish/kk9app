@@ -33,6 +33,18 @@ export const EFFECTS = [
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+// Максимум пипов здоровья по кости атрибута (endurance→физ, spirit→мент).
+// Зеркалит HealthTrack; общая с PartyCard (единый источник максимума).
+export function healthMax(die) {
+  switch (die) {
+    case 20: return 9;
+    case 12: return 8;
+    case 10: return 7;
+    case 8:  return 6;
+    default: return 5;
+  }
+}
+
 // Собрать строку фильтра из выбранных filter-эффектов эмоции.
 export function emotionFilter(effectIds = []) {
   return EFFECTS.filter((e) => e.kind === "filter" && effectIds.includes(e.id))
@@ -69,21 +81,25 @@ export function intensityMult(ch, globalIntensity = "normal") {
   return INTENSITY_MULT[globalIntensity] ?? 1;
 }
 
+// Доля урона по треку = value / healthMax(кость атрибута). endurance→физ, spirit→мент.
+function damageRatio(ch, track) {
+  const die = track === "mental" ? ch?.attributes?.spirit?.die : ch?.attributes?.endurance?.die;
+  const max = healthMax(die ?? 4);
+  const val = track === "mental" ? ch?.health?.mental?.value : ch?.health?.physical?.value;
+  if (Number.isFinite(max) && max > 0 && Number.isFinite(val)) return clamp(val / max, 0, 1);
+  return 0;
+}
+
 // Реактивные доли из данных персонажа (веб-схема character doc).
 function reactiveValues(ch) {
-  const tough = ch?.health?.physical?.toughness;
-  const pval = ch?.health?.physical?.value;
-  let phys = 0;
-  if (Number.isFinite(tough) && tough > 0 && Number.isFinite(pval)) {
-    // 4 пипа по toughness каждый = условный максимум.
-    phys = clamp(pval / (tough * 4), 0, 1);
-  }
+  const phys = damageRatio(ch, "physical");
+  const mental = damageRatio(ch, "mental");
   const tcur = ch?.tension?.current, tmax = ch?.tension?.max;
   let tension = 0;
   if (Number.isFinite(tcur) && Number.isFinite(tmax) && tmax > 0) tension = clamp(tcur / tmax, 0, 1);
   const overcap = Number(ch?.tension?.overcap ?? 0) > 0;
   const fac = ch?.faculty?.color || "#888888";
-  return { phys, tension, overcap, fac };
+  return { phys, mental, tension, overcap, fac };
 }
 
 // Реактивная часть общего CSS-фильтра картинки (layer-a.mjs reactiveFilter).
@@ -92,9 +108,11 @@ export function reactiveFilter(ch, globalIntensity = "normal") {
   if (mult <= 0 || !ch) return "";
   const r = reactiveValues(ch);
   const phys = Math.min(r.phys * mult, 1);
+  const mental = Math.min(r.mental * mult, 1);
   const tension = Math.min(r.tension * mult, 1);
   const f = [];
   if (phys > 0.01) f.push(`saturate(${(1 - phys * 0.7).toFixed(3)})`, `brightness(${(1 - phys * 0.18).toFixed(3)})`);
+  if (mental > 0.01) f.push(`brightness(${(1 - mental * 0.2).toFixed(3)})`, `contrast(${(1 + mental * 0.14).toFixed(3)})`, `blur(${(mental * 1.4).toFixed(2)}px)`);
   if (tension > 0.01) f.push(`drop-shadow(0 0 ${(tension * 22).toFixed(1)}px ${r.fac})`);
   if (r.overcap) f.push("drop-shadow(0 0 14px rgba(210,20,20,0.9))");
   return f.join(" ");
