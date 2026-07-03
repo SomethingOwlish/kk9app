@@ -61,26 +61,50 @@ function mapAttributes(src = {}) {
   return out;
 }
 
-// system.skills — объект по id способности; customSkills[] — свободные.
-// abilityIndex (id → {name, attr, categ}) строится из ability-предметов актёра.
-function mapSkills(s, abilityIndex, warnings, owner) {
+// Навыки в Foundry встречаются в двух видах, и парсер поддерживает оба:
+//   1) ability-предметы в actor.items[] — несут die/modifier/атрибут/категорию
+//      на самом предмете (основной путь в реальных экспортах);
+//   2) system.skills — объект по id способности с die/modifier (старый путь).
+// Если есть оба — значения из system.skills переопределяют предметные.
+// customSkills[] — свободные навыки. Дедуп по имени.
+// `abilities` = [{ id, name, attr, categ, die, modifier }] из ability-предметов.
+function mapSkills(s, abilities, warnings, owner) {
   const skills = [];
+  const seen = new Set();
   const skillObj = s.skills && typeof s.skills === "object" ? s.skills : {};
-  for (const [key, val] of Object.entries(skillObj)) {
-    if (!val || typeof val !== "object") continue;
-    const meta = abilityIndex.get(key) || abilityIndex.get(tailId(key))
-      || (val.name ? { name: val.name, attr: val.linkedAttribute, categ: val.category } : null);
-    if (!meta) { warnings.push({ kind: "unmapped-skill", owner, detail: key }); continue; }
+  const push = (sk) => {
+    const name = str(sk.name).trim();
+    if (!name || seen.has(name)) return;
+    seen.add(name);
     skills.push({
-      name: str(meta.name), attr: str(meta.attr, "smarts"), categ: str(meta.categ, "learned"),
-      die: num(val.die, 4), modifier: num(val.modifier, -2),
+      name, attr: str(sk.attr, "smarts"), categ: str(sk.categ, "learned"),
+      die: num(sk.die, 4), modifier: num(sk.modifier, -2),
+    });
+  };
+
+  // 1) ability-предметы — источник истины по die/modifier; system.skills[id] может переопределить.
+  const abilityIds = new Set();
+  for (const ab of abilities) {
+    abilityIds.add(ab.id);
+    const keyed = skillObj[ab.id] && typeof skillObj[ab.id] === "object" ? skillObj[ab.id] : null;
+    push({
+      name: ab.name, attr: ab.attr, categ: ab.categ,
+      die: keyed && keyed.die != null ? keyed.die : ab.die,
+      modifier: keyed && keyed.modifier != null ? keyed.modifier : ab.modifier,
     });
   }
+
+  // 2) записи system.skills без ability-предмета (старый формат / кастомные keyed).
+  for (const [key, val] of Object.entries(skillObj)) {
+    if (!val || typeof val !== "object") continue;
+    if (abilityIds.has(key) || abilityIds.has(tailId(key))) continue;
+    if (!val.name) { warnings.push({ kind: "unmapped-skill", owner, detail: key }); continue; }
+    push({ name: val.name, attr: val.linkedAttribute, categ: val.category, die: val.die, modifier: val.modifier });
+  }
+
+  // 3) свободные навыки.
   for (const c of (s.customSkills || [])) {
-    skills.push({
-      name: str(c.name), attr: str(c.linkedAttribute, "smarts"), categ: "personal",
-      die: num(c.die, 4), modifier: num(c.modifier, -2),
-    });
+    push({ name: c.name, attr: c.linkedAttribute, categ: "personal", die: c.die, modifier: c.modifier });
   }
   return skills;
 }
@@ -269,13 +293,19 @@ export function parseFoundryActor(actor) {
   const warnings = [];
   const items = Array.isArray(actor.items) ? actor.items : [];
 
-  // abilityIndex из ability-предметов самого актёра.
-  const abilityIndex = new Map();
+  // Навыки-способности из actor.items[] (с die/modifier на самом предмете).
+  const abilities = [];
   for (const it of items) {
     if (it.type === "ability") {
       const a = it.system || {};
-      const meta = { name: str(it.name), attr: str(a.linkedAttribute, "smarts"), categ: str(a.category, "learned") };
-      if (it._id) abilityIndex.set(it._id, meta);
+      abilities.push({
+        id: it._id,
+        name: str(it.name),
+        attr: str(a.linkedAttribute, "smarts"),
+        categ: str(a.category, "learned"),
+        die: num(a.die, 4),
+        modifier: num(a.modifier, -2),
+      });
     }
     if (it.type && !KNOWN_ITEM_TYPES.has(it.type)) {
       warnings.push({ kind: "unknown-item-type", owner, detail: it.type });
@@ -338,7 +368,7 @@ export function parseFoundryActor(actor) {
     customSkills: [],
     languages: mapLanguages(s, items),
     features: items.filter((it) => it.type === "feature").map(mapFeatureItem),
-    skills: mapSkills(s, abilityIndex, warnings, owner),
+    skills: mapSkills(s, abilities, warnings, owner),
     relations: mapRelations(s.relations, warnings, owner),
     refs: { artifacts: [], companions: [], daemons: [], contacts: [] },
   };
