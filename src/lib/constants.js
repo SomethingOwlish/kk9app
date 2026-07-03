@@ -29,25 +29,25 @@ export const CAT_LABEL = {
 
 export const CAT_ORDER = ["common", "learned", "personal", "magic"];
 
+// IMP-12: ordered by role/frequency. `magic` (unimplemented) and the duplicate
+// GM-board entry (`board`) were removed; the single GM board is `gm` (gmOnly).
 export const MENU = [
   { id: "portal", label: "Портал", on: true },
   { id: "card", label: "Карточка", on: true },
   { id: "adv", label: "Прокачка" },
-  { id: "magic", label: "Магия" },
   { id: "log", label: "Лог сессий" },
+  { id: "rolls", label: "Лог бросков" },
   { id: "scene", label: "Сцена" },
-  { id: "board", label: "Доска ГМ", gmOnly: true },
-  { id: "import", label: "Импорт из Foundry", gmOnly: true },
-  { id: "items", label: "Снаряжение", gmOnly: true },
-  { id: "shop", label: "Магазин" },
   { id: "journal", label: "Журнал кампании", on: true },
   { id: "orgs", label: "Организации" },
   { id: "library", label: "Библиотека" },
-  { id: "rolls", label: "Лог бросков" },
+  { id: "shop", label: "Магазин" },
   { id: "guide", label: "Правила" },
-  { id: "lk", label: "Legend Keeper ↗" },
-  { id: "gm", label: "ГМ Борд" },
   { id: "print", label: "Печать карточки" },
+  { id: "lk", label: "Библиотека ↗" },
+  { id: "gm", label: "Доска ГМ", gmOnly: true },
+  { id: "items", label: "Снаряжение", gmOnly: true },
+  { id: "import", label: "Импорт из Foundry", gmOnly: true },
   { id: "set", label: "Настройки" },
 ];
 

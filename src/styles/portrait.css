@@ -71,6 +71,26 @@
 }
 .kk9-portrait:hover .kk9-portrait__name { opacity: 1; }
 
+/* ----- Панель эмоций игрока (hover над своим портретом) ----- */
+.kk9-portrait--emotable { pointer-events: auto; }
+.kk9-emobar {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%) translateY(-4px);
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+  max-width: 92%; padding: 4px 6px; z-index: 6;
+  background: rgba(15,15,20,.9); border: 1px solid rgba(255,255,255,.16); border-radius: 8px;
+  opacity: 0; pointer-events: none; transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.kk9-portrait--emotable:hover .kk9-emobar,
+.kk9-portrait--emotable:focus-within .kk9-emobar {
+  opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0);
+}
+.kk9-emobar__chip {
+  font-size: 12px; padding: 2px 7px; cursor: pointer;
+  color: #eee; background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.16); border-radius: 5px;
+}
+.kk9-emobar__chip.on { background: rgba(120,170,255,.32); border-color: rgba(150,190,255,.7); }
+
 /* Анимация простоя (перёд/бока). Толпа не анимируется. */
 .kk9-zone--front .kk9-portrait,
 .kk9-zone--left  .kk9-portrait,

@@ -151,7 +151,7 @@ export default function EditCard({ ch, campaignId, onSave, onCancel }) {
           <label className="kk-field"><span>Опыт</span><input className="kk-input" type="number" value={d.experience} onChange={e => set({ experience: e.target.value })}/></label>
         </div>
         <label className="kk-field kk-field-wide" style={{ marginTop: 10 }}>
-          <span>Ссылка на статью Legend Keeper</span>
+          <span>Ссылка на статью Библиотеки</span>
           <input className="kk-input" value={d.lkArticleUrl || ""} onChange={e => set({ lkArticleUrl: e.target.value })} placeholder="https://www.legendkeeper.com/app/…"/>
         </label>
         {lkWarn && <p className="kk-modal-warn" style={{ margin: "4px 0 0" }}>Ссылка должна начинаться с https://www.legendkeeper.com/app/</p>}

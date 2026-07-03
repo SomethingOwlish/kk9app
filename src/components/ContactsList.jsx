@@ -6,9 +6,12 @@ import SearchableSelect from "./SearchableSelect";
 // Props:
 //   contacts[]  — refs.contacts
 //   orgs[]      — organizations visible to the viewer
-//   isGM, canSetLevel
+//   isGM, isOwner, canSetLevel
 //   onLink(orgId), onUnlink(orgId), onSetLevel(orgId, level)
-export default function ContactsList({ contacts = [], orgs = [], isGM, canSetLevel, onLink, onUnlink, onSetLevel }) {
+// IMP-17: the card owner may link/unlink too. `orgs` is already the viewer's
+// visible set, so an owner can only ever link an org they can see.
+export default function ContactsList({ contacts = [], orgs = [], isGM, isOwner, canSetLevel, onLink, onUnlink, onSetLevel }) {
+  const canLink = isGM || isOwner;
   const [picking, setPicking] = useState(false);
   const [pick, setPick] = useState("");
 
@@ -16,18 +19,18 @@ export default function ContactsList({ contacts = [], orgs = [], isGM, canSetLev
   const linkedIds = new Set(contacts.map((c) => c.orgId));
   const available = orgs.filter((o) => !linkedIds.has(o.id));
 
-  if (contacts.length === 0 && !isGM) return null;
+  if (contacts.length === 0 && !canLink) return null;
 
   return (
     <section className="kk-block">
       <div className="kk-block-head">
         <h2 className="kk-h2">Организации</h2>
-        {isGM && available.length > 0 && (
+        {canLink && available.length > 0 && (
           <button className="kk-btn ghost sm" onClick={() => setPicking((v) => !v)}>+ Привязать</button>
         )}
       </div>
 
-      {isGM && picking && (
+      {canLink && picking && (
         <div className="kk-contact-pick">
           <SearchableSelect
             options={available.map((o) => ({ value: o.id, label: o.name || "(без имени)" }))}
@@ -63,7 +66,7 @@ export default function ContactsList({ contacts = [], orgs = [], isGM, canSetLev
                   <span className="kk-contact-lvl-val">{c.level > 0 ? "+" : ""}{c.level ?? 0}</span>
                 )}
               </div>
-              {isGM && (
+              {canLink && (
                 <button className="kk-icon-btn kk-icon-del" title="Отвязать" onClick={() => onUnlink(c.orgId)}>✕</button>
               )}
             </div>

@@ -9,7 +9,7 @@ export default function LkLink({ url, label = "Вики" }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      title="Открыть статью в Legend Keeper"
+      title="Открыть статью в Библиотеке"
     >
       📖 {label}
     </a>

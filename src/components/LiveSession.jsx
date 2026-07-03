@@ -1,6 +1,7 @@
 import CampaignHead from "./CampaignHead";
 import DateWeatherPanel from "./DateWeatherPanel";
 import ScenePreviewPanel from "./ScenePreviewPanel";
+import SessionPanel from "./SessionPanel";
 import PartyCard from "./PartyCard";
 
 // FEAT-18 — Live session board. Used both as the in-app portal (App.jsx) and
@@ -20,9 +21,11 @@ export default function LiveSession({ campaign, party = [], activeScene, role, i
           </button>
         </div>
       )}
+      {/* IMP-13 — scene banner full-width; date/weather + session side by side. */}
+      <ScenePreviewPanel scene={activeScene}/>
       <div className="kk-landing-top">
         <DateWeatherPanel campaign={campaign}/>
-        <ScenePreviewPanel scene={activeScene}/>
+        <SessionPanel campaign={campaign}/>
       </div>
       <section className="kk-landing-party">
         <h2 className="kk-h2">Отряд</h2>

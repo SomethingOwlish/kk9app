@@ -185,9 +185,10 @@ export default function App({ user, signOut }) {
     try { await updateCharacterNow(CAMPAIGN_ID, activeId, patch); setEditing(false); }
     catch (e) { alert("Не удалось сохранить: " + (e?.message || e)); }
   }, [activeId, activeChar]);
-  const saveSettings = useCallback(async ({ advancement, chargen, rewind, journalArchiveThreshold, extra }) => {
+  const saveSettings = useCallback(async ({ advancement, chargen, rewind, journalArchiveThreshold, nextSession, extra }) => {
     try {
       const campaignPatch = { chargen };
+      if (nextSession != null) campaignPatch.nextSession = nextSession;
       if (rewind) {
         campaignPatch.idleExpPerDay        = rewind.idleExpPerDay;
         campaignPatch.graduateDailyExpense = rewind.graduateDailyExpense;
@@ -331,6 +332,12 @@ export default function App({ user, signOut }) {
   const onUpdatePortrait = useCallback(async (charId, config) => {
     await updatePortraitConfig(CAMPAIGN_ID, charId, config).catch(console.error);
   }, []);
+  // Игрок меняет активную эмоцию только у своего персонажа (gated allowPlayerEmotions).
+  const onSetOwnEmotion = useCallback(async (charId, emoId) => {
+    const ch = characters.find((c) => c.id === charId);
+    if (!ch || ch.ownerUid !== user.uid) return;
+    await updatePortraitConfig(CAMPAIGN_ID, charId, { ...(ch.portraitConfig || {}), activeEmotion: emoId }).catch(console.error);
+  }, [characters, user.uid]);
   const onCreateCatalogItem = useCallback(async (data) => {
     await createItem(CAMPAIGN_ID, data);
   }, []);
@@ -349,6 +356,8 @@ export default function App({ user, signOut }) {
     setMenu(false);
     if (id === "portal") navigate("/");
     else if (id === "card") { setEditing(false); navigate(activeId ? `/card/${activeId}` : "/"); }
+    else if (id === "adv" && activeId && !isGM && role !== "demo") navigate(`/card/${activeId}/advance`);
+    else if (id === "log" && activeId && isGM) navigate(`/card/${activeId}/log`);
     else if (id === "set" && role !== "demo") navigate("/settings");
     else if (id === "scene") navigate("/scene");
     else if (id === "gm" && isGM) navigate("/board");
@@ -381,20 +390,43 @@ export default function App({ user, signOut }) {
   const partyMembers = useMemo(() => characters.filter(c => partyRefs.has(c.id)), [characters, partyRefs]);
   const cl = campaign !== null;
   const themeClass = theme !== "original" ? ` te-theme-${theme}` : "";
+  // BUG-02 — demo is a public, chrome-free scene preview. No topbar; the burger
+  // + menu are shown only to an admin so they can switch back out of demo mode.
+  if (ready && cl && role === "demo") {
+    return (
+      <div className={`kk-root${themeClass}`}>
+        <div className="kk-bg" aria-hidden/>
+        <ScenePlayerView/>
+        <PortraitLayer characters={partyMembers} intensity={portraitIntensity} />
+        {isAdmin && (
+          <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню">
+            <span/><span/><span/>
+          </button>
+        )}
+        {isAdmin && <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>}
+      </div>
+    );
+  }
   if (view === "scene" && ready && cl) {
     return (
       <div className={`kk-root${themeClass}`}>
         <div className="kk-bg" aria-hidden/>
         <ScenePlayerView isGM={isGM} onBack={() => navigate("/")}/>
         {/* FEAT-19 — portraits overlay the scene only; GM dock on top */}
-        <PortraitLayer characters={partyMembers} intensity={portraitIntensity} />
+        <PortraitLayer
+          characters={partyMembers}
+          intensity={portraitIntensity}
+          myUid={user.uid}
+          allowPlayerEmotions={campaign?.scene?.allowPlayerEmotions ?? false}
+          onSetEmotion={onSetOwnEmotion}
+        />
         {isGM && <PortraitDock characters={partyMembers} onUpdate={onUpdatePortrait} />}
         {!isGM && (
           <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню">
             <span/><span/><span/>
           </button>
         )}
-        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasLk={!!campaign?.lk?.projectUrl}/>
+        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>
       </div>
     );
   }
@@ -411,8 +443,6 @@ export default function App({ user, signOut }) {
         </div>
         {(!ready || !cl) && <div className="kk-load">Загрузка кампании…</div>}
         {ready && cl && !baseRole && <div className="kk-empty">Вы не участник этой кампании. Попросите ГМа добавить ваш UID в <code>members</code>.</div>}
-        {ready && cl && role === "demo" && <ScenePlayerView/>}
-        {ready && cl && role === "demo" && <PortraitLayer characters={partyMembers} intensity={portraitIntensity} />}
         {ready && cl && role === "player" && (!myChar || myChar.characterCreated === false) && (
           <CharacterCreationWizard user={user} myChar={myChar} campaign={campaign} />
         )}
@@ -420,7 +450,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")}/>}
         {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
-        {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg}/>}
+        {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} characters={characters} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg} onOpenChar={openCard}/>}
         {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID} isGM={isGM}/>}
         {ready && cl && view === "shop" && baseRole && role !== "demo" && isGM && <ShopManager shops={shops} allItems={allItems} sellRequests={sellRequests} characters={characters} onCreate={onCreateShop} onUpdate={onUpdateShop} onDelete={onDeleteShop} onApproveSell={onApproveSell} onRejectSell={onRejectSell}/>}
         {ready && cl && view === "shop" && baseRole && role !== "demo" && !isGM && <ShopView shops={shops} char={activeChar || myChar} ownedItems={activeItems} allItems={allItems} defaultItemPrice={campaign?.shop?.defaultItemPrice ?? 0} onBuyUnique={onBuyUnique} onBuyStackable={onBuyStackable} onSell={onSellItem}/>}
@@ -449,7 +479,7 @@ export default function App({ user, signOut }) {
           </div>
         </div>
       )}
-      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!viewCh} hasLk={!!campaign?.lk?.projectUrl}/>
+      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>
     </div>
   );
 }

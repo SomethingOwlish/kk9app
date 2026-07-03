@@ -8,13 +8,13 @@ export default function ScenePreviewPanel({ scene }) {
     );
   }
   return (
-    <div className="kk-landing-panel kk-scene-panel">
+    <div className="kk-landing-panel kk-scene-panel kk-scene-banner">
       {scene.background && (
-        <div className="kk-scene-thumb">
+        <div className="kk-scene-banner-thumb">
           <img src={scene.background} alt=""/>
         </div>
       )}
-      <div className="kk-scene-title">{scene.title || "Сцена"}</div>
+      <div className="kk-scene-banner-title">{scene.title || "Сцена"}</div>
     </div>
   );
 }
