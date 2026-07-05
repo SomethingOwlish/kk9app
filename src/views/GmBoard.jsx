@@ -5,7 +5,7 @@ import PartyRow from "../components/PartyRow";
 import TimeRewindDialog from "../components/TimeRewindDialog";
 import NpcSheet from "./NpcSheet";
 
-export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], campaignStatuses = [] }) {
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], campaignStatuses = [], onTickRound }) {
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
@@ -24,9 +24,14 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
 
       <div className="kk-board-topbar">
         <div className="kk-h2">ГМ Борд</div>
-        {onSettings && (
-          <button className="kk-btn ghost sm" onClick={onSettings}>⚙ Настройки</button>
-        )}
+        <div style={{ display: "flex", gap: ".4rem" }}>
+          {onTickRound && (
+            <button className="kk-btn ghost sm" onClick={onTickRound} title="Следующий раунд боя: списать поддержание заклинаний, сократить длительность, снять истёкшие">Раунд →</button>
+          )}
+          {onSettings && (
+            <button className="kk-btn ghost sm" onClick={onSettings}>⚙ Настройки</button>
+          )}
+        </div>
       </div>
 
       <div className={`kk-board-gmmode ${isGmMode ? "on" : ""}`}>

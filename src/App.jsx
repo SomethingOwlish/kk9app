@@ -6,13 +6,14 @@ import {
   watchAdvancementConfig, applyAdvancement, saveAdvancementConfig,
   watchGmMode, watchStatuses, seedStatuses, watchNpcs, watchActiveScene,
   watchItemsByOwner, watchAllItems, createItem, deleteItem, updateItem,
-  assignItem, unassignItem, addLanguageToChar, saveBioFields,
+  assignItem, unassignItem, addLanguageToChar, addFeatureToChar, saveBioFields,
   watchOrganizations, createOrganization, updateOrganization, deleteOrganization,
   linkCharToOrg, unlinkCharToOrg, setCharOrgLevel, applyRollOutcome, applyReroll,
   watchShopList, createShop, updateShop, deleteShop,
   purchaseStackable, purchaseUnique, requestSell, watchSellRequests, approveSell, rejectSell,
   watchLibrary, createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, seedLibrary,
   linkDaemonToChar, unlinkDaemonFromChar, updatePortraitConfig,
+  createAttacks, watchAttacks, resolveAttackOnSelf, dismissAttack,
 } from "./lib/db";
 import { libraryDefaultsFor } from "./lib/library";
 import { FACULTIES } from "./lib/seed-faculties";
@@ -30,6 +31,7 @@ const LIBRARY_SEED = {
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
+import { tickRoundPatch } from "./lib/activeSpells";
 import { CAMPAIGN_ID } from "./lib/config";
 import { getPath, applyOverrides, canAdvance } from "./lib/appUtils";
 import { loadPrefs, savePref } from "./lib/userPrefs";
@@ -38,6 +40,7 @@ import "./styles/theme-explorer.css";
 import "./styles/tier2.css";
 import "./styles/portrait.css";
 import CharacterCard from "./components/CharacterCard";
+import AttackResolvePanel from "./components/AttackResolvePanel";
 import AdvancementDialog from "./components/AdvancementDialog";
 import LogView from "./components/LogView";
 import EditCard from "./components/EditCard";
@@ -90,6 +93,7 @@ export default function App({ user, signOut }) {
   const [shops, setShops] = useState([]);
   const [sellRequests, setSellRequests] = useState([]);
   const [library, setLibrary] = useState([]);
+  const [attacks, setAttacks] = useState([]);
 
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchShopList(CAMPAIGN_ID, setShops), []);
@@ -100,6 +104,7 @@ export default function App({ user, signOut }) {
   useEffect(() => watchNpcs(CAMPAIGN_ID, setNpcs), []);
   useEffect(() => watchActiveScene(CAMPAIGN_ID, setActiveScene), []);
   useEffect(() => watchAllItems(CAMPAIGN_ID, setAllItems), []);
+  useEffect(() => watchAttacks(CAMPAIGN_ID, setAttacks), []);
   // Re-subscribe when GM status resolves: players must query visible-only (rules).
   useEffect(() => watchStatuses(CAMPAIGN_ID, (statuses) => {
     setCampaignStatuses(statuses);
@@ -221,6 +226,49 @@ export default function App({ user, signOut }) {
       navigate(`/card/${activeId}`);
     } catch (e) { alert("Не удалось применить прокачку: " + (e?.message || e)); }
   }, [activeId, navigate]);
+
+  // Combat attack→resist (B-54). Roster for the attack target picker + the
+  // attacker's dispatch callback (one pending-attack doc per target).
+  const npcIds = useMemo(() => new Set(npcs.map((c) => c.id)), [npcs]);
+  const roster = useMemo(
+    () => [...characters, ...npcs].map((c) => ({ id: c.id, name: c.name, kind: npcIds.has(c.id) ? "npc" : "character" })),
+    [characters, npcs, npcIds],
+  );
+  const onAttack = useCallback(async (arr) => {
+    await createAttacks(CAMPAIGN_ID, arr);
+  }, []);
+  // Pending attacks the current viewer may resolve: the defender's own character,
+  // or (for the GM) any NPC target. Show the newest few unresolved.
+  const myUid = user.uid;
+  const pendingAttacks = useMemo(() => {
+    return (attacks || [])
+      .filter((a) => a && !a.resolved && !a.dismissed)
+      .filter((a) => {
+        const targetChar = characters.find((c) => c.id === a.targetCharId);
+        if (targetChar && targetChar.ownerUid === myUid) return true;
+        if (isGM && (a.targetKind === "npc" || npcIds.has(a.targetCharId))) return true;
+        return false;
+      })
+      .slice(0, 3);
+  }, [attacks, characters, npcIds, isGM, myUid]);
+  const onResolveAttack = useCallback(async (attack, plan) => {
+    const targetCh = characters.find((c) => c.id === attack.targetCharId)
+      || npcs.find((c) => c.id === attack.targetCharId);
+    if (!targetCh) return;
+    await resolveAttackOnSelf(CAMPAIGN_ID, attack.targetCharId, targetCh, attack.id, plan);
+  }, [characters, npcs]);
+  const onDismissAttack = useCallback(async (attack) => {
+    await dismissAttack(CAMPAIGN_ID, attack.id);
+  }, []);
+  // Active-spell round tick (B-55): charge upkeep energy + decrement duration +
+  // expire, for every party character. No initiative loop in the web port, so the
+  // GM advances rounds manually from the GM board.
+  const onTickRound = useCallback(async () => {
+    for (const c of characters) {
+      const { patch } = tickRoundPatch(c);
+      if (Object.keys(patch).length) await updateCharacterNow(CAMPAIGN_ID, c.id, patch);
+    }
+  }, [characters]);
   const onCreateItem = useCallback(async (data) => {
     if (!activeId) return;
     const COPY_ITEM_TYPES = new Set(["weapon", "gear", "spell", "device", "vehicle"]);
@@ -243,6 +291,10 @@ export default function App({ user, signOut }) {
   }, []);
   const onAddLanguage = useCallback(async (charId, entry) => {
     await addLanguageToChar(CAMPAIGN_ID, charId, entry);
+  }, []);
+  // Feature catalog (B-61): embed a feature-template copy onto a character.
+  const onAddFeature = useCallback(async (charId, entry) => {
+    await addFeatureToChar(CAMPAIGN_ID, charId, entry);
   }, []);
   // Persist a roll: merged status-tick + tension patch, then roll-log entry.
   const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance, charPatch, reroll, fateDebtInstance }) => {
@@ -448,7 +500,7 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && role === "player" && gmModeData?.active && view === "card" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")}/>}
-        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses} onTickRound={onTickRound}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} characters={characters} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg} onOpenChar={openCard}/>}
         {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID} isGM={isGM}/>}
@@ -456,12 +508,12 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "shop" && baseRole && role !== "demo" && !isGM && <ShopView shops={shops} char={activeChar || myChar} ownedItems={activeItems} allItems={allItems} defaultItemPrice={campaign?.shop?.defaultItemPrice ?? 0} onBuyUnique={onBuyUnique} onBuyStackable={onBuyStackable} onSell={onSellItem}/>}
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
-        {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
+        {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage} onAddFeature={onAddFeature}/>}
         {ready && cl && view === "import" && isGM && <FoundryImportView onOpenChar={openCard} members={campaign?.members || {}}/>}
         {ready && cl && view === "library" && baseRole && role !== "demo" && <LibraryView entries={library} isGM={isGM} onCreate={onCreateLibrary} onUpdate={onUpdateLibrary} onDelete={onDeleteLibrary} onSeed={onSeedLibrary} seedable={Object.keys(LIBRARY_SEED)}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel} daemonLib={daemonLib} onLinkDaemon={onLinkDaemon} onUnlinkDaemon={onUnlinkDaemon}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel} daemonLib={daemonLib} onLinkDaemon={onLinkDaemon} onUnlinkDaemon={onUnlinkDaemon} roster={roster} onAttack={onAttack}/>}
         {ready && view === "card" && viewCh && editingBio && <BioEditCard ch={activeChar} onSave={saveBio} onCancel={() => setEditingBio(false)}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
@@ -480,6 +532,29 @@ export default function App({ user, signOut }) {
         </div>
       )}
       <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>
+      {/* Pending attack→resist toasts (B-54) — defender resolves soak on self. */}
+      {pendingAttacks.length > 0 && (
+        <div className="kk-attack-toasts">
+          {pendingAttacks.map((a) => {
+            const targetCh = characters.find((c) => c.id === a.targetCharId)
+              || npcs.find((c) => c.id === a.targetCharId);
+            if (!targetCh) return null;
+            const targetItems = allItems.filter((it) => it.ownerCharacterId === a.targetCharId);
+            return (
+              <AttackResolvePanel
+                key={a.id}
+                attack={a}
+                ch={targetCh}
+                items={targetItems}
+                campaignStatuses={campaignStatuses}
+                isGM={isGM}
+                onResolve={(plan) => onResolveAttack(a, plan)}
+                onDismiss={() => onDismissAttack(a)}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -6,15 +6,23 @@ import { ATTR_SHORT, ATTR_ORDER, ATTR_LABEL } from "../lib/constants";
 // Artifact: single owner (ownerCharacterId on item doc).
 // All others (weapon/gear/spell/device/vehicle): copy-per-character (catalog shows templates only).
 // Language: character.languages[] embedded array.
+// Feature (черта): embedded-assign like language — templates live in the catalog
+// (ownerCharacterId null) and are pushed onto character.features[]. REQUIRED PROP:
+// onAddFeature(charId, entry) must be passed by the parent (App.jsx wires it to
+// addFeatureToChar), mirroring onAddLanguage. The feature `modifier` object uses
+// snake_case keys (target_*, modifier, die_change, success_modifier, extra_die_*)
+// because statusEngine.js reads features and campaign statuses through the same
+// snake_case reader — do NOT camelCase the modifier internals.
 const COPY_TYPES = ["weapon", "gear", "spell", "device", "vehicle"];
 const LANG_TYPE  = "language";
+const FEATURE_TYPE = "feature";
 
 const TYPE_LABELS = {
   weapon: "Оружие", gear: "Снаряжение", artifact: "Артефакты",
   spell: "Заклинания", device: "Устройства", vehicle: "Транспорт",
-  language: "Языки",
+  language: "Языки", feature: "Черты",
 };
-const ALL_CATALOG_TYPES = [...COPY_TYPES, "artifact", LANG_TYPE];
+const ALL_CATALOG_TYPES = [...COPY_TYPES, "artifact", LANG_TYPE, FEATURE_TYPE];
 
 // ── Enumerations (mirror the Foundry .hbs templates) ──────────
 const CONDITION = [["perfect","Идеальное"],["good","Нормальное"],["worn","Плохое"],["broken","Сломано"]];
@@ -49,7 +57,20 @@ function itemSubtitle(item) {
   if (item.type === "device")   return DEVICE_TYPE_LABEL[item.deviceType] || item.deviceType || "";
   if (item.type === "vehicle")  return lblOf(VEH_TYPE, item.vehicleType);
   if (item.type === "language") return lblOf(WORLD, item.world);
+  if (item.type === "feature")  return featureSummary(item);
   return "";
+}
+
+// Short human summary of a feature's effect (folder · numeric hints).
+function featureSummary(item) {
+  const m = item.modifier || {};
+  const bits = [];
+  if (m.modifier)          bits.push((m.modifier > 0 ? "+" : "") + m.modifier);
+  if (m.die_change)        bits.push(m.die_change > 0 ? "d↑" : "d↓");
+  if (m.success_modifier)  bits.push((m.success_modifier > 0 ? "+" : "") + m.success_modifier + " усп.");
+  if (m.extra_die_enabled) bits.push((m.extra_die_mode === "subtract" ? "−" : "+") + "куб");
+  const eff = bits.join(" ");
+  return [item.folder, eff].filter(Boolean).join(" · ");
 }
 
 // ── Full-schema defaults per type (so every control is controlled) ──
@@ -62,8 +83,49 @@ function defaultsFor(type) {
     device: { condition:"perfect", deviceType:"gadget", charges:0, maxCharges:-1, folder:"", creator:"", equipped:"home", worksUpper:true, worksLower:true, bonusSkillName:"", bonusValue:0, damageLevel:"light", damageType:"physical", range:0, attackSkillName:"", attackModifier:0, conditionChance:0, hasStatus:false, statusName:"", soakBonusDie:0, soakBonusModifier:0 },
     vehicle: { vehicleType:"ground", speed:0, toughness:0, capacity:0, notes:"" },
     language: { world:"lower", isDead:false },
+    feature: { is_weakness:false, folder:"", img:"", modifier:{} },
   };
   return { name:"", description:"", ...(D[type] || {}) };
+}
+
+// ── B-63: subtype smart-defaults ──────────────────────────────
+// When a subtype select changes, merge a small scoped patch onto the
+// current form data so combat/defence fields aren't left stale/empty.
+// Only subtype-scoped fields are touched — never name/description.
+const SUBTYPE_DEFAULTS = {
+  gearType: {
+    attack:  { damageLevel:"light", damageType:"physical", attackModifier:0, conditionChance:0 },
+    defense: { soakType:"bonus", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, soakBonusDie:0, soakBonusModifier:0, soakUses:0 },
+    utility: { energyRestore:0 },
+  },
+  artifactType: {
+    attack:  { damageLevel:"light", damageType:"physical", attackModifier:0 },
+    defense: { soakType:"bonus", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, soakBonusDie:0, soakBonusModifier:0, soakBonusUses:0 },
+    buff:    { bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[] },
+    utility: { energyRestore:0 },
+  },
+  spellType: {
+    attack:      { damageType:"physical", bypassSoak:false, unresistable:false },
+    defense:     { soakType:"absolute", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, toughnessBonus:0 },
+    buff:        { bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[] },
+    health_buff: { healthBufferPip:1, healthBufferTrack:"physical", upkeepCost:0 },
+    binding:     { unresistable:false, contestedSkillName:"" },
+    transforming:{ contestedSkillName:"" },
+    spatial:     { upkeepCost:0 },
+  },
+  deviceType: {
+    weapon: { damageLevel:"light", damageType:"physical", range:0, attackModifier:0, conditionChance:0 },
+    gadget: { soakBonusDie:0, soakBonusModifier:0 },
+  },
+  vehicleType: {},
+};
+
+// Fields that carry meaningful user input we never clobber on subtype change.
+const SUBTYPE_KEYS = ["gearType", "artifactType", "spellType", "deviceType", "vehicleType"];
+
+function applySubtypeDefaults(data, key, value) {
+  const patch = SUBTYPE_DEFAULTS[key]?.[value] || {};
+  return { ...data, [key]: value, ...patch };
 }
 
 
@@ -77,16 +139,16 @@ export default function ItemsView({
   onAssign,
   onUnassign,
   onAddLanguage,
+  onAddFeature,
 }) {
   const [activeTab, setActiveTab] = useState("weapon");
-  const [expandedId, setExpandedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);   // selected catalog row (edit target)
   const [assignTarget, setAssignTarget] = useState({});
-  const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({});
+  // Right pane mode: null (empty) | "create" | "edit"
+  const [paneMode, setPaneMode] = useState(null);
+  const [formData, setFormData] = useState({});         // controlled form data for create/edit
   const [saving, setSaving] = useState(false);
-  const [editingItemId, setEditingItemId] = useState(null);
-  const [editItemData, setEditItemData] = useState({});
-  const [editSaving, setEditSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [info, setInfo] = useState(null); // crosslink info popover: { title, lines[] }
 
   // Option sources for searchable selects (replace Foundry drag&drop)
@@ -124,21 +186,45 @@ export default function ItemsView({
     return COPY_TYPES.includes(activeTab) ? all.filter(i => !i.ownerCharacterId) : all;
   }, [items, activeTab]);
 
-  function setNew(k, v) { setNewItem(p => ({ ...p, [k]: v })); }
-
-  function startAdd() {
-    setNewItem(defaultsFor(activeTab));
-    setAdding(true);
+  // Form-field setter. Subtype selects route through smart-defaults (B-63).
+  function setField(k, v) {
+    setFormData(p => SUBTYPE_KEYS.includes(k) ? applySubtypeDefaults(p, k, v) : { ...p, [k]: v });
   }
 
-  async function handleCreate(e) {
+  function startCreate() {
+    setSelectedId(null);
+    setConfirmDelete(false);
+    setFormData(defaultsFor(activeTab));
+    setPaneMode("create");
+  }
+
+  function selectItem(item) {
+    setSelectedId(item.id);
+    setConfirmDelete(false);
+    setFormData({ ...defaultsFor(item.type), ...item });
+    setPaneMode("edit");
+  }
+
+  function closePane() {
+    setPaneMode(null);
+    setSelectedId(null);
+    setConfirmDelete(false);
+    setFormData({});
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (!newItem.name?.trim()) return;
+    if (!formData.name?.trim()) return;
     setSaving(true);
     try {
-      await onCreateItem({ type: activeTab, ...newItem, name: newItem.name.trim(), ownerCharacterId: null });
-      setAdding(false);
-      setNewItem({});
+      if (paneMode === "create") {
+        await onCreateItem({ type: activeTab, ...formData, name: formData.name.trim(), ownerCharacterId: null });
+        closePane();
+      } else {
+        // eslint-disable-next-line no-unused-vars
+        const { id: _id, createdAt: _ca, ...fields } = formData;
+        await onUpdateItem(selectedId, fields);
+      }
     } catch (err) {
       alert("Ошибка: " + err.message);
     } finally {
@@ -146,23 +232,13 @@ export default function ItemsView({
     }
   }
 
-  function startEditItem(item) { setEditingItemId(item.id); setEditItemData({ ...defaultsFor(item.type), ...item }); }
-  function setEI(k, v) { setEditItemData(p => ({ ...p, [k]: v })); }
-
-  async function handleSaveEditItem(e) {
-    e.preventDefault();
-    if (!editItemData.name?.trim()) return;
-    setEditSaving(true);
+  async function handleDeleteSelected() {
+    if (!selectedId) return;
     try {
-      // eslint-disable-next-line no-unused-vars
-      const { id: _id, createdAt: _ca, ...fields } = editItemData;
-      await onUpdateItem(editingItemId, fields);
-      setEditingItemId(null);
-      setEditItemData({});
+      await onDeleteItem(selectedId);
+      closePane();
     } catch (err) {
       alert("Ошибка: " + err.message);
-    } finally {
-      setEditSaving(false);
     }
   }
 
@@ -198,6 +274,25 @@ export default function ItemsView({
     }
   }
 
+  async function handleAddFeature(item) {
+    const charId = assignTarget[item.id];
+    if (!charId) return;
+    const ch = characters.find(c => c.id === charId);
+    if (!ch) return;
+    try {
+      await onAddFeature(charId, {
+        name: item.name,
+        description: item.description || "",
+        is_weakness: !!item.is_weakness,
+        modifier: item.modifier || {},
+        itemId: item.id,
+      });
+      setAssignTarget(p => ({ ...p, [item.id]: "" }));
+    } catch (err) {
+      alert("Ошибка: " + err.message);
+    }
+  }
+
   function artifactOwner(item) {
     if (!item.ownerCharacterId) return null;
     return characters.find(c => c.id === item.ownerCharacterId) || null;
@@ -205,12 +300,18 @@ export default function ItemsView({
   function languageOwners(item) {
     return characters.filter(c => c.languages?.some(l => l.itemId === item.id));
   }
+  function featureOwners(item) {
+    return characters.filter(c => c.features?.some(f => f.itemId === item.id));
+  }
 
   const isArtifact  = activeTab === "artifact";
   const isLanguage  = activeTab === LANG_TYPE;
+  const isFeature   = activeTab === FEATURE_TYPE;
   const isCopyType  = COPY_TYPES.includes(activeTab);
 
   const formProps = { skillOptions, magicSkillOptions, statusOptions, onSkillInfo: showSkillInfo, onStatusInfo: showStatusInfo };
+
+  const selectedItem = paneMode === "edit" ? tabItems.find(i => i.id === selectedId) || null : null;
 
   return (
     <div className="kk-block kk-items-view">
@@ -222,43 +323,133 @@ export default function ItemsView({
           <button
             key={t}
             className={`kk-items-tab${activeTab === t ? " active" : ""}`}
-            onClick={() => { setActiveTab(t); setAdding(false); setExpandedId(null); }}
+            onClick={() => { setActiveTab(t); closePane(); }}
           >
             {TYPE_LABELS[t]}
           </button>
         ))}
       </div>
 
-      {/* Item list */}
-      <div className="kk-items-catalog">
-        {tabItems.length === 0 && !adding && (
-          <div className="kk-empty-sm">Нет предметов этого типа</div>
-        )}
+      {/* Split view: left = catalog list, right = form pane */}
+      <div className="kk-items-split">
+        <div className="kk-items-split-left">
+          <div className="kk-items-catalog">
+            {tabItems.length === 0 && (
+              <div className="kk-empty-sm">Нет предметов этого типа</div>
+            )}
 
-        {activeTab === "spell" && (() => {
-          const folders = {};
-          const folderOrder = [];
-          for (const item of tabItems) {
-            const key = item.folder || item.skillName || "Без навыка";
-            if (!folders[key]) { folders[key] = []; folderOrder.push(key); }
-            folders[key].push(item);
-          }
-          return folderOrder.map(folder => (
-            <div key={folder} className="kk-spell-folder">
-              <div className="kk-spell-folder-label">{folder}</div>
-              {folders[folder].map(item => renderCatalogRow(item))}
+            {activeTab === "spell" && (() => {
+              const folders = {};
+              const folderOrder = [];
+              for (const item of tabItems) {
+                const key = item.folder || item.skillName || "Без навыка";
+                if (!folders[key]) { folders[key] = []; folderOrder.push(key); }
+                folders[key].push(item);
+              }
+              return folderOrder.map(folder => (
+                <div key={folder} className="kk-spell-folder">
+                  <div className="kk-spell-folder-label">{folder}</div>
+                  {folders[folder].map(item => renderCatalogRow(item))}
+                </div>
+              ));
+            })()}
+
+            {activeTab !== "spell" && tabItems.map(item => renderCatalogRow(item))}
+          </div>
+
+          <button className="kk-note-btn kk-items-add-btn" onClick={startCreate} style={{ marginTop: "0.75rem" }}>
+            + Добавить {TYPE_LABELS[activeTab]?.toLowerCase() || "предмет"}
+          </button>
+        </div>
+
+        <div className="kk-items-split-right">
+          {paneMode === null && (
+            <div className="kk-items-pane-empty">Выберите предмет или создайте новый</div>
+          )}
+
+          {paneMode !== null && (
+            <div className="kk-items-pane">
+              <div className="kk-items-pane-head">
+                <span className="kk-items-pane-title">
+                  {paneMode === "create"
+                    ? `Новый предмет: ${TYPE_LABELS[activeTab]?.toLowerCase() || ""}`.trim()
+                    : `Редактирование: ${selectedItem?.name || ""}`}
+                </span>
+                <button className="kk-note-del" onClick={closePane} title="Закрыть">✕</button>
+              </div>
+
+              {/* Edit mode: assign/owner controls for the selected item */}
+              {paneMode === "edit" && selectedItem && (
+                <div className="kk-items-pane-assign">
+                  {(!isCopyType || !selectedItem.ownerCharacterId) && (
+                    <div className="kk-catalog-assign">
+                      <select
+                        className="kk-item-select"
+                        value={assignTarget[selectedItem.id] || ""}
+                        onChange={e => setAssignTarget(p => ({ ...p, [selectedItem.id]: e.target.value }))}
+                      >
+                        <option value="">— выбрать персонажа —</option>
+                        {characters.filter(c => c.characterCreated !== false).map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        className="kk-note-btn"
+                        disabled={!assignTarget[selectedItem.id]}
+                        onClick={() => isFeature ? handleAddFeature(selectedItem) : isLanguage ? handleAddLang(selectedItem) : handleAssign(selectedItem)}
+                      >
+                        {isFeature ? "Выдать черту" : isCopyType ? "Выдать копию" : "Назначить"}
+                      </button>
+                    </div>
+                  )}
+                  {isArtifact && artifactOwner(selectedItem) && (
+                    <div className="kk-catalog-owners">
+                      <span className="kk-catalog-owner-name">{artifactOwner(selectedItem).name}</span>
+                      <button className="kk-note-del" onClick={() => handleUnassign(selectedItem, selectedItem.ownerCharacterId)}>✕</button>
+                    </div>
+                  )}
+                  {isLanguage && languageOwners(selectedItem).map(c => (
+                    <div key={c.id} className="kk-catalog-owners">
+                      <span className="kk-catalog-owner-name">{c.name}</span>
+                    </div>
+                  ))}
+                  {isFeature && featureOwners(selectedItem).map(c => (
+                    <div key={c.id} className="kk-catalog-owners">
+                      <span className="kk-catalog-owner-name">{c.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <AddItemForm
+                type={paneMode === "create" ? activeTab : (selectedItem?.type || activeTab)}
+                data={formData}
+                setData={setField}
+                onSubmit={handleSubmit}
+                onCancel={closePane}
+                saving={saving}
+                submitLabel={paneMode === "create" ? "Добавить" : "Сохранить"}
+                {...formProps}
+              />
+
+              {/* Delete with confirmation (edit mode only) */}
+              {paneMode === "edit" && selectedItem && (
+                <div className="kk-catalog-actions">
+                  {!confirmDelete ? (
+                    <button className="kk-note-btn kk-item-cancel-btn" onClick={() => setConfirmDelete(true)}>Удалить предмет</button>
+                  ) : (
+                    <>
+                      <span className="kk-item-form-label">Удалить «{selectedItem.name}»?</span>
+                      <button className="kk-note-btn kk-item-cancel-btn" onClick={handleDeleteSelected}>Да, удалить</button>
+                      <button className="kk-note-btn" onClick={() => setConfirmDelete(false)}>Отмена</button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          ));
-        })()}
-
-        {activeTab !== "spell" && tabItems.map(item => renderCatalogRow(item))}
+          )}
+        </div>
       </div>
-
-      <button className="kk-note-btn kk-items-add-btn" onClick={startAdd} style={{ marginTop: "0.75rem" }}>
-        + Добавить {TYPE_LABELS[activeTab]?.toLowerCase() || "предмет"}
-      </button>
-
-      {adding && <AddItemForm type={activeTab} data={newItem} setData={setNew} onSubmit={handleCreate} onCancel={() => setAdding(false)} saving={saving} {...formProps} />}
 
       {info && (
         <div className="kk-ss-info-overlay" onClick={() => setInfo(null)}>
@@ -275,82 +466,35 @@ export default function ItemsView({
   );
 
   function renderCatalogRow(item) {
-        const isExpanded = expandedId === item.id;
-          const artOwner   = isArtifact ? artifactOwner(item) : null;
-          const langOwners = isLanguage ? languageOwners(item) : [];
+    const isSelected = selectedId === item.id;
+    const artOwner   = isArtifact ? artifactOwner(item) : null;
+    const langOwners = isLanguage ? languageOwners(item) : [];
+    const featOwners = isFeature ? featureOwners(item) : [];
 
-          return (
-            <div key={item.id} className={`kk-catalog-row${isExpanded ? " expanded" : ""}`}>
-              <div className="kk-catalog-row-head" onClick={() => setExpandedId(isExpanded ? null : item.id)}>
-                <span className="kk-catalog-row-name">{item.name}</span>
-                <span className="kk-catalog-row-sub">{itemSubtitle(item)}</span>
-                {isArtifact && artOwner && (
-                  <span className="kk-catalog-row-owner">{artOwner.name}</span>
-                )}
-                {isArtifact && !artOwner && (
-                  <span className="kk-catalog-row-unowned">Нет владельца</span>
-                )}
-                {isLanguage && langOwners.length > 0 && (
-                  <span className="kk-catalog-row-owner">{langOwners.map(c => c.name).join(", ")}</span>
-                )}
-                <span className="kk-catalog-chevron">{isExpanded ? "▲" : "▼"}</span>
-              </div>
-
-              {isExpanded && (
-                <div className="kk-catalog-row-body">
-                  {editingItemId === item.id ? (
-                    <AddItemForm type={item.type} data={editItemData} setData={setEI}
-                      onSubmit={handleSaveEditItem} onCancel={() => setEditingItemId(null)}
-                      saving={editSaving} submitLabel="Сохранить" {...formProps} />
-                  ) : (
-                    <>
-                      {item.description && <p className="kk-item-desc">{item.description}</p>}
-
-                      {/* Assign: for copy types only show for unowned templates */}
-                      {(!isCopyType || !item.ownerCharacterId) && (
-                        <div className="kk-catalog-assign">
-                          <select
-                            className="kk-item-select"
-                            value={assignTarget[item.id] || ""}
-                            onChange={e => setAssignTarget(p => ({ ...p, [item.id]: e.target.value }))}
-                          >
-                            <option value="">— выбрать персонажа —</option>
-                            {characters.filter(c => c.characterCreated !== false).map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-                          <button
-                            className="kk-note-btn"
-                            disabled={!assignTarget[item.id]}
-                            onClick={() => isLanguage ? handleAddLang(item) : handleAssign(item)}
-                          >
-                            {isCopyType ? "Выдать копию" : "Назначить"}
-                          </button>
-                        </div>
-                      )}
-
-                      {isArtifact && artOwner && (
-                        <div className="kk-catalog-owners">
-                          <span className="kk-catalog-owner-name">{artOwner.name}</span>
-                          <button className="kk-note-del" onClick={() => handleUnassign(item, item.ownerCharacterId)}>✕</button>
-                        </div>
-                      )}
-                      {isLanguage && langOwners.map(c => (
-                        <div key={c.id} className="kk-catalog-owners">
-                          <span className="kk-catalog-owner-name">{c.name}</span>
-                        </div>
-                      ))}
-
-                      <div className="kk-catalog-actions">
-                        <button className="kk-note-btn" onClick={() => startEditItem(item)}>✎ Редактировать</button>
-                        <button className="kk-note-btn kk-item-cancel-btn" onClick={() => onDeleteItem(item.id)}>Удалить предмет</button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          );
+    return (
+      <div
+        key={item.id}
+        className={`kk-catalog-row${isSelected ? " selected" : ""}`}
+        onClick={() => selectItem(item)}
+      >
+        <div className="kk-catalog-row-head">
+          <span className="kk-catalog-row-name">{item.name}</span>
+          <span className="kk-catalog-row-sub">{itemSubtitle(item)}</span>
+          {isArtifact && artOwner && (
+            <span className="kk-catalog-row-owner">{artOwner.name}</span>
+          )}
+          {isArtifact && !artOwner && (
+            <span className="kk-catalog-row-unowned">Нет владельца</span>
+          )}
+          {isLanguage && langOwners.length > 0 && (
+            <span className="kk-catalog-row-owner">{langOwners.map(c => c.name).join(", ")}</span>
+          )}
+          {isFeature && featOwners.length > 0 && (
+            <span className="kk-catalog-row-owner">{featOwners.map(c => c.name).join(", ")}</span>
+          )}
+        </div>
+      </div>
+    );
   }
 }
 
@@ -366,6 +510,11 @@ function AddItemForm({
   const chk = k => e => setData(k, e.target.checked);
   const set = (k, v) => setData(k, v);
   const setBonus = (attr, v) => setData("bonuses", { ...(data.bonuses || {}), [attr]: Number(v) });
+  // Feature modifier setters — write snake_case keys into data.modifier so
+  // statusEngine.js (shared status/feature reader) consumes them correctly.
+  const setMod = (key, val) => setData("modifier", { ...(data.modifier || {}), [key]: val });
+  const modNum = key => e => setMod(key, Number(e.target.value));
+  const modChk = key => e => setMod(key, e.target.checked);
 
   // skillBonuses [{skillName, bonus}] managed via multiselect + per-row number
   const skillBonusNames = (data.skillBonuses || []).map(b => b.skillName);
@@ -836,6 +985,67 @@ function AddItemForm({
           </label>
         </div>
       )}
+
+      {/* ══════════ FEATURE (черта) ══════════ */}
+      {type === "feature" && (<>
+        <div className="kk-item-form-row">
+          <label className="kk-item-form-chk">
+            <input type="checkbox" checked={!!data.is_weakness} onChange={chk("is_weakness")} /> Слабость
+          </label>
+          <label className="kk-item-form-label" style={{ marginLeft: ".75rem" }}>Папка:</label>
+          <input className="kk-item-select" value={data.folder || ""} onChange={txt("folder")} maxLength={60} placeholder="Силы / Слабости" />
+        </div>
+
+        <div className="kk-item-form-section">
+          <div className="kk-item-form-section-title">Когда применяется</div>
+          <div className="kk-item-form-row">
+            <label className="kk-item-form-chk">
+              <input type="checkbox" checked={!!data.modifier?.target_all} onChange={modChk("target_all")} /> Все броски
+            </label>
+            <label className="kk-item-form-chk" style={{ marginLeft: ".75rem" }}>
+              <input type="checkbox" checked={!!data.modifier?.target_toughness} onChange={modChk("target_toughness")} /> Стойкость
+            </label>
+          </div>
+          <div className="kk-item-form-row">
+            {ATTR_ORDER.map(attr => (
+              <label key={attr} className="kk-item-form-chk" style={{ marginRight: ".75rem" }}>
+                <input type="checkbox" checked={!!data.modifier?.[`target_${attr}`]} onChange={modChk(`target_${attr}`)} /> {ATTR_LABEL[attr]}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="kk-item-form-section">
+          <div className="kk-item-form-section-title">Эффект</div>
+          <div className="kk-item-form-row">
+            <label className="kk-item-form-label">К броску:</label>
+            <input type="number" className="kk-item-num" value={data.modifier?.modifier ?? 0} onChange={modNum("modifier")} />
+            <label className="kk-item-form-label" style={{ marginLeft: ".5rem" }}>Ступени кубика:</label>
+            <input type="number" className="kk-item-num" value={data.modifier?.die_change ?? 0} onChange={modNum("die_change")} />
+            <label className="kk-item-form-label" style={{ marginLeft: ".5rem" }}>К успехам:</label>
+            <input type="number" className="kk-item-num" value={data.modifier?.success_modifier ?? 0} onChange={modNum("success_modifier")} />
+          </div>
+        </div>
+
+        <div className="kk-item-form-section">
+          <label className="kk-item-form-chk">
+            <input type="checkbox" checked={!!data.modifier?.extra_die_enabled} onChange={modChk("extra_die_enabled")} /> Доп. кубик
+          </label>
+          {data.modifier?.extra_die_enabled && (
+            <div className="kk-item-form-row">
+              <label className="kk-item-form-label">Грань:</label>
+              <select className="kk-item-select" value={data.modifier?.extra_die_faces ?? 6} onChange={e => setMod("extra_die_faces", Number(e.target.value))}>
+                {[4, 6, 8, 10, 12].map(f => <option key={f} value={f}>d{f}</option>)}
+              </select>
+              <label className="kk-item-form-label" style={{ marginLeft: ".5rem" }}>Режим:</label>
+              <select className="kk-item-select" value={data.modifier?.extra_die_mode || "add"} onChange={e => setMod("extra_die_mode", e.target.value)}>
+                <option value="add">Прибавить</option>
+                <option value="subtract">Вычесть</option>
+              </select>
+            </div>
+          )}
+        </div>
+      </>)}
 
       <div className="kk-item-form-actions">
         <button type="submit" className="kk-note-btn" disabled={saving || !data.name?.trim()}>{saving ? "Сохранение…" : submitLabel}</button>
