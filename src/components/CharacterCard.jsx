@@ -31,7 +31,7 @@ const DEMO_FIELDS = [
 
 const FEATURE_KIND_LABEL = { character: "Черта характера", unique: "Уникальная возможность" };
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onDeleteItem, onUpdateItem, peers = [], orgs = [], campaign, canRoll = false, onCommitRoll, onLinkOrg, onUnlinkOrg, onSetOrgLevel, daemonLib = [], onLinkDaemon, onUnlinkDaemon, roster = [], onAttack }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onCreateItem, onDeleteItem, onUpdateItem, peers = [], orgs = [], campaign, canRoll = false, onCommitRoll, onLinkOrg, onUnlinkOrg, onSetOrgLevel, daemonLib = [], onLinkDaemon, onUnlinkDaemon }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -413,8 +413,10 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         showRoll={showRoll}
         onRollItem={rollItem}
         onToggleFlag={toggleItemFlag}
+        onCreate={onCreateItem}
         onDelete={onDeleteItem}
         onUpdateItem={onUpdateItem}
+        campaignStatuses={campaignStatuses}
         character={ch}
       />
 
@@ -505,8 +507,6 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
           isGM={isGM}
           onCommit={onCommitRoll}
           onClose={() => setRollTarget(null)}
-          roster={roster}
-          onAttack={onAttack}
         />
       )}
     </div>

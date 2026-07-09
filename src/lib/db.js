@@ -71,6 +71,60 @@ export function saveCharacterDebounced(campaignId, characterId, patch, ms = 700)
   }, ms));
 }
 
+// ── Кампании — создание / список / удаление (мастер=gm и admin) ──
+// Документ кампании: { name, members:{uid:role}, memberUids:[uid], schemaVersion,
+//   createdAt, … настройки }. memberUids дублирует ключи members — Firestore не
+// умеет искать по наличию динамического ключа в map, поэтому список «мои кампании»
+// строится запросом array-contains по memberUids.
+
+// Создать новую кампанию. Создатель становится мастером (gm) новой кампании.
+// Доступ «только мастер и admin» гарантируется на уровне UI (кнопка видна лишь
+// gm/admin) и правил Firestore (members[создатель] ∈ {gm,admin}). Возвращает id.
+export async function createCampaign({ ownerUid, name = "Новая кампания", role = "gm" }) {
+  if (!ownerUid) throw new Error("Не указан владелец кампании");
+  if (!["gm", "admin"].includes(role)) throw new Error("Создатель должен быть мастером или админом");
+  const ref = await addDoc(collection(db, "campaigns"), {
+    name,
+    members: { [ownerUid]: role },
+    memberUids: [ownerUid],
+    schemaVersion: SCHEMA_VERSION,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+// Живой список кампаний, в которых состоит пользователь (для переключателя/входа).
+export function watchCampaignsForUser(uid, cb) {
+  const q = query(collection(db, "campaigns"), where("memberUids", "array-contains", uid));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+// Разовое чтение того же списка.
+export async function listCampaignsForUser(uid) {
+  const q = query(collection(db, "campaigns"), where("memberUids", "array-contains", uid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Удалить кампанию (только gm/admin — enforced правилами). Клиент не умеет
+// рекурсивно удалять подколлекции, поэтому сначала best-effort чистим известные
+// подколлекции пачками (лимит батча 500), затем удаляем сам документ кампании.
+export async function deleteCampaign(campaignId) {
+  if (!campaignId) throw new Error("Не указана кампания");
+  const subcollections = [
+    "characters", "items", "scenes", "organizations", "shops",
+    "statuses", "library", "sellRequests", "rolls", "chargen_requests",
+  ];
+  for (const sub of subcollections) {
+    const snap = await getDocs(collection(db, "campaigns", campaignId, sub));
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      const batch = writeBatch(db);
+      snap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+  await deleteDoc(doc(db, "campaigns", campaignId));
+}
+
 // ── Создание персонажа (чистая карточка + сид базовых навыков) ──
 export async function createCharacter(campaignId, characterId, { name, ownerUid, age = 15 }) {
   const baseSkills = buildBaseSkills();
@@ -1036,89 +1090,6 @@ export async function applyReroll(campaignId, charId, { rollData, fateDebtInstan
     activeStatuses: fateDebtInstance ? [...statuses, fateDebtInstance] : statuses,
   });
   if (rollData) await addRollEntry(campaignId, rollData);
-}
-
-// ── Combat: attacks (Tier 9 / B-54, defender-resolves) ───────
-// Path: campaigns/{id}/attacks/{attackId}. One doc per (attacker → target).
-// The attacker (or GM) writes a pending attack; the target's owner (or GM for
-// NPC targets) resolves soak on their OWN character via src/lib/soak.js and
-// commits the resulting plan through resolveAttackOnSelf. The doc is a pure
-// coordination signal — the privileged health/item writes are the defender's.
-//
-// attack doc shape:
-//   { attackerCharId, attackerName, targetCharId, targetName, targetKind,
-//     attackData: { attackSuccesses, damageType, damageLevel, extraPips,
-//                   isAreaAttack, hasStatus, statusName, bypassSoak, unresistable,
-//                   attackSource }, resolved: bool, at }
-export async function createAttack(campaignId, attack) {
-  const ref = collection(db, "campaigns", campaignId, "attacks");
-  return addDoc(ref, { resolved: false, ...attack, at: serverTimestamp() });
-}
-// One write per target — AoE writes N docs so each defender resolves independently
-// (and the per-target-owner rule stays enforceable). Returns the created ids.
-export async function createAttacks(campaignId, attacks) {
-  const ids = [];
-  for (const a of attacks) {
-    const d = await createAttack(campaignId, a);
-    ids.push(d.id);
-  }
-  return ids;
-}
-export function watchAttacks(campaignId, cb, n = 30) {
-  const q = query(
-    collection(db, "campaigns", campaignId, "attacks"),
-    orderBy("at", "desc"),
-    limit(n),
-  );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
-}
-// Mark handled without applying damage (miss already filtered, GM override, or
-// an unresistable/dismissed attack). GM or the target owner only (rules).
-export async function dismissAttack(campaignId, attackId, note = "") {
-  const ref = doc(db, "campaigns", campaignId, "attacks", attackId);
-  await updateDoc(ref, { resolved: true, dismissed: true, resolveNote: note, resolvedAt: serverTimestamp() });
-}
-// Commit the defender's soak resolution: apply the computed plan to the target's
-// OWN character (health pips + status instances) and their OWN items (soak
-// resource consumption), then mark the attack resolved. All writes are the
-// defender's own docs, so this runs under the player (or GM) credential.
-//   plan: { healthPatch:{["health.physical.value"]?, ["health.mental.value"]?},
-//           statusInstances:[<runtime status instance>],
-//           itemPatches:[{ itemId, fields:{...} }],
-//           soakSuccesses, degree, resolveNote }
-export async function resolveAttackOnSelf(campaignId, charId, ch, attackId, plan = {}) {
-  const { healthPatch = {}, statusInstances = [], itemPatches = [], resolveNote = "" } = plan;
-
-  // 1) Character patch (health pips + any added statuses), merged into one write.
-  const charPatch = { ...healthPatch };
-  if (statusInstances.length) {
-    const existing = ch.activeStatuses || [];
-    // De-dupe by name so re-resolves don't stack the same bleed twice.
-    const toAdd = statusInstances.filter((s) => !existing.some((e) => e.name === s.name));
-    if (toAdd.length) charPatch.activeStatuses = [...existing, ...toAdd];
-  }
-  if (Object.keys(charPatch).length) {
-    await updateCharacterNow(campaignId, charId, charPatch);
-  }
-
-  // 2) Item soak-resource consumption (absolute-protection current / bonus uses).
-  for (const p of itemPatches) {
-    if (p?.itemId && p.fields && Object.keys(p.fields).length) {
-      await updateItem(campaignId, p.itemId, p.fields);
-    }
-  }
-
-  // 3) Mark the coordination doc resolved.
-  if (attackId) {
-    const ref = doc(db, "campaigns", campaignId, "attacks", attackId);
-    await updateDoc(ref, {
-      resolved: true,
-      resolveNote,
-      soakSuccesses: plan.soakSuccesses ?? null,
-      degree: plan.degree ?? null,
-      resolvedAt: serverTimestamp(),
-    });
-  }
 }
 
 // ── Organizations / Contacts (FEAT-14, reshaped) ─────────────

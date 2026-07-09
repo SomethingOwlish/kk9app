@@ -45,7 +45,18 @@ service cloud.firestore {
 
     match /campaigns/{campaignId} {
       allow read:  if isMember(campaignId);
-      allow write: if isGMOrAdmin(campaignId);
+
+      // Create a brand-new campaign: the creator must list themselves as gm
+      // (master) or admin in the new doc's members map, and appear in memberUids
+      // (the array we query "my campaigns" by). getRole() can't be used here — the
+      // campaign doc does not exist yet — so we validate request.resource.data.
+      allow create: if isNotAnonymous()
+                    && request.resource.data.members[request.auth.uid] in ["gm", "admin"]
+                    && request.auth.uid in request.resource.data.memberUids;
+
+      // Existing campaign: only gm/admin may edit or delete it.
+      allow update: if isGMOrAdmin(campaignId);
+      allow delete: if isGMOrAdmin(campaignId);
 
       // ── Characters ────────────────────────────────────────────────────────
 
@@ -140,25 +151,6 @@ service cloud.firestore {
         allow update, delete: if isGMOrAdmin(campaignId);
       }
 
-      // ── Attacks (Tier 9 / B-54 combat, defender-resolves model) ──────────
-      // The attacker writes a pending-attack doc addressed to ONE target
-      // character; the target's owner (or the GM, for NPC/library targets)
-      // resolves soak on their OWN character and applies the damage to
-      // themselves (character rule already permits self health decrease; the
-      // items rule above permits self soak-resource consumption). The doc is a
-      // coordination signal only — it carries no privileged cross-actor write,
-      // so cross-actor damage still requires the defender's (or GM's) own write.
-      match /attacks/{attackId} {
-        allow read:   if isMember(campaignId);
-        // Attacker may log an attack only FROM a character they own; GM from anyone.
-        allow create: if isGMOrAdmin(campaignId)
-                      || (isMember(campaignId)
-                          && get(/databases/$(database)/documents/campaigns/$(campaignId)/characters/$(request.resource.data.attackerCharId)).data.ownerUid == request.auth.uid);
-        // Only the target's owner (or GM) may resolve/dismiss the incoming attack.
-        allow update, delete: if isGMOrAdmin(campaignId)
-                      || (isMember(campaignId) && ownsChar(campaignId, resource.data.targetCharId));
-      }
-
       // ── Organizations / Contacts (FEAT-14, IMP-17) ───────────────────────
       // GM-curated. Players read only cards flagged visibleToPlayers.
       // IMP-17: a member may link/unlink themselves to a VISIBLE org — the
@@ -217,14 +209,6 @@ service cloud.firestore {
         allow create: if isMember(campaignId)
                       && request.resource.data.ownerCharacterId != null
                       && ownsChar(campaignId, request.resource.data.ownerCharacterId);
-        // Combat (Tier 9 / B-54): during defender-side soak resolution, the item's
-        // owner may consume that item's soak resources on their OWN item —
-        // absolute-protection current and bonus-die uses. No economy impact
-        // (these only ever shrink a defensive buffer), so scoped like active/equipped.
-        allow update: if isMember(campaignId)
-                      && resource.data.ownerCharacterId != null
-                      && ownsChar(campaignId, resource.data.ownerCharacterId)
-                      && changedOnly(["soakAbsoluteCurrent", "soakUses", "soakBonusUses"]);
       }
 
       // ── Shops (B-19 / FEAT-17, revised B-50/D1) ───────────────────────────
