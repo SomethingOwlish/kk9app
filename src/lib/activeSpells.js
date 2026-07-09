@@ -31,9 +31,41 @@ export function activateSpellEntry(activeSpells = [], spell) {
     durationRemaining: spell.durationHours ?? 0,
     upkeepCost: spell.upkeepCost ?? 0,
   };
-  if (idx >= 0) list[idx] = { ...list[idx], ...entry };
-  else list.push(entry);
+  if (idx >= 0) {
+    // Foundry adds extraUses/extraDuration on recast (weapon-combat.mjs:2512) —
+    // the port mirrors that: uses accumulate, duration refreshes to the larger.
+    list[idx] = {
+      ...list[idx],
+      ...entry,
+      usesRemaining: (list[idx].usesRemaining ?? 0) + (spell.uses ?? 1),
+      durationRemaining: Math.max(list[idx].durationRemaining ?? 0, entry.durationRemaining ?? 0),
+    };
+  } else list.push(entry);
   return list;
+}
+
+// SKIP-02: active buff spells whose attribute bonus matches this roll's attribute
+// contribute a numeric modifier and have a use consumed after the roll — a port of
+// Foundry `collectStatusModifiers`' active-buff loop (weapon-combat.mjs:681-735).
+// The bonus lives on the SOURCE spell item (items), not on the activeSpells cache.
+// Buff spells that instead grant a status contribute through the status engine and
+// are inert here (their attribute-bonus map is empty), matching Foundry.
+const BUFF_ATTR_KEYS = ["agility", "smarts", "spirit", "endurance", "magic"];
+export function collectActiveBuffMods(activeSpells = [], items = [], attribute) {
+  if (!attribute) return [];
+  const out = [];
+  for (const entry of activeSpells || []) {
+    if ((entry.usesRemaining ?? 0) <= 0) continue;
+    const spell = (items || []).find((it) => it.id === entry.itemId);
+    if (!spell || spell.spellType !== "buff") continue;
+    const bonuses = spell.bonuses || {};
+    let numericMod = 0;
+    for (const key of BUFF_ATTR_KEYS) {
+      if (key === attribute && bonuses[key]) numericMod += bonuses[key];
+    }
+    if (numericMod) out.push({ itemId: entry.itemId, name: entry.name || spell.name || "Заклинание", numericMod });
+  }
+  return out;
 }
 
 // Manually spend one use of an active spell; expire at 0.

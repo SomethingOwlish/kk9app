@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   buildTimeRewindProposals,
   applyTimeRewind,
   addJournalPage,
   fetchDeviceRestorations,
   rewindDaysBetween,
+  watchOrganizations,
 } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
 
@@ -102,7 +103,7 @@ function ReviewCard({ p, onPatch }) {
           <div className="kk-rw-sub">Контакты — уровни отношений:</div>
           {p.contactLevels.map((c, i) => (
             <div key={c.orgId || i} className="kk-rw-list-row">
-              <span>{c.orgId}</span>
+              <span>{c.orgName || c.orgId}</span>
               <input
                 type="number"
                 min={-100}
@@ -133,12 +134,16 @@ export default function TimeRewindDialog({ campaign, partyMembers = [], extraAct
   const [proposals, setProposals] = useState([]);
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [orgs, setOrgs] = useState([]);
 
   const days = rewindDaysBetween(currentDate, targetDate);
 
+  // GAP-01: orgs power the human-readable contact labels (GM-only dialog).
+  useEffect(() => watchOrganizations(CAMPAIGN_ID, setOrgs), []);
+
   // Load device restorations for a set of characters, then build proposals.
   async function buildFor(chars) {
-    const base = buildTimeRewindProposals(chars, days, campaign, currentDate, targetDate);
+    const base = buildTimeRewindProposals(chars, days, campaign, currentDate, targetDate, orgs);
     const withDevices = await Promise.all(
       base.map(async (p) => {
         try {
@@ -203,7 +208,7 @@ export default function TimeRewindDialog({ campaign, partyMembers = [], extraAct
       parts.push("компаньоны: " + a.companions.map((c) => `${c.name} ${c.from}→${c.to}`).join(", "));
     }
     if (a.contacts?.length) {
-      parts.push("контакты: " + a.contacts.map((c) => `${c.orgId} ${c.from}→${c.to}`).join(", "));
+      parts.push("контакты: " + a.contacts.map((c) => `${c.orgName || c.orgId} ${c.from}→${c.to}`).join(", "));
     }
     return `${r.name}: ${parts.join(", ")}`;
   }

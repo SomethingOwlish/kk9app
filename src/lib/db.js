@@ -666,7 +666,8 @@ export async function fetchDeviceRestorations(campaignId, charId) {
 // Every numeric field is a proposed ABSOLUTE value the GM may edit before apply
 // (except xp/money which are deltas — accumulated, not clamped).
 // `campaign` provides settings; `currentGameDate`/`targetDate` drive semester math.
-export function buildTimeRewindProposals(chars, days, campaign, currentGameDate, targetDate) {
+export function buildTimeRewindProposals(chars, days, campaign, currentGameDate, targetDate, orgs = []) {
+  const orgNameById = new Map((orgs || []).map((o) => [o.id, o.name]));
   const k = REWIND_SLEEP_K;
   const sleeps = Math.floor(days * k);
   const idleExpPerDay = campaign?.idleExpPerDay ?? REWIND_DEFAULT_IDLE_XP;
@@ -710,7 +711,9 @@ export function buildTimeRewindProposals(chars, days, campaign, currentGameDate,
     // Contacts — editable proposed levels, default = current.
     const contacts = Array.isArray(ch.refs?.contacts) ? ch.refs.contacts : [];
     const contactLevels = contacts.map((c) => ({
-      orgId: c.orgId, from: c.level ?? 0, to: c.level ?? 0,
+      orgId: c.orgId,
+      orgName: orgNameById.get(c.orgId) ?? c.orgId, // GAP-01: human-readable name, fallback to id
+      from: c.level ?? 0, to: c.level ?? 0,
     }));
 
     return {
@@ -1239,7 +1242,7 @@ export async function dismissAttack(campaignId, attackId, note = "") {
 //           itemPatches:[{ itemId, fields:{...} }],
 //           soakSuccesses, degree, resolveNote }
 export async function resolveAttackOnSelf(campaignId, charId, ch, attackId, plan = {}) {
-  const { healthPatch = {}, statusInstances = [], itemPatches = [], resolveNote = "" } = plan;
+  const { healthPatch = {}, statusInstances = [], itemPatches = [], activeSpellsPatch, resolveNote = "" } = plan;
 
   // 1) Character patch (health pips + any added statuses), merged into one write.
   const charPatch = { ...healthPatch };
@@ -1249,6 +1252,8 @@ export async function resolveAttackOnSelf(campaignId, charId, ch, attackId, plan
     const toAdd = statusInstances.filter((s) => !existing.some((e) => e.name === s.name));
     if (toAdd.length) charPatch.activeStatuses = [...existing, ...toAdd];
   }
+  // SKIP-03: a depleted defensive spell rewrites the whole activeSpells[] array.
+  if (Array.isArray(activeSpellsPatch)) charPatch.activeSpells = activeSpellsPatch;
   if (Object.keys(charPatch).length) {
     await updateCharacterNow(campaignId, charId, charPatch);
   }

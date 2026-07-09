@@ -10,6 +10,7 @@ import { PORTRAIT_DEFAULTS } from "../lib/db";
 //
 // Props:
 //   characters[] — party character docs
+//   npcs[]       — NPC actor docs (DEC-01); assignable to the same portrait zones
 //   onUpdate(charId, config) — persists portraitConfig (updatePortraitConfig)
 const INTENSITY_OPTS = [
   ["", "авто"], ["0", "выкл"], ["0.5", "тише"], ["1.6", "громче"],
@@ -19,11 +20,21 @@ function uid() {
   try { return crypto.randomUUID().slice(0, 12); } catch { return "e" + Math.random().toString(36).slice(2, 12); }
 }
 
-export default function PortraitDock({ characters = [], onUpdate }) {
+export default function PortraitDock({ characters = [], npcs = [], onUpdate }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState({});
 
-  if (!characters.length) return null;
+  if (!characters.length && !npcs.length) return null;
+
+  const rowFor = (ch) => (
+    <DockRow
+      key={ch.id}
+      ch={ch}
+      onUpdate={onUpdate}
+      expanded={!!collapsed[ch.id]}
+      onToggle={() => setCollapsed((c) => ({ ...c, [ch.id]: !c[ch.id] }))}
+    />
+  );
 
   return (
     <>
@@ -37,15 +48,10 @@ export default function PortraitDock({ characters = [], onUpdate }) {
         <aside className="kk9-dock">
           <div className="kk9-dock__title">Портреты <button className="kk9-dock__x" onClick={() => setOpen(false)}>✕</button></div>
           <div className="kk9-dock__body">
-            {characters.map((ch) => (
-              <DockRow
-                key={ch.id}
-                ch={ch}
-                onUpdate={onUpdate}
-                expanded={!!collapsed[ch.id]}
-                onToggle={() => setCollapsed((c) => ({ ...c, [ch.id]: !c[ch.id] }))}
-              />
-            ))}
+            {characters.length > 0 && <div className="kk9-dock__section">Персонажи</div>}
+            {characters.map(rowFor)}
+            {npcs.length > 0 && <div className="kk9-dock__section">НПЦ</div>}
+            {npcs.map(rowFor)}
           </div>
         </aside>
       )}

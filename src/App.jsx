@@ -463,6 +463,10 @@ export default function App({ user, signOut }) {
     const inParty = new Set(partyMembers.map(c => c.id));
     return [...partyMembers, ...myChars.filter(c => !inParty.has(c.id))];
   }, [partyMembers, myChars]);
+  // DEC-01: portrait zones can hold NPCs too. PortraitLayer only renders actors
+  // whose portraitConfig.zone is set, so passing all NPCs is safe — only zoned
+  // ones appear. The GM dock (below) is where zones get assigned.
+  const portraitActors = useMemo(() => [...partyMembers, ...npcs], [partyMembers, npcs]);
   const cl = campaign !== null;
   const themeClass = theme !== "original" ? ` te-theme-${theme}` : "";
   // BUG-02 — demo is a public, chrome-free scene preview. No topbar; the burger
@@ -472,7 +476,7 @@ export default function App({ user, signOut }) {
       <div className={`kk-root${themeClass}`}>
         <div className="kk-bg" aria-hidden/>
         <ScenePlayerView/>
-        <PortraitLayer characters={partyMembers} intensity={portraitIntensity} />
+        <PortraitLayer characters={portraitActors} intensity={portraitIntensity} />
         {isAdmin && (
           <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню">
             <span/><span/><span/>
@@ -489,13 +493,13 @@ export default function App({ user, signOut }) {
         <ScenePlayerView isGM={isGM} onBack={() => navigate("/")}/>
         {/* FEAT-19 — portraits overlay the scene only; GM dock on top */}
         <PortraitLayer
-          characters={partyMembers}
+          characters={portraitActors}
           intensity={portraitIntensity}
           myUid={user.uid}
           allowPlayerEmotions={campaign?.scene?.allowPlayerEmotions ?? false}
           onSetEmotion={onSetOwnEmotion}
         />
-        {isGM && <PortraitDock characters={partyMembers} onUpdate={onUpdatePortrait} />}
+        {isGM && <PortraitDock characters={partyMembers} npcs={npcs} onUpdate={onUpdatePortrait} />}
         {!isGM && (
           <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню">
             <span/><span/><span/>
