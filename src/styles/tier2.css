@@ -375,3 +375,44 @@
 .kk-roll-reroll-actions { display: flex; gap: .5rem; }
 .kk-stat-tough { display: flex; align-items: center; gap: .3rem; }
 .kk-rl-reroll { font-size: .72rem; color: var(--kk-gold, #c8a14e); opacity: .85; }
+
+/* ── Combat: attack producer + defender resolve (Tier 9 / B-54) ── */
+/* Attack section inside RollDialog's result panel. */
+.kk-attack-section { margin-top: .6rem; padding: .55rem .6rem; border: 1px solid rgba(200,161,78,.35);
+  border-radius: 9px; background: rgba(200,161,78,.06); text-align: left; }
+.kk-attack-title { font-size: .74rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--kk-gold, #c8a14e); font-weight: 700; margin-bottom: .25rem; }
+.kk-attack-summary { font-size: .84rem; opacity: .9; margin-bottom: .4rem; }
+.kk-attack-sent { font-size: .84rem; color: var(--kk-green, #4caf6a); font-weight: 600; }
+.kk-attack-empty { font-size: .82rem; opacity: .7; }
+.kk-attack-pick-hint { font-size: .78rem; opacity: .7; margin-bottom: .3rem; }
+.kk-attack-targets { display: flex; flex-direction: column; gap: .2rem; margin-bottom: .45rem; }
+.kk-attack-target { display: flex; align-items: center; gap: .4rem; font-size: .86rem; cursor: pointer; }
+.kk-attack-target-name { flex: 1; }
+.kk-attack-target-kind { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em;
+  opacity: .6; border: 1px solid rgba(255,255,255,.2); border-radius: 5px; padding: 0 .3rem; }
+.kk-attack-send { width: 100%; }
+
+/* Defender resolve toasts (fixed, bottom-right stack). */
+.kk-attack-toasts { position: fixed; right: 1rem; bottom: 1rem; z-index: 60;
+  display: flex; flex-direction: column; gap: .6rem; max-width: min(360px, 92vw); }
+.kk-attack-resolve { border: 1px solid rgba(192,86,63,.45); border-radius: 11px; padding: .7rem .8rem;
+  background: var(--kk-panel, #1b1b20); box-shadow: 0 6px 22px rgba(0,0,0,.45); }
+.kk-attack-resolve-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.kk-attack-resolve-from { font-weight: 700; font-size: .9rem; }
+.kk-attack-tag { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--kk-danger, #c0563f); border: 1px solid rgba(192,86,63,.5); border-radius: 5px; padding: 0 .3rem; }
+.kk-attack-resolve-summary { font-size: .84rem; opacity: .88; margin: .25rem 0 .5rem; }
+.kk-attack-resolve-abils-title { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em;
+  opacity: .55; margin-bottom: .25rem; }
+.kk-attack-resolve-abil { display: flex; align-items: center; gap: .4rem; font-size: .84rem; cursor: pointer; padding: 2px 0; }
+.kk-attack-resolve-abil.unavail { opacity: .5; cursor: not-allowed; }
+.kk-attack-resolve-abil-name { flex: 1; }
+.kk-attack-resolve-abil-why { font-size: .72rem; color: var(--kk-danger, #c0563f); opacity: .8; }
+.kk-attack-resolve-bonuses { font-size: .78rem; opacity: .7; margin: .35rem 0; }
+.kk-attack-resolve-actions { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .5rem; }
+.kk-attack-resolve-result { margin-top: .4rem; }
+.kk-attack-resolve-outcome { font-weight: 700; font-size: .9rem; color: var(--kk-gold, #c8a14e); }
+.kk-attack-resolve-degree { font-size: .82rem; opacity: .85; margin-top: .2rem; }
+.kk-attack-resolve-dmg { font-size: .84rem; color: var(--kk-danger, #c0563f); font-weight: 600; margin-top: .2rem; }
+.kk-attack-resolve-reasons { font-size: .76rem; opacity: .65; margin-top: .3rem; }
