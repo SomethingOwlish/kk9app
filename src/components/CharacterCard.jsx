@@ -40,7 +40,13 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const overflow = ch.overflow_damage ?? 0;
   const im = ch.attributes.agility.modifier + ch.attributes.smarts.modifier;
   const initStr = `d${ch.attributes.agility.die} · d${ch.attributes.smarts.die} · d6 → 2 лучших${im ? (im > 0 ? ` +${im}` : ` ${im}`) : ""}`;
-  const grouped = CAT_ORDER.map(cat => ({ cat, items: (ch.skills || []).filter(s => s.categ === cat) })).filter(g => g.items.length);
+  // Навыки с категорией вне CAT_ORDER (напр., из импорта Foundry) не должны молча
+  // пропадать — собираем их в запасную группу «Прочие».
+  const knownCats = new Set(CAT_ORDER);
+  const grouped = [
+    ...CAT_ORDER.map(cat => ({ cat, items: (ch.skills || []).filter(s => s.categ === cat) })),
+    { cat: "other", items: (ch.skills || []).filter(s => !knownCats.has(s.categ)) },
+  ].filter(g => g.items.length);
   const fac = ch.faculty || {};
   const hasBio = !!ch.biography;
   const demoFields = DEMO_FIELDS.filter(([k]) => ch[k]);
@@ -367,7 +373,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         <h2 className="kk-h2">Навыки</h2>
         {grouped.map(g => (
           <div className="kk-skill-group" key={g.cat}>
-            <div className="kk-skill-cat">{CAT_LABEL[g.cat]}</div>
+            <div className="kk-skill-cat">{CAT_LABEL[g.cat] || "Прочие"}</div>
             <div className="kk-skills">{g.items.map(s => {
               const unt = s.die === 4 && s.modifier <= -2;
               const fallbackTip = `Связан с: ${ATTR_LABEL[s.attr]}. Не выше атрибута.`;

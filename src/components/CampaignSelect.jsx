@@ -241,14 +241,12 @@ function UserCampaignRow({ uid, campaign }) {
     try { await assignUserToCampaign(campaign.id, uid, role); }
     catch (e) { alert("Ошибка: " + (e?.message || e)); }
   };
-  const ownedChar = chars?.find((ch) => ch.ownerUid === uid);
-  const assignChar = async (charId) => {
+  // Пользователь может владеть НЕСКОЛЬКИМИ персонажами — назначаем каждого
+  // независимо (чекбоксы), а не одним селектом, который снимал прежнего.
+  const ownedIds = new Set((chars || []).filter((ch) => ch.ownerUid === uid).map((ch) => ch.id));
+  const toggleChar = async (charId, own) => {
     try {
-      // Снимаем прежнего персонажа этого пользователя, затем назначаем нового.
-      if (ownedChar && ownedChar.id !== charId) {
-        await assignCharacterToUser(campaign.id, ownedChar.id, null);
-      }
-      if (charId) await assignCharacterToUser(campaign.id, charId, uid);
+      await assignCharacterToUser(campaign.id, charId, own ? uid : null);
       const rows = await listCharacters(campaign.id);
       setChars(rows);
     } catch (e) { alert("Ошибка: " + (e?.message || e)); }
@@ -267,17 +265,20 @@ function UserCampaignRow({ uid, campaign }) {
             <option value="gm">Мастер</option>
             <option value="demo">Демо</option>
           </select>
-          <select
-            value={ownedChar?.id || ""}
-            onChange={(e) => assignChar(e.target.value)}
-            disabled={chars === null}
-            title="Назначить персонажа"
-          >
-            <option value="">{chars === null ? "…" : "— персонаж —"}</option>
+          <div className="kk-ucrow-chars" title="Персонажи пользователя">
+            {chars === null && <span className="kk-ucrow-charhint">…</span>}
+            {chars !== null && chars.length === 0 && <span className="kk-ucrow-charhint">нет персонажей</span>}
             {(chars || []).map((ch) => (
-              <option key={ch.id} value={ch.id}>{ch.name || ch.id}</option>
+              <label key={ch.id} className="kk-ucrow-char">
+                <input
+                  type="checkbox"
+                  checked={ownedIds.has(ch.id)}
+                  onChange={(e) => toggleChar(ch.id, e.target.checked)}
+                />
+                <span>{ch.name || ch.id}</span>
+              </label>
             ))}
-          </select>
+          </div>
         </div>
       )}
     </div>
@@ -338,7 +339,12 @@ const CSS = `
   padding:7px 8px; border-radius:8px;}
 .kk-ucrow.on{background:#20190f;}
 .kk-ucrow-main{display:flex; align-items:center; gap:9px; cursor:pointer; font-size:13px;}
-.kk-ucrow-controls{display:flex; gap:6px;}
+.kk-ucrow-controls{display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap;}
+.kk-ucrow-chars{display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center;
+  max-width:340px; padding:4px 0;}
+.kk-ucrow-char{display:flex; align-items:center; gap:5px; font-size:12px; color:#d8cbb2; cursor:pointer;}
+.kk-ucrow-char input{cursor:pointer;}
+.kk-ucrow-charhint{font-size:12px; color:#8a7a5f;}
 @media (max-width:560px){
   .kk-camp-card{flex-wrap:wrap;}
   .kk-camp-actions{width:100%; justify-content:flex-end;}
