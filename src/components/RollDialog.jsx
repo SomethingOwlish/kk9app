@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { rollPool, rollSnakeEyes, stepDie, successDegreeFromTotal, applySuccessMod, rollExtraDiceList, formatFaces } from "../lib/dice";
 import { collectRollModifiers, collectApplicableFeatures, collectHealthPenalties } from "../lib/statusEngine";
 import { canCastSpell } from "../lib/items";
-import { spellActivates, activateSpellEntry } from "../lib/activeSpells";
+import { spellActivates, activateSpellEntry, collectActiveBuffMods, consumeSpellUse } from "../lib/activeSpells";
 import * as combat from "../lib/combat";
 import {
   computeTensionOutcome, tensionSettings, isTensionBlocked,
@@ -45,6 +45,19 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   const applicableFeats = useMemo(() => collectApplicableFeatures(ch, ctx), [ch, ctx]);
   // Health penalties depend on the roll's attribute track + toughness exception (pip 5).
   const health = useMemo(() => collectHealthPenalties(ch, target.attribute, isToughness), [ch, target.attribute, isToughness]);
+
+  // SKIP-02: active buff spells that modify this roll's attribute. Auto-applied,
+  // with a per-buff opt-out; each applied buff loses one use after the roll.
+  const buffMods = useMemo(
+    () => collectActiveBuffMods(ch.activeSpells, items, target.attribute),
+    [ch.activeSpells, items, target.attribute],
+  );
+  const [excludedBuffs, setExcludedBuffs] = useState(() => new Set());
+  const appliedBuffs = useMemo(
+    () => buffMods.filter((b) => !excludedBuffs.has(b.itemId)),
+    [buffMods, excludedBuffs],
+  );
+  const buffNumericMod = appliedBuffs.reduce((a, b) => a + b.numericMod, 0);
 
   // Pre-roll state: selected traits (default all applicable checked) + manual mods.
   const [selFeats, setSelFeats] = useState(() => new Set(applicableFeats.map((f) => f.id)));
@@ -89,7 +102,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   const effDie = stepDie(target.die, dieSteps);
   const attackMod = isItem ? Number(target.attackModifier || 0) : 0;
   const baseSkillMod = (target.modifier ?? 0) - attackMod; // skill/attr part only
-  const numericMod = mods.numericMod + feat.numericMod;
+  const numericMod = mods.numericMod + feat.numericMod + buffNumericMod;
   const successMod = mods.successMod + feat.successMod + Number(successManual || 0);
   const extraDiceList = [...(mods.extraDiceList || []), ...feat.extra];
   const baseMod = (target.modifier ?? 0) + numericMod + Number(situational || 0) + health.mod;
@@ -119,6 +132,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
     if (f.extra.length) bits.push(`+${f.extra.length} доп. куб.`);
     modParts.push({ label: `Черта: ${f.name}`, detail: bits.join(", "), kind: "feature" });
   }
+  for (const b of appliedBuffs) modParts.push({ label: `Заклинание: ${b.name}`, value: b.numericMod, kind: "artifact" });
   if (Number(situational)) modParts.push({ label: "Ситуативный", value: Number(situational) });
   if (Number(successManual)) modParts.push({ label: "Модификатор успехов", value: Number(successManual), detail: "к успеху" });
   if (health.mod) modParts.push({ label: "Штраф здоровья", value: health.mod, kind: "health" });
@@ -177,6 +191,14 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
     } finally {
       setBusy(false);
     }
+  }
+
+  function toggleBuff(id) {
+    setExcludedBuffs((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
   }
 
   function toggleFeat(id) {
@@ -239,12 +261,26 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
         charPatch = { "energy.value": Math.max(0, cur - spellCost) };
       }
 
-      // Active-spell lifecycle (B-55): a successful cast of an ongoing, non-attack
-      // spell adds/refreshes an entry on character.activeSpells (upkeep is then
-      // charged per round by the GM "Раунд →" control). Attack spells resolve
-      // through the soak flow instead, so they never activate here.
+      // Active-spell lifecycle. Two effects fold into one activeSpells write:
+      //  (1) SKIP-02: each applied active buff-spell loses a use after the roll
+      //      (Foundry consumeStatusCharges, weapon-combat.mjs:819). Depleted → drop.
+      //  (2) B-55: a successful cast of an ongoing, non-attack spell adds/refreshes
+      //      an entry (upkeep then charged per round by the GM "Раунд →" control).
+      // Order matters: consume first (operates on current entries), then activate.
+      let nextActiveSpells = ch.activeSpells;
+      let activeSpellsChanged = false;
+      if (!isReroll && appliedBuffs.length) {
+        for (const b of appliedBuffs) {
+          nextActiveSpells = consumeSpellUse(nextActiveSpells, b.itemId).activeSpells;
+        }
+        activeSpellsChanged = true;
+      }
       if (!isReroll && isItem && target.itemType === "spell" && mainRoll.success && target.item && spellActivates(target.item)) {
-        charPatch = { ...(charPatch || {}), activeSpells: activateSpellEntry(ch.activeSpells, target.item) };
+        nextActiveSpells = activateSpellEntry(nextActiveSpells, target.item);
+        activeSpellsChanged = true;
+      }
+      if (activeSpellsChanged) {
+        charPatch = { ...(charPatch || {}), activeSpells: nextActiveSpells };
       }
 
       const rollData = {
@@ -334,6 +370,18 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
 
           {!result && (
             <>
+              {buffMods.length > 0 && (
+                <div className="kk-roll-feats">
+                  <div className="kk-roll-feats-title">Активные заклинания (расход применения)</div>
+                  {buffMods.map((b) => (
+                    <label className="kk-roll-feat" key={b.itemId}>
+                      <input type="checkbox" checked={!excludedBuffs.has(b.itemId)} onChange={() => toggleBuff(b.itemId)} />
+                      <span className="kk-roll-feat-name">{b.name}</span>
+                      <span className="kk-roll-feat-eff">{signed(b.numericMod)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
               {applicableFeats.length > 0 && (
                 <div className="kk-roll-feats">
                   <div className="kk-roll-feats-title">Черты (по желанию)</div>

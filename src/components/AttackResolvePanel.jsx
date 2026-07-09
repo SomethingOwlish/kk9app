@@ -42,30 +42,68 @@ function gatherResistAbilities(ch) {
 // Adapter: convert a soak.resolveSoak() result into a db.resolveAttackOnSelf plan.
 //   1) healthPatch: cap each track's added pips at healthMax(attr die).
 //      physical → endurance die, mental → spirit die (mirrors PartyCard/derive).
-//   2) itemPatches: group soak's [{itemId,field,value}] by itemId (skip null ids —
-//      those are activeSpells target-doc patches, out of scope for B-54).
+//   2) itemPatches: group soak's [{itemId,field,value}] by itemId. Null-itemId
+//      patches (SKIP-03) target the character doc's activeSpells[] — a depleted
+//      defensive spell — and carry the full replacement array; pulled out into
+//      activeSpellsPatch for the character write.
 //   3) statusInstances: "bleed" → campaign status «Кровотечение»; {attackStatusUuid}
 //      → the attack's statusName. Missing campaign status is skipped.
 function buildPlan(res, ch, attackData, campaignStatuses) {
-  // 1) health cap per track.
+  // 1) health application. SKIP-01: cross-track overflow (Foundry
+  // applyDamageToActor with overflow=true) fires ONLY on the bypass-auto-damage
+  // outcome — toughness pierced. Foundry's normal defender-soak path passes
+  // overflow=false, so every other outcome caps at the track max. When overflow
+  // is on, physical spills → mental → overflow_damage; mental spills → overflow_damage.
   const healthPatch = {};
   const physMax = healthMax(ch.attributes?.endurance?.die ?? 4);
   const mentMax = healthMax(ch.attributes?.spirit?.die ?? 4);
-  if (res.damageApplied?.physical > 0) {
-    const cur = ch.health?.physical?.value || 0;
-    // TODO: cross-track overflow (Foundry applyDamageToActor) — cap for now.
-    healthPatch["health.physical.value"] = Math.min(physMax, cur + res.damageApplied.physical);
-  }
-  if (res.damageApplied?.mental > 0) {
-    const cur = ch.health?.mental?.value || 0;
-    // TODO: cross-track overflow (Foundry applyDamageToActor) — cap for now.
-    healthPatch["health.mental.value"] = Math.min(mentMax, cur + res.damageApplied.mental);
+  const physCur = ch.health?.physical?.value || 0;
+  const mentCur = ch.health?.mental?.value || 0;
+  const allowOverflow = res.outcome === "bypass-auto-damage";
+  const physDmg = res.damageApplied?.physical > 0 ? res.damageApplied.physical : 0;
+  const mentDmg = res.damageApplied?.mental > 0 ? res.damageApplied.mental : 0;
+  let appliedBreakdown = null;
+  if (physDmg > 0 || mentDmg > 0) {
+    let newPhys = physCur;
+    let newMent = mentCur;
+    let overflowDamage = 0;
+    if (physDmg > 0) {
+      newPhys = Math.min(physCur + physDmg, physMax);
+      const leftover = physCur + physDmg - physMax;
+      if (allowOverflow && leftover > 0) {
+        newMent = Math.min(mentCur + leftover, mentMax);
+        const overMent = mentCur + leftover - mentMax;
+        if (overMent > 0) overflowDamage += overMent;
+      }
+    }
+    if (mentDmg > 0) {
+      const beforeMent = newMent;
+      newMent = Math.min(beforeMent + mentDmg, mentMax);
+      const leftover = beforeMent + mentDmg - mentMax;
+      if (allowOverflow && leftover > 0) overflowDamage += leftover;
+    }
+    if (newPhys !== physCur) healthPatch["health.physical.value"] = newPhys;
+    if (newMent !== mentCur) healthPatch["health.mental.value"] = newMent;
+    if (overflowDamage > 0) healthPatch["overflow_damage"] = (ch.overflow_damage ?? 0) + overflowDamage;
+    appliedBreakdown = {
+      physApplied: newPhys - physCur,
+      mentApplied: newMent - mentCur,
+      overflowDamage,
+      // overflow occurred if mental took pips the attack didn't directly deal
+      overflowed: allowOverflow && (newMent - mentCur > mentDmg || overflowDamage > 0),
+    };
   }
 
-  // 2) group item patches by itemId (skip null-id activeSpells patches).
+  // 2) group item patches by itemId. Null-itemId activeSpells patches (SKIP-03)
+  // carry the full replacement array for the character doc — pull them out.
   const byItem = new Map();
+  let activeSpellsPatch; // undefined = no change; array = write character.activeSpells
   for (const p of res.itemPatches || []) {
-    if (!p || p.itemId == null) continue;
+    if (!p) continue;
+    if (p.itemId == null) {
+      if (p.field === "activeSpells") activeSpellsPatch = p.value;
+      continue;
+    }
     if (!byItem.has(p.itemId)) byItem.set(p.itemId, {});
     byItem.get(p.itemId)[p.field] = p.value;
   }
@@ -90,6 +128,8 @@ function buildPlan(res, ch, attackData, campaignStatuses) {
     healthPatch,
     statusInstances,
     itemPatches,
+    activeSpellsPatch,
+    appliedBreakdown,
     soakSuccesses: res.soakSuccesses,
     degree: res.degree,
     resolveNote: OUTCOME_LABEL[res.outcome] || res.outcome,
@@ -136,8 +176,8 @@ export default function AttackResolvePanel({ attack, ch, items = [], campaignSta
         selectedAbilityIds,
         // selectedBonusIds omitted → auto-apply ALL eligible bonuses (Foundry).
       });
-      setRes(soakRes);
       const plan = buildPlan(soakRes, ch, attackData, campaignStatuses);
+      setRes({ ...soakRes, appliedBreakdown: plan.appliedBreakdown });
       await onResolve(plan);
     } catch (e) {
       alert("Ошибка сопротивления: " + (e?.message || e));
@@ -211,6 +251,13 @@ export default function AttackResolvePanel({ attack, ch, items = [], campaignSta
             <div className="kk-attack-resolve-dmg">
               Урон: {res.damageApplied.physical > 0 ? `${res.damageApplied.physical} физ. ` : ""}
               {res.damageApplied.mental > 0 ? `${res.damageApplied.mental} мент.` : ""}
+              {res.appliedBreakdown?.overflowed && (
+                <span className="kk-attack-resolve-overflow">
+                  {" · перелив:"}
+                  {res.appliedBreakdown.mentApplied > 0 ? ` +${res.appliedBreakdown.mentApplied} мент.` : ""}
+                  {res.appliedBreakdown.overflowDamage > 0 ? ` +${res.appliedBreakdown.overflowDamage} за макс.` : ""}
+                </span>
+              )}
             </div>
           )}
           {(res.reasons || []).length > 0 && (

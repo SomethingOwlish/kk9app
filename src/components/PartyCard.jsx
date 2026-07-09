@@ -8,6 +8,13 @@ import { healthMax } from "../lib/portrait";
 export default function PartyCard({ ch, onOpen }) {
   const fac = ch.faculty || {};
   const color = fac.color || "#c8a14e";
+  // Academy year (DEC-02): numeric year → "N курс"; "graduate" → "Выпускник".
+  // bennies is intentionally omitted — no such field on the data model.
+  const gradeLabel = ch.academyYear == null
+    ? ""
+    : ch.academyYear === "graduate"
+      ? "Выпускник"
+      : `${ch.academyYear} курс`;
   // Raw max + status energy.mode=max mods; tension penalty stays hidden here (IMP-01).
   const energyMax = Math.max(0, (ch.energy?.max ?? deriveEnergyMax(ch)) + deriveStatusMaxMods(ch).energyMaxMod);
   const energyVal = ch.energy?.value ?? 0;
@@ -34,7 +41,11 @@ export default function PartyCard({ ch, onOpen }) {
       </div>
       <div className="kk-party-card-body">
         <div className="kk-party-card-name">{ch.name}</div>
-        {fac.name && <div className="kk-party-card-fac">{fac.name}</div>}
+        {(fac.name || gradeLabel) && (
+          <div className="kk-party-card-fac">
+            {fac.name}{fac.name && gradeLabel ? " · " : ""}{gradeLabel}
+          </div>
+        )}
         <div className="kk-party-card-stats">
           <div className="kk-party-stat">
             <span className="kk-party-stat-label">❤ Физ.</span>
