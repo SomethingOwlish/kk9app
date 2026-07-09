@@ -21,7 +21,10 @@ export default function RelationEditor({ relation, peers = [], onSave, onClose }
   }));
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const peerOptions = peers.map((p) => ({ value: p.id, label: p.name || "(без имени)" }));
+  const peerOptions = peers.map((p) => {
+    const base = p.name || "(без имени)";
+    return { value: p.id, label: p.hint ? `${base} · ${p.hint}` : base };
+  });
 
   function pickRef(id) {
     const peer = peers.find((p) => p.id === id);

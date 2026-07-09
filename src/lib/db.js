@@ -1047,6 +1047,36 @@ export async function createNpc(campaignId, { name = "Новый НПС" } = {})
   });
   return ref.id;
 }
+// Spawn a live board NPC from a Library entry (npc-light/hard/boss, curator,
+// companion, daemon). Copies the statblock; library uses {die,modifier} while
+// the NPC sheet expects {die,mod}, so attributes/abilities are normalized here.
+export async function createNpcFromLibrary(campaignId, entry = {}) {
+  const CORE = ["agility", "smarts", "spirit", "endurance"];
+  const src = entry.attributes || {};
+  const attributes = {};
+  for (const k of [...CORE, "magic"]) {
+    const a = src[k];
+    if (a) attributes[k] = { die: a.die ?? 6, mod: a.modifier ?? a.mod ?? 0 };
+  }
+  for (const k of CORE) if (!attributes[k]) attributes[k] = { die: 6, mod: 0 };
+  const skills = Array.isArray(entry.abilities)
+    ? entry.abilities.map((s) => ({ name: s.name || "", die: s.die ?? 6, mod: s.modifier ?? s.mod ?? 0 }))
+    : [];
+  const ref = doc(collection(db, "campaigns", campaignId, "characters"));
+  await setDoc(ref, {
+    isNpc: true,
+    name: entry.name || "Новый НПС",
+    libraryRef: entry.id || null,
+    img: entry.img || "",
+    attributes,
+    skills,
+    health: { physical: { value: 0, toughness: entry.toughness ?? 4 } },
+    overflow_damage: 0,
+    activeStatuses: [],
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
 export async function deleteNpc(campaignId, charId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "characters", charId));
 }

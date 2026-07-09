@@ -1,20 +1,33 @@
 import { useState } from "react";
 import { addToParty, removeFromParty, saveCampaignDebounced, setGmModeActive, clearGmMode, createNpc } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
+import { LIBRARY_KIND_LABEL } from "../lib/library";
 import PartyRow from "../components/PartyRow";
 import TimeRewindDialog from "../components/TimeRewindDialog";
 import NpcSheet from "./NpcSheet";
 
-export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], campaignStatuses = [], onTickRound }) {
+// Library kinds that make sense to spawn as a live board NPC.
+const LIBRARY_NPC_KINDS = new Set(["npc-light", "npc-hard", "npc-boss", "curator", "companion", "daemon"]);
+
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], onAddNpcFromLibrary, campaignStatuses = [], onTickRound }) {
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
   const [rewindOpen, setRewindOpen] = useState(false);
   const [openNpcId, setOpenNpcId] = useState(null);
+  const [libPickOpen, setLibPickOpen] = useState(false);
   const openNpc = openNpcId ? npcs.find(n => n.id === openNpcId) : null;
 
   const isGmMode = !!gmModeData?.active;
   const nonParty = characters.filter(c => !partyMembers.some(p => p.id === c.id) && !c.isNpc);
+  const libraryNpcs = library.filter(e => LIBRARY_NPC_KINDS.has(e.kind));
+
+  const addFromLibrary = (entry) => {
+    setLibPickOpen(false);
+    Promise.resolve(onAddNpcFromLibrary?.(entry))
+      .then(id => id && setOpenNpcId(id))
+      .catch(console.error);
+  };
 
   const save = (patch) => saveCampaignDebounced(CAMPAIGN_ID, patch);
 
@@ -131,12 +144,24 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
       <div className="kk-board-section">
         <div className="kk-board-section-head">
           <div className="kk-h2">НПС <span className="kk-count">{npcs.length}</span></div>
-          <button
-            className="kk-btn sm"
-            onClick={() => createNpc(CAMPAIGN_ID).then(id => setOpenNpcId(id)).catch(console.error)}
-          >
-            + Добавить НПС
-          </button>
+          <div style={{ display: "flex", gap: ".4rem" }}>
+            {onAddNpcFromLibrary && (
+              <button
+                className="kk-btn ghost sm"
+                onClick={() => setLibPickOpen(true)}
+                disabled={libraryNpcs.length === 0}
+                title={libraryNpcs.length === 0 ? "В библиотеке нет НПС" : "Добавить существующего НПС из библиотеки"}
+              >
+                📖 Из библиотеки
+              </button>
+            )}
+            <button
+              className="kk-btn sm"
+              onClick={() => createNpc(CAMPAIGN_ID).then(id => setOpenNpcId(id)).catch(console.error)}
+            >
+              + Добавить НПС
+            </button>
+          </div>
         </div>
         {npcs.length === 0
           ? <div className="kk-empty">Нет НПС. Нажмите «+ Добавить НПС» чтобы создать.</div>
@@ -152,6 +177,34 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
         }
       </div>
     </div>
+
+    {libPickOpen && (
+      <div className="kk-overlay" onClick={e => e.target === e.currentTarget && setLibPickOpen(false)}>
+        <div className="kk-modal">
+          <div className="kk-modal-head">
+            <div className="kk-modal-title">НПС из библиотеки</div>
+            <button className="kk-modal-x kk-btn ghost xs" onClick={() => setLibPickOpen(false)}>✕</button>
+          </div>
+          <div className="kk-modal-body">
+            {libraryNpcs.length === 0
+              ? <div className="kk-empty">В библиотеке нет НПС.</div>
+              : <div className="kk-board-addlist">
+                  {libraryNpcs.map(e => (
+                    <button key={e.id} className="kk-board-add-btn" onClick={() => addFromLibrary(e)}>
+                      <span className="kk-board-add-av">
+                        {e.img ? <img src={e.img} alt="" /> : (e.name || "?")[0]}
+                      </span>
+                      <span className="kk-board-add-name">{e.name || "без имени"}</span>
+                      <span className="kk-board-add-sub">{LIBRARY_KIND_LABEL[e.kind] || "НПС"}</span>
+                      <span className="kk-board-add-plus">+</span>
+                    </button>
+                  ))}
+                </div>
+            }
+          </div>
+        </div>
+      </div>
+    )}
 
     {openNpc && (
       <NpcSheet
