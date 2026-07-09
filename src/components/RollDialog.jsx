@@ -2,35 +2,15 @@ import { useState, useMemo } from "react";
 import { rollPool, rollSnakeEyes, stepDie, successDegreeFromTotal, applySuccessMod, rollExtraDiceList, formatFaces } from "../lib/dice";
 import { collectRollModifiers, collectApplicableFeatures, collectHealthPenalties } from "../lib/statusEngine";
 import { canCastSpell } from "../lib/items";
+import { spellActivates, activateSpellEntry } from "../lib/activeSpells";
+import * as combat from "../lib/combat";
 import {
   computeTensionOutcome, tensionSettings, isTensionBlocked,
   abilityTriggersTension, MENTAL_EXHAUSTION,
 } from "../lib/tension";
-
-function rUid() { return Math.random().toString(36).slice(2, 10); }
+import { buildStatusInstance } from "../lib/statusInstance";
 
 const FATE_DEBT = "Долг судьбы";
-
-// Builds a runtime status instance from a campaign status definition by name.
-function buildStatusInstance(campaignStatuses, name, source, fallbackTypes) {
-  const def = campaignStatuses.find((s) => s.name === name);
-  return {
-    _uid: rUid(),
-    definitionId: def?.id || "",
-    name,
-    status_types: def?.status_types || fallbackTypes,
-    apply_stun: def?.apply_stun ?? false,
-    durationMode: def?.duration?.mode || "time",
-    durationRemaining: null,
-    effects: def?.effects || [],
-    progresses: def?.progresses ?? false,
-    progress_every: def?.progress_every ?? 1,
-    progress_into_names: def?.progress_into_names || [],
-    progressCount: 0,
-    tickCount: 0,
-    source,
-  };
-}
 
 const SRC_LABEL = { status: "Статус", feature: "Черта", artifact: "Артефакт" };
 
@@ -47,7 +27,7 @@ function signed(n) { return `${n > 0 ? "+" : ""}${n}`; }
 //   onCommit(payload) — async. Normal: { charId, rollData, outcome, exhaustionInstance, charPatch }.
 //                       Reroll: { charId, rollData, reroll: true, fateDebtInstance }.
 //   onClose
-export default function RollDialog({ ch, target, campaign, campaignStatuses = [], items = [], isGM = false, onCommit, onClose }) {
+export default function RollDialog({ ch, target, campaign, campaignStatuses = [], items = [], isGM = false, onCommit, onClose, roster = [], onAttack }) {
   const settings = useMemo(() => tensionSettings(campaign), [campaign]);
 
   const isItem = target.kind === "item";
@@ -73,6 +53,11 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [confirmReroll, setConfirmReroll] = useState(false);
+
+  // Attack producer (B-54): after a successful roll of an attack item, let the
+  // attacker pick target(s) and dispatch pending-attack docs.
+  const [attackTargets, setAttackTargets] = useState(() => new Set());
+  const [attackSent, setAttackSent] = useState(false);
 
   // GM manual-entry mode.
   const [manual, setManual] = useState(false);
@@ -138,6 +123,62 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   if (Number(successManual)) modParts.push({ label: "Модификатор успехов", value: Number(successManual), detail: "к успеху" });
   if (health.mod) modParts.push({ label: "Штраф здоровья", value: health.mod, kind: "health" });
 
+  // ── Attack producer (B-54) ──
+  // Show the attack section only when an item roll of an attack item succeeded
+  // (and it was not a snake-eyes critical failure).
+  const attackItem = isItem ? target.item : null;
+  const canAttack = !!(
+    attackItem && combat.isAttackItem(attackItem) &&
+    typeof onAttack === "function" &&
+    result && result.success && !result.snakeEyes
+  );
+  const attackData = useMemo(
+    () => (attackItem && combat.isAttackItem(attackItem) && result && result.success && !result.snakeEyes
+      ? combat.buildAttackData(attackItem, { success: result.success, raises: result.raises })
+      : null),
+    [attackItem, result],
+  );
+  // Roster minus the attacker's own character (can't target yourself here).
+  const attackRoster = useMemo(() => (roster || []).filter((r) => r.id !== ch.id), [roster, ch.id]);
+  const isAoe = !!attackData?.isAreaAttack;
+
+  function toggleAttackTarget(id) {
+    setAttackTargets((prev) => {
+      const n = new Set(prev);
+      if (isAoe) {
+        if (n.has(id)) n.delete(id); else n.add(id);
+      } else {
+        n.clear();
+        n.add(id);
+      }
+      return n;
+    });
+  }
+
+  async function sendAttack() {
+    if (busy || !attackData || !onAttack || attackTargets.size === 0) return;
+    setBusy(true);
+    try {
+      const arr = [...attackTargets].map((tid) => {
+        const t = attackRoster.find((r) => r.id === tid);
+        return {
+          attackerCharId: ch.id,
+          attackerName: ch.name || "",
+          targetCharId: tid,
+          targetName: t?.name || "",
+          targetKind: t?.kind || "character",
+          attackData,
+        };
+      });
+      await onAttack(arr);
+      setAttackSent(true);
+    } catch (e) {
+      alert("Ошибка атаки: " + (e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function toggleFeat(id) {
     setSelFeats((prev) => {
       const n = new Set(prev);
@@ -196,6 +237,14 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
       if (!isReroll && spellCost > 0 && (mainRoll.success || isSnake)) {
         const cur = ch.energy?.value ?? 0;
         charPatch = { "energy.value": Math.max(0, cur - spellCost) };
+      }
+
+      // Active-spell lifecycle (B-55): a successful cast of an ongoing, non-attack
+      // spell adds/refreshes an entry on character.activeSpells (upkeep is then
+      // charged per round by the GM "Раунд →" control). Attack spells resolve
+      // through the soak flow instead, so they never activate here.
+      if (!isReroll && isItem && target.itemType === "spell" && mainRoll.success && target.item && spellActivates(target.item)) {
+        charPatch = { ...(charPatch || {}), activeSpells: activateSpellEntry(ch.activeSpells, target.item) };
       }
 
       const rollData = {
@@ -382,6 +431,46 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
                     {result.outcome.addExhaustion ? " · Ментальное истощение!" : ""}
                   </div>
                 )
+              )}
+
+              {/* Attack producer (B-54) — pick target(s) and dispatch damage. */}
+              {canAttack && attackData && (
+                <div className="kk-attack-section">
+                  <div className="kk-attack-title">Атака</div>
+                  <div className="kk-attack-summary">{combat.attackSummary(attackData)}</div>
+                  {attackSent ? (
+                    <div className="kk-attack-sent">✔ Урон отправлен цели{attackTargets.size > 1 ? "ям" : ""}.</div>
+                  ) : attackRoster.length === 0 ? (
+                    <div className="kk-attack-empty">Нет доступных целей.</div>
+                  ) : (
+                    <>
+                      <div className="kk-attack-pick-hint">
+                        {isAoe ? "Площадная атака — выберите цели:" : "Выберите цель:"}
+                      </div>
+                      <div className="kk-attack-targets">
+                        {attackRoster.map((t) => (
+                          <label className="kk-attack-target" key={t.id}>
+                            <input
+                              type={isAoe ? "checkbox" : "radio"}
+                              name="kk-attack-target"
+                              checked={attackTargets.has(t.id)}
+                              onChange={() => toggleAttackTarget(t.id)}
+                            />
+                            <span className="kk-attack-target-name">{t.name}</span>
+                            {t.kind === "npc" && <span className="kk-attack-target-kind">NPC</span>}
+                          </label>
+                        ))}
+                      </div>
+                      <button
+                        className="kk-btn primary sm kk-attack-send"
+                        onClick={sendAttack}
+                        disabled={busy || attackTargets.size === 0}
+                      >
+                        {busy ? "…" : "Нанести урон"}
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
 
               {/* Reroll toast — offered right after the roll (Долг судьбы). */}
