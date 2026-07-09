@@ -42,6 +42,16 @@ function tailId(uuid) {
 
 const ATTR_KEYS = ["agility", "smarts", "spirit", "endurance", "magic"];
 
+// Карточка показывает навыки только по четырём категориям (constants.CAT_ORDER).
+// Foundry-экспорт может нести иное значение категории (иной регистр/локаль/пятая
+// категория) — тогда навык молча исчезал с карточки. Приводим неизвестное к
+// «personal» (Личные), чтобы навык всегда был виден.
+const KNOWN_CATEG = new Set(["common", "learned", "personal", "magic"]);
+const normCateg = (c) => {
+  const v = str(c).trim().toLowerCase();
+  return KNOWN_CATEG.has(v) ? v : "personal";
+};
+
 // Типы встроенных предметов, которые становятся строками коллекции items.
 const COLLECTION_ITEM_TYPES = new Set([
   "weapon", "gear", "artifact", "spell", "device", "vehicle",
@@ -77,7 +87,7 @@ function mapSkills(s, abilities, warnings, owner) {
     if (!name || seen.has(name)) return;
     seen.add(name);
     skills.push({
-      name, attr: str(sk.attr, "smarts"), categ: str(sk.categ, "learned"),
+      name, attr: str(sk.attr, "smarts"), categ: normCateg(sk.categ),
       die: num(sk.die, 4), modifier: num(sk.modifier, -2),
     });
   };

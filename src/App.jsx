@@ -137,8 +137,13 @@ export default function App({ user, signOut }) {
   const role = isAdmin ? actingAs : baseRole;
   const isGM = role === "gm";
   const settings = advSettings(advancementConfig);
-  const myChar = characters.find(c => c.ownerUid === user.uid) || null;
-  const activeId = isGM ? (urlCharId || lastSelectedCharId) : myChar?.id;
+  // Игрок может владеть НЕСКОЛЬКИМИ карточками. myChar — первая (для мастера
+  // создания/фолбэков), myChars — все свои. Активная карточка игрока = та, что в
+  // URL, если он ею владеет; иначе первая своя.
+  const myChars = characters.filter(c => c.ownerUid === user.uid);
+  const myChar = myChars[0] || null;
+  const ownsUrlChar = !!(urlCharId && myChars.some(c => c.id === urlCharId));
+  const activeId = isGM ? (urlCharId || lastSelectedCharId) : (ownsUrlChar ? urlCharId : myChar?.id);
   const activeChar = characters.find(c => c.id === activeId) || null;
   // Subscribe to items for the currently-open character.
   useEffect(() => {
@@ -400,6 +405,12 @@ export default function App({ user, signOut }) {
   const onSwitchCampaign = useCallback(() => { setMenu(false); clearActiveCampaign(); navigate("/select"); }, [navigate]);
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
   const partyMembers = useMemo(() => characters.filter(c => partyRefs.has(c.id)), [characters, partyRefs]);
+  // Портал игрока всегда показывает ВСЕ его карточки, даже если ГМ не добавил их
+  // в отряд, — иначе игрок с несколькими персонажами видит только часть.
+  const playerParty = useMemo(() => {
+    const inParty = new Set(partyMembers.map(c => c.id));
+    return [...partyMembers, ...myChars.filter(c => !inParty.has(c.id))];
+  }, [partyMembers, myChars]);
   const cl = campaign !== null;
   const themeClass = theme !== "original" ? ` te-theme-${theme}` : "";
   // BUG-02 — demo is a public, chrome-free scene preview. No topbar; the burger
@@ -471,7 +482,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage}/>}
         {ready && cl && view === "import" && isGM && <FoundryImportView onOpenChar={openCard} members={campaign?.members || {}}/>}
         {ready && cl && view === "library" && baseRole && role !== "demo" && <LibraryView entries={library} isGM={isGM} onCreate={onCreateLibrary} onUpdate={onUpdateLibrary} onDelete={onDeleteLibrary} onSeed={onSeedLibrary} seedable={Object.keys(LIBRARY_SEED)}/>}
-        {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
+        {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={playerParty} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
         {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel} daemonLib={daemonLib} onLinkDaemon={onLinkDaemon} onUnlinkDaemon={onUnlinkDaemon}/>}
         {ready && view === "card" && viewCh && editingBio && <BioEditCard ch={activeChar} onSave={saveBio} onCancel={() => setEditingBio(false)}/>}
