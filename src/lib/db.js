@@ -135,8 +135,18 @@ export async function removeUserFromCampaign(campaignId, uid) {
   });
 }
 // Привязать карточку персонажа к пользователю (ownerUid). Админ/ГМ-путь.
+// Владение персонажем ПОДРАЗУМЕВАЕТ членство: игрока, которому назначили
+// персонажа, добавляем в кампанию (members + memberUids), иначе он не увидит её
+// на экране выбора и получит «вы не участник». Существующую роль не понижаем.
 export async function assignCharacterToUser(campaignId, charId, uid) {
   await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { ownerUid: uid || null });
+  if (!uid) return;
+  const campRef = doc(db, "campaigns", campaignId);
+  const snap = await getDoc(campRef);
+  const members = snap.exists() ? (snap.data().members || {}) : {};
+  const patch = { memberUids: arrayUnion(uid) };
+  if (!members[uid]) patch[`members.${uid}`] = "player";
+  await updateDoc(campRef, patch);
 }
 // Разовый список карточек кампании (для выпадашки «назначить персонажа»).
 export async function listCharacters(campaignId) {
