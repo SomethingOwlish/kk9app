@@ -76,14 +76,53 @@ export function daemonDefaults() {
   };
 }
 
-// Лёгкий стат-блок НПС (для kind npc-*). Полнее всего у boss/hard, но
-// единый дефолт держит форму простой.
+// Полный стат-блок НПС (для kind npc-light / npc-hard / npc-boss).
+// Совпадает по форме с seed-npc-light / seed-curators (актор npc-*):
+//   identity: role, age, race, gender
+//   statblock: attributes(5), toughness, energy{value,max}
+//   abilities[] — навыки статблока {name, die, modifier}
+//   weapons[] / gear[] — имена записей (строки)
+//   notes
 export function npcDefaults() {
   return {
+    role: "",
+    age: "",
+    race: "",
+    gender: "",
     attributes: ATTR5(),
-    skills: [],
-    health: { physical: { value: 0, toughness: 4 }, mental: { value: 0 } },
+    toughness: 5,
+    energy: { value: 0, max: 10 },
+    abilities: [],   // [{ name, die, modifier }]
+    weapons: [],     // [string]
+    gear: [],        // [string]
     notes: "",
+  };
+}
+
+// Куратор факультета — это босс-НПС, привязанный к факультету (seed-curators).
+// Полный статблок босса + ссылка на факультет (facultyKey / facultyName).
+export function curatorDefaults() {
+  return {
+    facultyKey: "",
+    facultyName: "",
+    ...npcDefaults(),
+  };
+}
+
+// Факультет (seed-faculties) — полная схема справочника.
+export function facultyDefaults() {
+  return {
+    key: "",
+    color: "#888888",
+    curatorKey: "",       // ключ куратора-босса
+    active: true,
+    date_founded: "",
+    date_reformed: "",
+    dormitory: "",        // HTML
+    traits_fit: "",       // HTML
+    traits_unfit: "",     // HTML
+    special_rules: "",    // HTML
+    abilities: [],        // [string] — имена навыков факультета
   };
 }
 
@@ -100,7 +139,7 @@ export function companionDefaults() {
 export function libraryDefaultsFor(kind) {
   if (kind === "daemon") return daemonDefaults();
   if (kind === "companion") return companionDefaults();
-  if (kind === "curator") return { facultyKey: "", facultyName: "" };
-  if (kind === "faculty") return { key: "", color: "#888888", abilities: [], dormitory: "", date_founded: "", traits_fit: "", traits_unfit: "", special_rules: "" };
+  if (kind === "curator") return curatorDefaults();
+  if (kind === "faculty") return facultyDefaults();
   return npcDefaults(); // npc-light / npc-hard / npc-boss
 }
