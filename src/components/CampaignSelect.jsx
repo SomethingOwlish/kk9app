@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   ensureUserDoc, watchUserDoc,
   watchCampaignsForUser, watchAllCampaigns,
@@ -67,16 +67,36 @@ function roleLabel(r) {
 
 // ── Выбор / управление кампаниями ────────────────────────────
 function CampaignPicker({ user, globalRole, canManage }) {
-  const [campaigns, setCampaigns] = useState(null);
+  // Две подписки, объединяются по id:
+  //   • mine — кампании, где пользователь ЯВНО участник (memberUids). Всегда
+  //     разрешено правилами → назначенный мастер/игрок гарантированно видит их,
+  //     даже если правило «глобальный ГМ читает всё» ещё не задеплоено.
+  //   • all — все кампании (для админа/мастера). Может быть отклонено, если новые
+  //     firestore-правила не задеплоены — тогда просто остаётся пустым, а mine
+  //     продолжает работать. Так пропадает баг «назначенный ГМ не видит кампаний».
+  const [mine, setMine] = useState(null);
+  const [all, setAll] = useState([]);
 
-  // Глобальные админ и мастер — со-персонал: видят ВСЕ кампании (создают/ведут/
-  // удаляют любую). Игрок — только те, где он участник (memberUids).
+  useEffect(() => watchCampaignsForUser(
+    user.uid, setMine,
+    (e) => { console.error("watch my campaigns", e); setMine([]); },
+  ), [user.uid]);
+
   useEffect(() => {
-    const onErr = (e) => { console.error("watch campaigns", e); setCampaigns([]); };
-    return canManage
-      ? watchAllCampaigns(setCampaigns, onErr)
-      : watchCampaignsForUser(user.uid, setCampaigns, onErr);
-  }, [canManage, user.uid]);
+    if (!canManage) return;
+    return watchAllCampaigns(
+      setAll,
+      (e) => { console.error("watch all campaigns (правила не задеплоены?)", e); setAll([]); },
+    );
+  }, [canManage]);
+
+  const campaigns = useMemo(() => {
+    if (mine === null) return null;               // ещё грузим обязательный источник
+    const map = new Map();
+    for (const c of mine) map.set(c.id, c);
+    for (const c of all) map.set(c.id, c);        // all перекрывает/дополняет mine
+    return [...map.values()].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [mine, all]);
 
   const onCreate = useCallback(async () => {
     const name = window.prompt("Название новой кампании:", "Новая кампания");
