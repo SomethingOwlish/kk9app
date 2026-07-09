@@ -140,6 +140,7 @@
 import { DIE_SCALE, successDegreeFromTotal } from "./dice";
 import { deriveHealthModForAttr } from "./derive";
 import { collectRollModifiers } from "./statusEngine";
+import { collectActiveToughnessMods } from "./activeSpells";
 
 // Exploding die with an injectable RNG. dice.js `rollExplodingDetailed` matches
 // this math exactly but hard-codes Math.random; we re-implement locally (a tiny,
@@ -537,6 +538,13 @@ function _rollSoak(target, selectedAbilityIds, bonuses, attackData, abilities, r
   for (const b of bonuses) {
     if (b.die > 0) { bonusDice.push({ faces: b.die, name: b.name }); reasons.push(`${b.name}: +d${b.die}`); }
     if (b.modifier !== 0) { totalNumericMod += b.modifier; reasons.push(`${b.name}: ${b.modifier > 0 ? "+" : ""}${b.modifier}`); }
+  }
+
+  // ── Active defense/buff spells that raise toughness (soakType:"status" +
+  // toughnessBonus, or bonuses.toughness). Foundry: target_toughness status. ──
+  for (const t of collectActiveToughnessMods(target.activeSpells, items_forStatus(target))) {
+    totalNumericMod += t.numericMod;
+    reasons.push(`${t.name}: ${t.numericMod > 0 ? "+" : ""}${t.numericMod} стойкость`);
   }
 
   // ── Build the dice pool ──

@@ -42,18 +42,39 @@ export function attackExtraPips({ raises = 0 } = {}) {
   return Math.floor(Math.max(0, raises) / 3);
 }
 
+// Foundry `calcSpellDamage` (weapon-combat.mjs:1915-1929): an ATTACK spell's
+// damage level + bonus pips derive from its energy `cost`, not a stored
+// damage_level, and AoE spells use a softer curve. Ported 1-1.
+export function calcSpellDamage(cost = 0, isAoe = false) {
+  const c = Number(cost) || 0;
+  if (isAoe) {
+    if (c <= 4)  return { level: "light",  extraPips: 0 };
+    if (c <= 8)  return { level: "heavy",  extraPips: 0 };
+    if (c <= 14) return { level: "lethal", extraPips: 0 };
+    return { level: "lethal", extraPips: Math.floor((c - 14) / 8) };
+  }
+  if (c <= 2)  return { level: "light",  extraPips: 0 };
+  if (c <= 6)  return { level: "heavy",  extraPips: 0 };
+  if (c <= 12) return { level: "lethal", extraPips: 0 };
+  return { level: "lethal", extraPips: Math.floor((c - 12) / 6) };
+}
+
 // Build the Foundry-shaped attackData from an attack item + the roll result.
 //   item: the catalog/owned item being rolled
 //   roll: { success, raises } from RollDialog's mainRoll
 // Spell-only flags (bypassSoak/unresistable/isAoe) default false on other types.
 export function buildAttackData(item, roll) {
   const attackSuccesses = attackSuccessesFromRoll(roll);
+  // Spell attacks: damage level & bonus pips come from `cost` (+AoE curve).
+  // Weapons/gear/artifacts/devices keep their stored damageLevel. Raise-pips
+  // (⌊raises/3⌋) add on top of the spell's cost-derived pips — Foundry order.
+  const spellDmg = item.type === "spell" ? calcSpellDamage(item.cost, !!item.isAoe) : null;
   return {
     attackSource:  attackSourceOf(item),
     attackSuccesses,
     damageType:    item.damageType || "physical",
-    damageLevel:   item.damageLevel || "light",
-    extraPips:     attackExtraPips(roll),
+    damageLevel:   spellDmg ? spellDmg.level : (item.damageLevel || "light"),
+    extraPips:     attackExtraPips(roll) + (spellDmg ? spellDmg.extraPips : 0),
     isAreaAttack:  !!item.isAoe,
     hasStatus:     !!item.hasStatus,
     statusName:    item.hasStatus ? (item.statusName || "") : "",

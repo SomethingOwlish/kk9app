@@ -49,8 +49,8 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   // SKIP-02: active buff spells that modify this roll's attribute. Auto-applied,
   // with a per-buff opt-out; each applied buff loses one use after the roll.
   const buffMods = useMemo(
-    () => collectActiveBuffMods(ch.activeSpells, items, target.attribute),
-    [ch.activeSpells, items, target.attribute],
+    () => collectActiveBuffMods(ch.activeSpells, items, target.attribute, skillNameForMods),
+    [ch.activeSpells, items, target.attribute, skillNameForMods],
   );
   const [excludedBuffs, setExcludedBuffs] = useState(() => new Set());
   const appliedBuffs = useMemo(
