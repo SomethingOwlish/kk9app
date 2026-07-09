@@ -5,7 +5,7 @@ import {
   createCampaign, deleteCampaign, setCampaignArchived,
   watchAllUsers, setUserRole, deleteUser,
   assignUserToCampaign, removeUserFromCampaign,
-  assignCharacterToUser, listCharacters,
+  assignCharacterToUser, listCharacters, backfillMemberUids,
 } from "../lib/db";
 import { loginToCampaign } from "../lib/config";
 import { canManageCampaigns } from "../lib/roles";
@@ -185,6 +185,13 @@ function UserManager() {
 
   useEffect(() => watchAllUsers(setUsers), []);
   useEffect(() => watchAllCampaigns(setCampaigns), []);
+
+  // Автопочинка доступа: досыпаем в memberUids всех, кто есть в members-мапе, но
+  // отсутствует в массиве (иначе игрок не виден запросу «мои кампании»).
+  // Идемпотентно — пишет только при расхождении, поэтому не зациклится.
+  useEffect(() => {
+    campaigns.forEach((c) => { backfillMemberUids(c).catch(() => {}); });
+  }, [campaigns]);
 
   const onRole = useCallback(async (uid, role) => {
     try { await setUserRole(uid, role); } catch (e) { alert("Ошибка: " + (e?.message || e)); }

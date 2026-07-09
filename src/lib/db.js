@@ -127,6 +127,19 @@ export async function assignUserToCampaign(campaignId, uid, role = "player") {
     memberUids: arrayUnion(uid),
   });
 }
+// Починка доступа: memberUids должен содержать ВСЕ ключи members-мапы. Если старый
+// код (или ручная правка) добавил игрока в members, но не в memberUids, он не
+// виден запросу «мои кампании» (array-contains по memberUids) и не попадает на
+// экран выбора. Досыпаем недостающие uid. Возвращает true, если что-то починили.
+export async function backfillMemberUids(campaign) {
+  const members = campaign?.members || {};
+  const keys = Object.keys(members);
+  const have = new Set(campaign?.memberUids || []);
+  const missing = keys.filter((k) => !have.has(k));
+  if (missing.length === 0) return false;
+  await updateDoc(doc(db, "campaigns", campaign.id), { memberUids: arrayUnion(...missing) });
+  return true;
+}
 // Убрать пользователя из кампании (снимает и members-запись, и memberUids).
 export async function removeUserFromCampaign(campaignId, uid) {
   await updateDoc(doc(db, "campaigns", campaignId), {
