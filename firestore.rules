@@ -18,16 +18,27 @@ service cloud.firestore {
           && request.auth.token.firebase.sign_in_provider != "anonymous";
     }
 
-    // True when the caller is a recognised campaign member (any role).
-    function isMember(campaignId) {
+    // True when the caller has the GLOBAL admin role (users/{uid}.role == "admin").
+    // Global admins get full access to every campaign regardless of membership.
+    // The exists() guard avoids erroring on users who have no registry doc yet.
+    function isGlobalAdmin() {
       return isNotAnonymous()
-          && getRole(campaignId) in ["gm", "admin", "player", "demo"];
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
-    // True when the caller holds a privileged campaign role.
+    // True when the caller is a recognised campaign member (any role) OR a global admin.
+    function isMember(campaignId) {
+      return isGlobalAdmin()
+          || (isNotAnonymous()
+              && getRole(campaignId) in ["gm", "admin", "player", "demo"]);
+    }
+
+    // True when the caller holds a privileged campaign role OR is a global admin.
     function isGMOrAdmin(campaignId) {
-      return isNotAnonymous()
-          && getRole(campaignId) in ["gm", "admin"];
+      return isGlobalAdmin()
+          || (isNotAnonymous()
+              && getRole(campaignId) in ["gm", "admin"]);
     }
 
     // True when the caller owns the given character (its ownerUid is theirs).
@@ -39,6 +50,23 @@ service cloud.firestore {
     // True when an update touches only the listed keys (and nothing else).
     function changedOnly(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // ── Global user registry (users/{uid}) ──────────────────────────────────
+    // Source of truth for a user's GLOBAL role (admin/gm/player). Created on
+    // first login with role forced to "player" — nobody self-promotes. The first
+    // admin is set by hand in the Firebase console; thereafter admins manage
+    // roles in-app. A user reads/edits their own profile but never their own role.
+    match /users/{uid} {
+      allow read:   if isNotAnonymous() && (request.auth.uid == uid || isGlobalAdmin());
+      allow create: if isNotAnonymous()
+                    && request.auth.uid == uid
+                    && request.resource.data.role == "player";
+      allow update: if isGlobalAdmin()
+                    || (isNotAnonymous()
+                        && request.auth.uid == uid
+                        && request.resource.data.role == resource.data.role);
+      allow delete: if isGlobalAdmin();
     }
 
     // ── Campaign document ────────────────────────────────────────────────────

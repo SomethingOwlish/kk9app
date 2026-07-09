@@ -13,7 +13,9 @@ import {
   purchaseStackable, purchaseUnique, requestSell, watchSellRequests, approveSell, rejectSell,
   watchLibrary, createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, seedLibrary,
   linkDaemonToChar, unlinkDaemonFromChar, updatePortraitConfig,
+  ensureUserDoc, watchUserDoc,
 } from "./lib/db";
+import { effectiveRole } from "./lib/roles";
 import { libraryDefaultsFor } from "./lib/library";
 import { FACULTIES } from "./lib/seed-faculties";
 import { CURATORS_DATA } from "./lib/seed-curators";
@@ -30,7 +32,7 @@ const LIBRARY_SEED = {
 import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
-import { CAMPAIGN_ID } from "./lib/config";
+import { CAMPAIGN_ID, clearActiveCampaign } from "./lib/config";
 import { getPath, applyOverrides, canAdvance } from "./lib/appUtils";
 import { loadPrefs, savePref } from "./lib/userPrefs";
 import "./styles/app.css";
@@ -90,7 +92,11 @@ export default function App({ user, signOut }) {
   const [shops, setShops] = useState([]);
   const [sellRequests, setSellRequests] = useState([]);
   const [library, setLibrary] = useState([]);
+  // Глобальная роль из users/{uid} (admin/gm/player) — источник правды для доступа.
+  const [globalRole, setGlobalRole] = useState(null);
 
+  useEffect(() => { ensureUserDoc(user).catch(() => {}); }, [user]);
+  useEffect(() => watchUserDoc(user.uid, (u) => setGlobalRole(u?.role || null)), [user.uid]);
   useEffect(() => watchCampaign(CAMPAIGN_ID, setCampaign), []);
   useEffect(() => watchShopList(CAMPAIGN_ID, setShops), []);
   useEffect(() => watchSellRequests(CAMPAIGN_ID, setSellRequests), []);
@@ -122,8 +128,12 @@ export default function App({ user, signOut }) {
     : pathname === "/library" ? "library"
     : pathname === "/import" ? "import"
     : pathname === "/items" ? "items" : "portal";
-  const baseRole = campaign?.members?.[user.uid];
-  const isAdmin = baseRole === "admin";
+  // membership — роль в ЭТОЙ кампании (members map); globalRole — глобальная.
+  // Эффективная роль: admin всегда admin; глобальный gm играет игроком там, где
+  // записан игроком; глобальный игрок всегда игрок. null = не участник.
+  const membershipRole = campaign?.members?.[user.uid];
+  const isAdmin = globalRole === "admin";
+  const baseRole = effectiveRole(globalRole, membershipRole);
   const role = isAdmin ? actingAs : baseRole;
   const isGM = role === "gm";
   const settings = advSettings(advancementConfig);
@@ -386,6 +396,8 @@ export default function App({ user, signOut }) {
     : view === "import" ? "import"
     : view === "items" ? "items" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
+  // Сменить кампанию: сбросить выбор и вернуться на экран выбора кампании.
+  const onSwitchCampaign = useCallback(() => { setMenu(false); clearActiveCampaign(); navigate("/select"); }, [navigate]);
   const partyRefs = useMemo(() => new Set(campaign?.partyRefs || []), [campaign?.partyRefs]);
   const partyMembers = useMemo(() => characters.filter(c => partyRefs.has(c.id)), [characters, partyRefs]);
   const cl = campaign !== null;
@@ -403,7 +415,7 @@ export default function App({ user, signOut }) {
             <span/><span/><span/>
           </button>
         )}
-        {isAdmin && <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>}
+        {isAdmin && <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} onSwitchCampaign={onSwitchCampaign} isDemo hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>}
       </div>
     );
   }
@@ -426,7 +438,7 @@ export default function App({ user, signOut }) {
             <span/><span/><span/>
           </button>
         )}
-        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>
+        <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} onSwitchCampaign={onSwitchCampaign} isDemo={role === "demo"} hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>
       </div>
     );
   }
@@ -479,7 +491,7 @@ export default function App({ user, signOut }) {
           </div>
         </div>
       )}
-      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} isDemo={role === "demo"} hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>
+      <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} onSwitchCampaign={onSwitchCampaign} isDemo={role === "demo"} hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>
     </div>
   );
 }

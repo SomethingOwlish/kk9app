@@ -10,7 +10,7 @@
 import {
   doc, collection, onSnapshot, setDoc, updateDoc, getDoc, serverTimestamp,
   addDoc, getDocs, query, orderBy, where, writeBatch, deleteDoc, limit, runTransaction,
-  arrayUnion, arrayRemove,
+  arrayUnion, arrayRemove, deleteField,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
@@ -103,6 +103,104 @@ export async function listCampaignsForUser(uid) {
   const q = query(collection(db, "campaigns"), where("memberUids", "array-contains", uid));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+// Все кампании (для глобального админа на экране выбора). Доступ даёт isGlobalAdmin
+// в правилах — обычному игроку/ГМу этот запрос будет отклонён.
+export function watchAllCampaigns(cb) {
+  return onSnapshot(collection(db, "campaigns"), (snap) => {
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    cb(rows);
+  });
+}
+
+// Архивация кампании (пока просто флаг — экран «архив» показывает их заголовками).
+export async function setCampaignArchived(campaignId, archived) {
+  await updateDoc(doc(db, "campaigns", campaignId), { archived: !!archived });
+}
+
+// Добавить/переназначить пользователя в кампанию с ролью membership-уровня
+// ("gm" | "player" | "demo"). Пишет и members-map, и memberUids (для запроса).
+export async function assignUserToCampaign(campaignId, uid, role = "player") {
+  await updateDoc(doc(db, "campaigns", campaignId), {
+    [`members.${uid}`]: role,
+    memberUids: arrayUnion(uid),
+  });
+}
+// Убрать пользователя из кампании (снимает и members-запись, и memberUids).
+export async function removeUserFromCampaign(campaignId, uid) {
+  await updateDoc(doc(db, "campaigns", campaignId), {
+    [`members.${uid}`]: deleteField(),
+    memberUids: arrayRemove(uid),
+  });
+}
+// Привязать карточку персонажа к пользователю (ownerUid). Админ/ГМ-путь.
+export async function assignCharacterToUser(campaignId, charId, uid) {
+  await updateDoc(doc(db, "campaigns", campaignId, "characters", charId), { ownerUid: uid || null });
+}
+// Разовый список карточек кампании (для выпадашки «назначить персонажа»).
+export async function listCharacters(campaignId) {
+  const snap = await getDocs(collection(db, "campaigns", campaignId, "characters"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// ── Пользователи — глобальный реестр (users/{uid}) ───────────
+// Документ: { role: "admin"|"gm"|"player", displayName, email, photoURL,
+//   createdAt, updatedAt }. Глобальная роль — источник правды для экрана выбора
+// и управления пользователями. Первый админ ставится вручную в консоли Firebase;
+// правила запрещают самоназначение роли выше "player".
+
+// Гарантировать наличие своего users-дока при входе (только для не-анонимов).
+// Роль не перезаписываем — лишь освежаем профиль. Возвращает актуальные данные.
+export async function ensureUserDoc(user) {
+  if (!user || user.isAnonymous) return null;
+  const ref = doc(db, "users", user.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    const data = {
+      role: "player",
+      displayName: user.displayName || "",
+      email: user.email || "",
+      photoURL: user.photoURL || "",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    await setDoc(ref, data);
+    return { id: user.uid, ...data };
+  }
+  // Освежаем профиль (не роль) — best-effort.
+  await updateDoc(ref, {
+    displayName: user.displayName || snap.data().displayName || "",
+    email: user.email || snap.data().email || "",
+    photoURL: user.photoURL || snap.data().photoURL || "",
+    updatedAt: serverTimestamp(),
+  }).catch(() => {});
+  return { id: snap.id, ...snap.data() };
+}
+export function watchUserDoc(uid, cb) {
+  return onSnapshot(doc(db, "users", uid), (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null));
+}
+// Все пользователи (только глобальный админ — enforced правилами).
+export function watchAllUsers(cb) {
+  return onSnapshot(collection(db, "users"), (snap) => {
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => (a.displayName || a.email || "").localeCompare(b.displayName || b.email || ""));
+    cb(rows);
+  });
+}
+// Сменить глобальную роль пользователя (только админ).
+export async function setUserRole(uid, role) {
+  if (!["admin", "gm", "player"].includes(role)) throw new Error("Недопустимая роль");
+  await updateDoc(doc(db, "users", uid), { role, updatedAt: serverTimestamp() });
+}
+// Удалить пользователя из системы: снять его из members всех кампаний, где он
+// состоит, затем удалить users-док. (Аккаунт Firebase Auth клиент удалить не может.)
+export async function deleteUser(uid) {
+  const camps = await getDocs(query(collection(db, "campaigns"), where("memberUids", "array-contains", uid)));
+  for (const c of camps.docs) {
+    await updateDoc(c.ref, { [`members.${uid}`]: deleteField(), memberUids: arrayRemove(uid) }).catch(() => {});
+  }
+  await deleteDoc(doc(db, "users", uid));
 }
 
 // Удалить кампанию (только gm/admin — enforced правилами). Клиент не умеет
