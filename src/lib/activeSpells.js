@@ -51,8 +51,8 @@ export function activateSpellEntry(activeSpells = [], spell) {
 // Buff spells that instead grant a status contribute through the status engine and
 // are inert here (their attribute-bonus map is empty), matching Foundry.
 const BUFF_ATTR_KEYS = ["agility", "smarts", "spirit", "endurance", "magic"];
-export function collectActiveBuffMods(activeSpells = [], items = [], attribute) {
-  if (!attribute) return [];
+export function collectActiveBuffMods(activeSpells = [], items = [], attribute, skillName = null) {
+  if (!attribute && !skillName) return [];
   const out = [];
   for (const entry of activeSpells || []) {
     if ((entry.usesRemaining ?? 0) <= 0) continue;
@@ -60,10 +60,41 @@ export function collectActiveBuffMods(activeSpells = [], items = [], attribute) 
     if (!spell || spell.spellType !== "buff") continue;
     const bonuses = spell.bonuses || {};
     let numericMod = 0;
-    for (const key of BUFF_ATTR_KEYS) {
-      if (key === attribute && bonuses[key]) numericMod += bonuses[key];
+    if (attribute) {
+      for (const key of BUFF_ATTR_KEYS) {
+        if (key === attribute && bonuses[key]) numericMod += bonuses[key];
+      }
+    }
+    // Per-skill buffs (Foundry `skill_bonuses` → port `skillBonuses:[{skillName,bonus}]`).
+    if (skillName && Array.isArray(spell.skillBonuses)) {
+      for (const sb of spell.skillBonuses) {
+        if (sb.skillName === skillName && sb.bonus) numericMod += Number(sb.bonus);
+      }
     }
     if (numericMod) out.push({ itemId: entry.itemId, name: entry.name || spell.name || "Заклинание", numericMod });
+  }
+  return out;
+}
+
+// Active spells that raise a target's TOUGHNESS during a soak roll. Foundry
+// applies these via an "Активное заклинание" target_toughness roll_modifier
+// status; the port keeps active spells on activeSpells, so we read the bonus off
+// the source spell while it is active. Two sources:
+//   • defense spells with soakType:"status" → toughnessBonus (Эгида*, Скутум Игнис…)
+//   • any active spell carrying bonuses.toughness
+// Returns [{ name, numericMod }].
+export function collectActiveToughnessMods(activeSpells = [], items = []) {
+  const out = [];
+  for (const entry of activeSpells || []) {
+    if ((entry.usesRemaining ?? 0) <= 0) continue;
+    const spell = (items || []).find((it) => it.id === entry.itemId);
+    if (!spell || spell.type !== "spell") continue;
+    let numericMod = 0;
+    if (spell.spellType === "defense" && spell.soakType === "status") {
+      numericMod += Number(spell.toughnessBonus || 0);
+    }
+    if (spell.bonuses && spell.bonuses.toughness) numericMod += Number(spell.bonuses.toughness);
+    if (numericMod) out.push({ name: entry.name || spell.name || "Заклинание", numericMod });
   }
   return out;
 }
