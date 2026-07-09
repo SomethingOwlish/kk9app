@@ -35,9 +35,19 @@ export const PORTRAIT_DEFAULTS = {
 };
 
 // ── Подписки (живое обновление) ─────────────────────────────
+// Shared onSnapshot error handler. Without it, a listener failure (permission
+// denied, transport failure on Safari, etc.) is swallowed silently and the UI
+// hangs on a loading placeholder forever. `onError`, when supplied by a caller,
+// runs after logging so UI-level error surfacing still works.
+const snapErr = (label, onError) => (err) => {
+  console.error(`${label} snapshot error`, err);
+  onError?.(err);
+};
+
 export function watchCharacter(campaignId, characterId, cb) {
   const ref = doc(db, "campaigns", campaignId, "characters", characterId);
-  return onSnapshot(ref, (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null));
+  return onSnapshot(ref, (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null),
+    snapErr("watchCharacter"));
 }
 export function watchCampaign(campaignId, cb) {
   const ref = doc(db, "campaigns", campaignId);
@@ -48,11 +58,12 @@ export function watchCampaign(campaignId, cb) {
       updateDoc(ref, { schemaVersion: SCHEMA_VERSION }).catch((e) => console.error("schemaVersion patch", e));
     }
     cb({ id: snap.id, ...data });
-  });
+  }, snapErr("watchCampaign"));
 }
 export function watchCharacterList(campaignId, cb) {
   const ref = collection(db, "campaigns", campaignId, "characters");
-  return onSnapshot(ref, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(ref, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    snapErr("watchCharacterList"));
 }
 
 // ── Запись с дебаунсом (чтобы не писать на каждый символ) ───
@@ -96,7 +107,7 @@ export async function createCampaign({ ownerUid, name = "Новая кампан
 // Живой список кампаний, в которых состоит пользователь (для переключателя/входа).
 export function watchCampaignsForUser(uid, cb, onError) {
   const q = query(collection(db, "campaigns"), where("memberUids", "array-contains", uid));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchCampaignsForUser", onError));
 }
 // Разовое чтение того же списка.
 export async function listCampaignsForUser(uid) {
@@ -111,7 +122,7 @@ export function watchAllCampaigns(cb, onError) {
     const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     rows.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     cb(rows);
-  }, onError);
+  }, snapErr("watchAllCampaigns", onError));
 }
 
 // Архивация кампании (пока просто флаг — экран «архив» показывает их заголовками).
@@ -213,7 +224,7 @@ export function watchAllUsers(cb) {
     const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     rows.sort((a, b) => (a.displayName || a.email || "").localeCompare(b.displayName || b.email || ""));
     cb(rows);
-  });
+  }, snapErr("watchAllUsers"));
 }
 // Сменить глобальную роль пользователя (только админ).
 export async function setUserRole(uid, role) {
@@ -421,7 +432,7 @@ export function watchCharacterLog(campaignId, characterId, cb) {
     collection(db, "campaigns", campaignId, "characters", characterId, "log"),
     orderBy("at", "desc")
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchCharacterLog"));
 }
 export async function clearCharacterLog(campaignId, characterId) {
   const ref = collection(db, "campaigns", campaignId, "characters", characterId, "log");
@@ -459,7 +470,7 @@ export async function applyAdvancement(campaignId, characterId, { attributes, sk
 // Path: campaigns/{id}/config/advancement
 export function watchAdvancementConfig(campaignId, cb) {
   const ref = doc(db, "campaigns", campaignId, "config", "advancement");
-  return onSnapshot(ref, (snap) => cb(snap.exists() ? snap.data() : null));
+  return onSnapshot(ref, (snap) => cb(snap.exists() ? snap.data() : null), snapErr("watchAdvancementConfig"));
 }
 export async function saveAdvancementConfig(campaignId, config) {
   const ref = doc(db, "campaigns", campaignId, "config", "advancement");
@@ -473,7 +484,7 @@ export function watchScenes(campaignId, cb) {
     collection(db, "campaigns", campaignId, "scenes"),
     orderBy("createdAt", "desc"),
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchScenes"));
 }
 export function watchActiveScene(campaignId, cb) {
   const q = query(
@@ -481,7 +492,7 @@ export function watchActiveScene(campaignId, cb) {
     where("isActive", "==", true),
     limit(1),
   );
-  return onSnapshot(q, (snap) => cb(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() }));
+  return onSnapshot(q, (snap) => cb(snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() }), snapErr("watchActiveScene"));
 }
 export async function createScene(campaignId, data) {
   const ref = collection(db, "campaigns", campaignId, "scenes");
@@ -573,7 +584,7 @@ export async function removeFromParty(campaignId, charId) {
 // Path: campaigns/{id}/presence/gmMode
 export function watchGmMode(campaignId, cb) {
   const ref = doc(db, "campaigns", campaignId, "presence", "gmMode");
-  return onSnapshot(ref, (snap) => cb(snap.exists() ? snap.data() : null));
+  return onSnapshot(ref, (snap) => cb(snap.exists() ? snap.data() : null), snapErr("watchGmMode"));
 }
 export async function setGmModeActive(campaignId, uid) {
   await setDoc(doc(db, "campaigns", campaignId, "presence", "gmMode"), { active: true, uid });
@@ -906,7 +917,7 @@ export function watchJournalPages(campaignId, stream, cb, threshold = 20) {
       });
       batch.commit().catch(console.error);
     }
-  });
+  }, snapErr("watchJournalPages"));
 }
 
 // Read-only newest non-archived page of a stream (for the landing Session block).
@@ -921,7 +932,7 @@ export function watchLatestJournalPage(campaignId, stream, cb) {
       .map((d) => ({ id: d.id, ...d.data() }))
       .find((p) => !p.isArchived) || null;
     cb(first);
-  });
+  }, snapErr("watchLatestJournalPage"));
 }
 
 export async function addJournalPage(campaignId, stream, { title, body }) {
@@ -943,7 +954,7 @@ export async function deleteJournalPage(campaignId, stream, pageId) {
 
 export function watchStatuses(campaignId, cb) {
   const ref = collection(db, "campaigns", campaignId, "statuses");
-  return onSnapshot(ref, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(ref, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchStatuses"));
 }
 export async function createStatus(campaignId, data) {
   const ref = collection(db, "campaigns", campaignId, "statuses");
@@ -1026,7 +1037,7 @@ export function watchNpcs(campaignId, cb) {
     collection(db, "campaigns", campaignId, "characters"),
     where("isNpc", "==", true)
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchNpcs"));
 }
 export async function createNpc(campaignId, { name = "Новый НПС" } = {}) {
   const ref = doc(collection(db, "campaigns", campaignId, "characters"));
@@ -1095,7 +1106,7 @@ export function watchItemsByOwner(campaignId, charId, cb) {
     collection(db, "campaigns", campaignId, "items"),
     where("ownerCharacterId", "==", charId)
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchItemsByOwner"));
 }
 export async function createItem(campaignId, data) {
   const ref = collection(db, "campaigns", campaignId, "items");
@@ -1116,14 +1127,14 @@ export function watchItemsByType(campaignId, type, cb) {
     collection(db, "campaigns", campaignId, "items"),
     where("type", "==", type)
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchItemsByType"));
 }
 export function watchAllItems(campaignId, cb) {
   return onSnapshot(collection(db, "campaigns", campaignId, "items"), (snap) => {
     const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     items.sort((a, b) => (a.type || "").localeCompare(b.type || "") || (a.name || "").localeCompare(b.name || ""));
     cb(items);
-  });
+  }, snapErr("watchAllItems"));
 }
 
 // Artifact: single owner, ownerCharacterId set directly on the item doc.
@@ -1190,7 +1201,7 @@ export function watchRolls(campaignId, cb, n = 50) {
     orderBy("at", "desc"),
     limit(n),
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchRolls"));
 }
 
 // Applies post-roll character mutations (status tick + tension) as ONE merged
@@ -1282,7 +1293,7 @@ export function watchAttacks(campaignId, cb, n = 30) {
     orderBy("at", "desc"),
     limit(n),
   );
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchAttacks"));
 }
 // Mark handled without applying damage (miss already filtered, GM override, or
 // an unresistable/dismissed attack). GM or the target owner only (rules).
@@ -1358,7 +1369,7 @@ export function watchOrganizations(campaignId, cb, onlyVisible = false) {
     const orgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     orgs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     cb(orgs);
-  });
+  }, snapErr("watchOrganizations"));
 }
 export async function createOrganization(campaignId, data) {
   const ref = collection(db, "campaigns", campaignId, "organizations");
@@ -1451,7 +1462,7 @@ export function watchShopList(campaignId, cb) {
     const shops = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     shops.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     cb(shops);
-  });
+  }, snapErr("watchShopList"));
 }
 export async function createShop(campaignId, data = {}) {
   const col = collection(db, "campaigns", campaignId, "shops");
@@ -1563,7 +1574,7 @@ export async function requestSell(campaignId, shopId, charId, ownerUid, item, su
 // GM lists pending sell requests (newest first).
 export function watchSellRequests(campaignId, cb) {
   const q = query(collection(db, "campaigns", campaignId, "sellRequests"), orderBy("at", "desc"));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), snapErr("watchSellRequests"));
 }
 
 // GM approves a sell request at `finalPrice`: release the item back to the
@@ -1628,7 +1639,7 @@ export function watchLibrary(campaignId, cb, onlyVisible = false) {
     const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     rows.sort((a, b) => (a.kind || "").localeCompare(b.kind || "") || (a.name || "").localeCompare(b.name || ""));
     cb(rows);
-  });
+  }, snapErr("watchLibrary"));
 }
 export async function createLibraryEntry(campaignId, data) {
   const ref = collection(db, "campaigns", campaignId, "library");
