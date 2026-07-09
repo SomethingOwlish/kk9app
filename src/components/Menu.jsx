@@ -1,6 +1,6 @@
 import { MENU } from "../lib/constants";
 
-export default function Menu({ open, onClose, onNav, current, onSignOut, isGM, isAdmin, actingAs, onActAs, hasChar, isDemo, hasLk }) {
+export default function Menu({ open, onClose, onNav, current, onSignOut, onSwitchCampaign, isGM, isAdmin, actingAs, onActAs, hasChar, isDemo, hasLk }) {
   const items = MENU
     .filter(m => !m.gmOnly || isGM)
     .map(m => ({ ...m, on: m.on || m.id === "scene" || (m.id === "set" && !isDemo) || (m.id === "guide" && !isDemo) || (m.id === "orgs" && !isDemo) || (m.id === "library" && !isDemo) || (m.id === "rolls" && !isDemo) || (m.id === "shop" && !isDemo) || (m.id === "lk" && hasLk) || (isGM && (m.id === "gm" || m.id === "items" || m.id === "import")) || (m.id === "adv" && hasChar && !isGM && !isDemo) || (m.id === "log" && hasChar && isGM) || (m.id === "print" && hasChar) }));
@@ -25,6 +25,7 @@ export default function Menu({ open, onClose, onNav, current, onSignOut, isGM, i
             <span>{m.label}</span>{!m.on && <em>скоро</em>}
           </button>
         ))}</nav>
+        {onSwitchCampaign && <button className="kk-drawer-item" onClick={onSwitchCampaign}><span>↹ Сменить кампанию</span></button>}
         <button className="kk-drawer-out" onClick={onSignOut}>Выйти</button>
       </aside>
     </>

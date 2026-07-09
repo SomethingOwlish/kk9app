@@ -1,9 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./index.css";
 import AuthGate from "./components/AuthGate";
 import App from "./App";
+import CampaignSelect from "./components/CampaignSelect";
+import { hasChosenCampaign } from "./lib/config";
 import LandingPage from "./views/LandingPage";
 import PrintView from "./views/PrintView";
 import ThemeExplorer from "./views/ThemeExplorer";
@@ -31,10 +33,21 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/print/:charId" element={<PrintView />} />
         <Route path="/theme" element={<ThemeExplorer />} />
         <Route
+          path="/select"
+          element={
+            <AuthGate>
+              {({ user, signOut }) => <CampaignSelect user={user} signOut={signOut} />}
+            </AuthGate>
+          }
+        />
+        <Route
           path="/*"
           element={
             <AuthGate>
-              {({ user, signOut }) => <App user={user} signOut={signOut} />}
+              {({ user, signOut }) =>
+                hasChosenCampaign()
+                  ? <App user={user} signOut={signOut} />
+                  : <Navigate to="/select" replace />}
             </AuthGate>
           }
         />
