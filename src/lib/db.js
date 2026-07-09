@@ -94,9 +94,9 @@ export async function createCampaign({ ownerUid, name = "Новая кампан
 }
 
 // Живой список кампаний, в которых состоит пользователь (для переключателя/входа).
-export function watchCampaignsForUser(uid, cb) {
+export function watchCampaignsForUser(uid, cb, onError) {
   const q = query(collection(db, "campaigns"), where("memberUids", "array-contains", uid));
-  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), onError);
 }
 // Разовое чтение того же списка.
 export async function listCampaignsForUser(uid) {
@@ -106,12 +106,12 @@ export async function listCampaignsForUser(uid) {
 }
 // Все кампании (для глобального админа на экране выбора). Доступ даёт isGlobalAdmin
 // в правилах — обычному игроку/ГМу этот запрос будет отклонён.
-export function watchAllCampaigns(cb) {
+export function watchAllCampaigns(cb, onError) {
   return onSnapshot(collection(db, "campaigns"), (snap) => {
     const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     rows.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     cb(rows);
-  });
+  }, onError);
 }
 
 // Архивация кампании (пока просто флаг — экран «архив» показывает их заголовками).
@@ -177,8 +177,12 @@ export async function ensureUserDoc(user) {
   }).catch(() => {});
   return { id: snap.id, ...snap.data() };
 }
-export function watchUserDoc(uid, cb) {
-  return onSnapshot(doc(db, "users", uid), (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null));
+export function watchUserDoc(uid, cb, onError) {
+  return onSnapshot(
+    doc(db, "users", uid),
+    (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null),
+    (e) => { console.error("watchUserDoc", e); if (onError) onError(e); else cb(null); },
+  );
 }
 // Все пользователи (только глобальный админ — enforced правилами).
 export function watchAllUsers(cb) {

@@ -51,7 +51,7 @@ export default function CampaignSelect({ user, signOut }) {
 
         {me === undefined && <div className="kk-select-load">Загрузка профиля…</div>}
         {me !== undefined && tab === "campaigns" && (
-          <CampaignPicker user={user} globalRole={globalRole} isAdmin={isAdmin} canManage={canManage} />
+          <CampaignPicker user={user} globalRole={globalRole} canManage={canManage} />
         )}
         {me !== undefined && tab === "users" && isAdmin && (
           <UserManager />
@@ -66,15 +66,17 @@ function roleLabel(r) {
 }
 
 // ── Выбор / управление кампаниями ────────────────────────────
-function CampaignPicker({ user, globalRole, isAdmin, canManage }) {
+function CampaignPicker({ user, globalRole, canManage }) {
   const [campaigns, setCampaigns] = useState(null);
 
-  // Админ видит все кампании; ГМ/игрок — только свои (memberUids).
+  // Глобальные админ и мастер — со-персонал: видят ВСЕ кампании (создают/ведут/
+  // удаляют любую). Игрок — только те, где он участник (memberUids).
   useEffect(() => {
-    return isAdmin
-      ? watchAllCampaigns(setCampaigns)
-      : watchCampaignsForUser(user.uid, setCampaigns);
-  }, [isAdmin, user.uid]);
+    const onErr = (e) => { console.error("watch campaigns", e); setCampaigns([]); };
+    return canManage
+      ? watchAllCampaigns(setCampaigns, onErr)
+      : watchCampaignsForUser(user.uid, setCampaigns, onErr);
+  }, [canManage, user.uid]);
 
   const onCreate = useCallback(async () => {
     const name = window.prompt("Название новой кампании:", "Новая кампания");
