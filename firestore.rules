@@ -145,13 +145,15 @@ service cloud.firestore {
         }
 
         // Advancement log entries — GM read/write.
-        // Character owner may also create a chargen_created entry.
+        // Character owner may also create their own chargen_created and
+        // advancement entries (the player advancement flow writes an
+        // "advancement" log entry atomically with the XP debit on the char).
         match /log/{logId} {
           allow read:   if isGMOrAdmin(campaignId);
           allow write:  if isGMOrAdmin(campaignId);
           allow create: if isNotAnonymous()
                         && getRole(campaignId) == "player"
-                        && request.resource.data.type == "chargen_created"
+                        && request.resource.data.type in ["chargen_created", "advancement"]
                         && get(/databases/$(database)/documents/campaigns/$(campaignId)/characters/$(charId)).data.ownerUid == request.auth.uid;
         }
       }
