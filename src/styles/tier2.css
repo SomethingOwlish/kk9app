@@ -268,7 +268,38 @@
 .kk-lib-attrs { display: flex; flex-wrap: wrap; gap: .4rem; }
 .kk-lib-attr { display: flex; flex-direction: column; align-items: center; font-size: .72rem; gap: .15rem; }
 .kk-lib-attr select { padding: .15rem .3rem; }
+.kk-lib-attr-mod { width: 3rem; padding: .15rem .3rem; text-align: center; }
 .kk-lib-del { align-self: flex-start; }
+
+/* ── Read-only library card ───────────────────────────────── */
+.kk-lib-read { display: flex; flex-direction: column; gap: .4rem; }
+.kk-lib-swatch { width: 34px; height: 34px; border-radius: 6px; flex: 0 0 auto; border: 1px solid var(--kk-border, rgba(255,255,255,.2)); }
+.kk-lib-badge { font-size: .85rem; flex: 0 0 auto; opacity: .9; }
+.kk-lib-cardactions { display: flex; gap: .4rem; margin-top: .25rem; border-top: 1px solid var(--kk-border, rgba(255,255,255,.1)); padding-top: .5rem; }
+.kk-lib-statline { display: flex; flex-wrap: wrap; gap: .8rem; font-size: .82rem; opacity: .9; }
+.kk-lib-statline b { font-weight: 700; }
+.kk-lib-attrs-read { gap: .3rem; }
+.kk-lib-attr-read { display: inline-flex; flex-direction: column; align-items: center; min-width: 2.4rem; padding: .15rem .3rem; border-radius: 6px; background: var(--kk-surface-2, rgba(255,255,255,.05)); font-size: .72rem; }
+.kk-lib-attr-lbl { opacity: .7; }
+.kk-lib-attr-val { font-weight: 700; }
+.kk-lib-chip { display: inline-block; margin: 0 .25rem .2rem 0; padding: .05rem .4rem; border-radius: 999px; font-size: .74rem; background: var(--kk-surface-2, rgba(255,255,255,.06)); border: 1px solid var(--kk-border, rgba(255,255,255,.12)); }
+.kk-lib-chip-off { opacity: .7; text-decoration: line-through; }
+.kk-lib-htmlblock { font-size: .82rem; }
+.kk-lib-htmllabel { opacity: .7; font-weight: 600; margin-bottom: .15rem; }
+.kk-lib-htmlbody { opacity: .9; }
+.kk-lib-htmlbody :is(p, ul) { margin: .2rem 0; }
+.kk-lib-htmlbody ul { padding-left: 1.1rem; }
+
+/* ── Library edit modal ───────────────────────────────────── */
+.kk-lib-modal .kk-modal-body { gap: .7rem; }
+.kk-lib-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.kk-lib-row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+.kk-lib-list { display: flex; flex-direction: column; gap: .35rem; }
+.kk-lib-list-row { display: flex; align-items: center; gap: .35rem; }
+.kk-lib-list-row > input { flex: 1 1 auto; min-width: 0; color: var(--kk-fg, #eee); background: var(--kk-input-bg, rgba(0,0,0,.3)); border: 1px solid var(--kk-border, rgba(255,255,255,.16)); border-radius: 6px; padding: .3rem .45rem; }
+.kk-lib-ability-row .kk-lib-ability-name { flex: 1 1 auto; }
+.kk-lib-ability-row select { padding: .3rem .35rem; color: var(--kk-fg, #eee); background: var(--kk-input-bg, rgba(0,0,0,.3)); border: 1px solid var(--kk-border, rgba(255,255,255,.16)); border-radius: 6px; }
+.kk-lib-add { align-self: flex-start; }
 
 /* ── FEAT-20 (in-app) — импорт из Foundry ─────────────────────────── */
 .kk-import { display: flex; flex-direction: column; gap: 14px; }
