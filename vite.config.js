@@ -2,11 +2,35 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// iOS 16.0–16.3 WebKit cannot parse regex lookbehind `(?<=…)` (added in Safari
+// 16.4). `remark-gfm`'s autolink-literal ships exactly one such regex to match
+// bare emails, so on those devices the whole bundle throws a SyntaxError at
+// parse time → blank white screen in every iOS browser (all use WebKit).
+// The lookbehind is redundant: mdast-util-gfm-autolink-literal already re-checks
+// the preceding character in JS (`previous(match, true)`), so stripping the
+// zero-width assertion preserves behavior while restoring iOS <16.4 support.
+// Matches the autolink-literal lookbehind whether the bundler emits it as a
+// regex literal `(?<=^|\s|\p{P}|\p{S})` or, when a legacy target triggers regex
+// lowering, as a `new RegExp` string `(?<=^|\\s|\\p{P}|\\p{S})` — hence `\\+`.
+const IOS16_LOOKBEHIND = /\(\?<=\^\|\\+s\|\\+p\{P\}\|\\+p\{S\}\)/g
+function stripLookbehindForIos16() {
+  return {
+    name: 'strip-gfm-lookbehind-for-ios16',
+    renderChunk(code) {
+      if (!IOS16_LOOKBEHIND.test(code)) return null
+      return { code: code.replace(IOS16_LOOKBEHIND, ''), map: null }
+    },
+  }
+}
+
 // Deployed under the GitHub Pages subpath /kk9app/ — base, PWA scope and
 // start_url must all agree on that prefix or the installed app 404s on launch.
 export default defineConfig({
   base: '/kk9app/',
+  // Keep older iOS Safari a first-class target so modern syntax gets downleveled.
+  build: { target: ['es2020', 'safari16'] },
   plugins: [
+    stripLookbehindForIos16(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
