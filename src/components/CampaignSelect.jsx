@@ -76,10 +76,12 @@ function CampaignPicker({ user, globalRole, canManage }) {
   //     продолжает работать. Так пропадает баг «назначенный ГМ не видит кампаний».
   const [mine, setMine] = useState(null);
   const [all, setAll] = useState([]);
+  const [err, setErr] = useState(null);   // текст ошибки запроса (для диагностики)
 
   useEffect(() => watchCampaignsForUser(
-    user.uid, setMine,
-    (e) => { console.error("watch my campaigns", e); setMine([]); },
+    user.uid,
+    (rows) => { setErr(null); setMine(rows); },
+    (e) => { console.error("watch my campaigns", e); setErr(e?.code || e?.message || String(e)); setMine([]); },
   ), [user.uid]);
 
   useEffect(() => {
@@ -131,7 +133,14 @@ function CampaignPicker({ user, globalRole, canManage }) {
         {canManage && <button className="kk-select-create" onClick={onCreate}>+ Создать</button>}
       </div>
 
-      {active.length === 0 && <div className="kk-select-empty">Нет доступных кампаний.</div>}
+      {active.length === 0 && (
+        <div className="kk-select-empty">
+          Нет доступных кампаний.
+          {err
+            ? <div style={{ marginTop: 8, color: "#e08a6a", fontSize: 12 }}>Запрос отклонён: {err}. Возможно, не задеплоены firestore-правила.</div>
+            : <div style={{ marginTop: 8, color: "#7a6a52", fontSize: 11 }}>Ваш UID: {user.uid} — попросите админа добавить вас в кампанию.</div>}
+        </div>
+      )}
       <div className="kk-select-list">
         {active.map((c) => (
           <div key={c.id} className="kk-camp-card">
