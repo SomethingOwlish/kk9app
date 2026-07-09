@@ -12,12 +12,13 @@ import {
   watchShopList, createShop, updateShop, deleteShop,
   purchaseStackable, purchaseUnique, requestSell, watchSellRequests, approveSell, rejectSell,
   watchLibrary, createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, seedLibrary,
+  createNpcFromLibrary,
   linkDaemonToChar, unlinkDaemonFromChar, updatePortraitConfig,
   ensureUserDoc, watchUserDoc,
   createAttacks, watchAttacks, resolveAttackOnSelf, dismissAttack,
 } from "./lib/db";
 import { effectiveRole } from "./lib/roles";
-import { libraryDefaultsFor } from "./lib/library";
+import { libraryDefaultsFor, LIBRARY_KIND_LABEL } from "./lib/library";
 import { FACULTIES } from "./lib/seed-faculties";
 import { CURATORS_DATA } from "./lib/seed-curators";
 import { COMPANIONS_DATA } from "./lib/seed-companions";
@@ -164,13 +165,19 @@ export default function App({ user, signOut }) {
   }, [overrides, overridesCharId, activeId, activeChar]);
   const viewCh = activeChar ? applyOverrides(activeChar, effectiveOverrides) : null;
   const canAdv = activeChar ? canAdvance(activeChar, settings) : false;
-  // Relations ref-picker source: all chars + npcs except the open one.
-  const peers = useMemo(
-    () => [...characters, ...npcs]
+  // Relations ref-picker source: all chars + npcs (except the open one), plus
+  // every library unit the current viewer can see (players get visible-only via
+  // watchLibrary). Lets players link NPCs and other library units into relations.
+  const peers = useMemo(() => {
+    const npcSet = new Set(npcs.map(n => n.id));
+    const live = [...characters, ...npcs]
       .filter(c => c.id !== activeId)
-      .map(c => ({ id: c.id, name: c.name, portrait: c.portrait })),
-    [characters, npcs, activeId],
-  );
+      .map(c => ({ id: c.id, name: c.name, portrait: c.portrait, hint: npcSet.has(c.id) ? "НПС" : "" }));
+    const lib = library
+      .filter(e => e.id !== activeId)
+      .map(e => ({ id: e.id, name: e.name, portrait: e.img || "", hint: LIBRARY_KIND_LABEL[e.kind] || "Библиотека" }));
+    return [...live, ...lib];
+  }, [characters, npcs, activeId, library]);
   // Players (incl. admin acting-as-player) only see organizations marked visible.
   const orgsForView = useMemo(() => isGM ? orgs : orgs.filter(o => o.visibleToPlayers), [orgs, isGM]);
   const ownChar = !!(activeChar && user && activeChar.ownerUid === user.uid);
@@ -390,6 +397,11 @@ export default function App({ user, signOut }) {
       alert(added > 0 ? `Добавлено записей: ${added}` : "Все записи уже в библиотеке.");
     } catch (e) { alert("Ошибка: " + (e?.message || e)); }
   }, []);
+  // GM: spawn a live board NPC from an existing Library entry.
+  const onAddNpcFromLibrary = useCallback(async (entry) => {
+    try { return await createNpcFromLibrary(CAMPAIGN_ID, entry); }
+    catch (e) { alert("Ошибка: " + (e?.message || e)); }
+  }, []);
   const onLinkDaemon = useCallback(async (charId, daemonId) => {
     await linkDaemonToChar(CAMPAIGN_ID, charId, daemonId).catch((e) => alert("Ошибка: " + (e?.message || e)));
   }, []);
@@ -527,7 +539,7 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && role === "player" && gmModeData?.active && view === "card" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")}/>}
-        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} campaignStatuses={campaignStatuses} onTickRound={onTickRound}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} library={library} onAddNpcFromLibrary={onAddNpcFromLibrary} campaignStatuses={campaignStatuses} onTickRound={onTickRound}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} characters={characters} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg} onOpenChar={openCard}/>}
         {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID} isGM={isGM}/>}

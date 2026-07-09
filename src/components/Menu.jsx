@@ -1,9 +1,12 @@
 import { MENU } from "../lib/constants";
 
 export default function Menu({ open, onClose, onNav, current, onSignOut, onSwitchCampaign, isGM, isAdmin, actingAs, onActAs, hasChar, isDemo, hasLk }) {
+  // Only active links are shown — anything not currently reachable is hidden
+  // entirely (no disabled "скоро" placeholders).
   const items = MENU
     .filter(m => !m.gmOnly || isGM)
-    .map(m => ({ ...m, on: m.on || m.id === "scene" || (m.id === "set" && !isDemo) || (m.id === "guide" && !isDemo) || (m.id === "orgs" && !isDemo) || (m.id === "library" && !isDemo) || (m.id === "rolls" && !isDemo) || (m.id === "shop" && !isDemo) || (m.id === "lk" && hasLk) || (isGM && (m.id === "gm" || m.id === "items" || m.id === "import")) || (m.id === "adv" && hasChar && !isGM && !isDemo) || (m.id === "log" && hasChar && isGM) || (m.id === "print" && hasChar) }));
+    .map(m => ({ ...m, on: m.on || m.id === "scene" || (m.id === "set" && !isDemo) || (m.id === "guide" && !isDemo) || (m.id === "orgs" && !isDemo) || (m.id === "library" && !isDemo) || (m.id === "rolls" && !isDemo) || (m.id === "shop" && !isDemo) || (m.id === "lk" && hasLk) || (isGM && (m.id === "gm" || m.id === "items" || m.id === "import")) || (m.id === "adv" && hasChar && !isGM && !isDemo) || (m.id === "log" && hasChar && isGM) || (m.id === "print" && hasChar) }))
+    .filter(m => m.on);
   return (
     <>
       <div className={`kk-scrim ${open ? "show" : ""}`} onClick={onClose} aria-hidden/>
@@ -21,8 +24,8 @@ export default function Menu({ open, onClose, onNav, current, onSignOut, onSwitc
           </div>
         )}
         <nav className="kk-drawer-nav">{items.map(m => (
-          <button key={m.id} disabled={!m.on} className={`kk-drawer-item ${current === m.id ? "cur" : ""} ${m.on ? "" : "soon"}`} onClick={() => m.on && onNav(m.id)}>
-            <span>{m.label}</span>{!m.on && <em>скоро</em>}
+          <button key={m.id} className={`kk-drawer-item ${current === m.id ? "cur" : ""}`} onClick={() => onNav(m.id)}>
+            <span>{m.label}</span>
           </button>
         ))}</nav>
         {onSwitchCampaign && <button className="kk-drawer-item" onClick={onSwitchCampaign}><span>↹ Сменить кампанию</span></button>}
