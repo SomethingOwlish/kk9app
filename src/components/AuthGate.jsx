@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { watchAuth, signInWithGoogle, signInAnon, signOut } from "../lib/auth";
+import { clearActiveCampaign } from "../lib/config";
 
 // ============================================================
 // КК9 — ворота входа.
@@ -10,6 +11,11 @@ export default function AuthGate({ children }) {
   const [user, setUser] = useState(undefined); // undefined = ещё проверяем
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState("");
+
+  // Выход сбрасывает выбор кампании этой сессии, чтобы после повторного входа
+  // снова показывался экран выбора, а не «прилипшая» кампания (которую новый
+  // пользователь может быть не вправе читать — иначе бесконечная загрузка).
+  const doSignOut = useCallback(() => { clearActiveCampaign(); return signOut(); }, []);
 
   useEffect(() => watchAuth(setUser), []);
 
@@ -46,7 +52,7 @@ export default function AuthGate({ children }) {
   }
 
   // Вошёл — отдаём приложение. signOut прокидываем вниз на случай кнопки «выйти».
-  return children({ user, signOut });
+  return children({ user, signOut: doSignOut });
 }
 
 const AUTH_CSS = `

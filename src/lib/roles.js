@@ -16,13 +16,20 @@
 // ============================================================
 
 // Эффективная роль внутри кампании. Возвращает null, если пользователь не
-// глобальный админ И не имеет membership-записи (т.е. не участник кампании).
+// глобальный админ/мастер И не имеет membership-записи (т.е. не участник).
 export function effectiveRole(globalRole, membership) {
-  if (globalRole === "admin") return "admin";
-  if (!membership) return null;                 // не участник этой кампании
+  if (globalRole === "admin") return "admin";   // админ — всегда админ везде
+  if (globalRole === "gm") {
+    // Глобальный мастер — со-мастер всех кампаний (видит и ведёт любую).
+    // Игроком он становится ТОЛЬКО там, где явно записан игроком; demo уважается.
+    if (membership === "player") return "player";
+    if (membership === "demo") return "demo";
+    return "gm";
+  }
+  // Глобальный игрок: доступ только к кампаниям, где он участник.
+  if (!membership) return null;
   if (membership === "demo") return "demo";
-  if (globalRole === "gm") return membership === "player" ? "player" : "gm";
-  return "player";                              // глобальный игрок — всегда игрок
+  return "player";
 }
 
 // Может ли пользователь управлять кампаниями (создавать/удалять) на экране выбора.

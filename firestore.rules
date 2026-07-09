@@ -27,16 +27,31 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
-    // True when the caller is a recognised campaign member (any role) OR a global admin.
+    // True when the caller has the GLOBAL gm role. Global masters are co-masters of
+    // every campaign — they see, enter, create and manage any campaign, matching the
+    // "GM sees all active campaigns" requirement. (A player-membership in a specific
+    // campaign only affects the in-app UI role, not these DB permissions.)
+    function isGlobalGM() {
+      return isNotAnonymous()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "gm";
+    }
+
+    // Global staff: admin or gm — full access to every campaign.
+    function isGlobalManager() {
+      return isGlobalAdmin() || isGlobalGM();
+    }
+
+    // True when the caller is a recognised campaign member (any role) OR global staff.
     function isMember(campaignId) {
-      return isGlobalAdmin()
+      return isGlobalManager()
           || (isNotAnonymous()
               && getRole(campaignId) in ["gm", "admin", "player", "demo"]);
     }
 
-    // True when the caller holds a privileged campaign role OR is a global admin.
+    // True when the caller holds a privileged campaign role OR is global staff.
     function isGMOrAdmin(campaignId) {
-      return isGlobalAdmin()
+      return isGlobalManager()
           || (isNotAnonymous()
               && getRole(campaignId) in ["gm", "admin"]);
     }
