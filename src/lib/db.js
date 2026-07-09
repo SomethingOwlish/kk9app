@@ -71,6 +71,60 @@ export function saveCharacterDebounced(campaignId, characterId, patch, ms = 700)
   }, ms));
 }
 
+// ── Кампании — создание / список / удаление (мастер=gm и admin) ──
+// Документ кампании: { name, members:{uid:role}, memberUids:[uid], schemaVersion,
+//   createdAt, … настройки }. memberUids дублирует ключи members — Firestore не
+// умеет искать по наличию динамического ключа в map, поэтому список «мои кампании»
+// строится запросом array-contains по memberUids.
+
+// Создать новую кампанию. Создатель становится мастером (gm) новой кампании.
+// Доступ «только мастер и admin» гарантируется на уровне UI (кнопка видна лишь
+// gm/admin) и правил Firestore (members[создатель] ∈ {gm,admin}). Возвращает id.
+export async function createCampaign({ ownerUid, name = "Новая кампания", role = "gm" }) {
+  if (!ownerUid) throw new Error("Не указан владелец кампании");
+  if (!["gm", "admin"].includes(role)) throw new Error("Создатель должен быть мастером или админом");
+  const ref = await addDoc(collection(db, "campaigns"), {
+    name,
+    members: { [ownerUid]: role },
+    memberUids: [ownerUid],
+    schemaVersion: SCHEMA_VERSION,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+// Живой список кампаний, в которых состоит пользователь (для переключателя/входа).
+export function watchCampaignsForUser(uid, cb) {
+  const q = query(collection(db, "campaigns"), where("memberUids", "array-contains", uid));
+  return onSnapshot(q, (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+// Разовое чтение того же списка.
+export async function listCampaignsForUser(uid) {
+  const q = query(collection(db, "campaigns"), where("memberUids", "array-contains", uid));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Удалить кампанию (только gm/admin — enforced правилами). Клиент не умеет
+// рекурсивно удалять подколлекции, поэтому сначала best-effort чистим известные
+// подколлекции пачками (лимит батча 500), затем удаляем сам документ кампании.
+export async function deleteCampaign(campaignId) {
+  if (!campaignId) throw new Error("Не указана кампания");
+  const subcollections = [
+    "characters", "items", "scenes", "organizations", "shops",
+    "statuses", "library", "sellRequests", "rolls", "chargen_requests",
+  ];
+  for (const sub of subcollections) {
+    const snap = await getDocs(collection(db, "campaigns", campaignId, sub));
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      const batch = writeBatch(db);
+      snap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+  await deleteDoc(doc(db, "campaigns", campaignId));
+}
+
 // ── Создание персонажа (чистая карточка + сид базовых навыков) ──
 export async function createCharacter(campaignId, characterId, { name, ownerUid, age = 15 }) {
   const baseSkills = buildBaseSkills();
