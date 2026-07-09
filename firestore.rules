@@ -87,7 +87,16 @@ service cloud.firestore {
     // ── Campaign document ────────────────────────────────────────────────────
 
     match /campaigns/{campaignId} {
-      allow read:  if isMember(campaignId);
+      // Read the campaign DOC via memberUids DIRECTLY — the exact field the
+      // "my campaigns" query filters on (memberUids array-contains uid). Using the
+      // members-map get() here (isMember) meant that if ANY matched campaign had a
+      // members/memberUids mismatch, Firestore rejected the WHOLE list query and the
+      // player saw zero campaigns. resource.data.memberUids is the candidate doc's
+      // own array — no cross-doc get(), no mismatch, no silent list-wide denial.
+      allow read:  if isGlobalManager()
+                   || (isNotAnonymous()
+                       && resource.data.memberUids != null
+                       && request.auth.uid in resource.data.memberUids);
 
       // Create a brand-new campaign: the creator must list themselves as gm
       // (master) or admin in the new doc's members map, and appear in memberUids
