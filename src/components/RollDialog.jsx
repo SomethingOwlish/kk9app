@@ -397,6 +397,14 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
           {/* Everything that affects the roll, listed separately. */}
           <div className="kk-roll-breakdown">
             <div className="kk-roll-breakdown-title">Что влияет на бросок</div>
+            {/* Diagnostic footer: ground-truth counts so "no bonus applies" can be
+                traced to empty items / inactive artifacts / missing statuses. */}
+            <div className="kk-roll-part" style={{ opacity: 0.55, fontSize: "0.72em" }}>
+              <span className="kk-roll-part-label">
+                предметов: {items.length} · активн. артеф.: {items.filter((i) => i.type === "artifact" && i.active && !i.destroyed).length} · статусов: {(ch.activeStatuses || []).length} · активн. закл.: {(ch.activeSpells || []).length}
+                {" · "}контекст: {ctx.attribute || "—"}/{skillNameForMods || "—"}
+              </span>
+            </div>
             {modParts.map((p, i) => (
               <div className="kk-roll-part" key={i}>
                 <span className="kk-roll-part-label">{p.label}</span>
