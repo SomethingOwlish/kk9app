@@ -873,6 +873,10 @@ function AddItemForm({
                 <input type="number" className="kk-item-num" value={b.bonus} onChange={e => setSkillBonusValue(b.skillName, e.target.value)} />
               </div>
             ))}
+            {/* A buff can stack a STATUS on top of the attribute/skill bonuses
+                (e.g. Виртус → Адреналин). Applied to the caster on a successful cast. */}
+            <label className="kk-item-form-chk" style={{ marginTop: ".5rem" }}><input type="checkbox" checked={!!data.hasStatus} onChange={chk("hasStatus")} /> Накладывает статус на кастующего</label>
+            {data.hasStatus && statusSel("statusName")}
           </div>
         )}
 
