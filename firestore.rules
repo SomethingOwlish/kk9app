@@ -127,14 +127,18 @@ service cloud.firestore {
         // money, advancement debits XP, a future reroll spends a bennie. Every
         // economy CREDIT (sell proceeds, salary, GM grants) goes through the GM
         // path, which bypasses these constraints.
+        // Note: use .get(field, default) so a character doc missing money/
+        // experience/bennies (older/partial docs) doesn't make the comparison
+        // error out and deny EVERY player write — which would silently block
+        // spell casts (energy, activeSpells, activeStatuses persistence).
         allow update: if isGMOrAdmin(campaignId)
                       || (isNotAnonymous()
                           && getRole(campaignId) == "player"
                           && resource.data.ownerUid == request.auth.uid
                           && request.resource.data.ownerUid == request.auth.uid
-                          && request.resource.data.money <= resource.data.money
-                          && request.resource.data.experience <= resource.data.experience
-                          && request.resource.data.bennies <= resource.data.bennies);
+                          && request.resource.data.get("money", 0) <= resource.data.get("money", 0)
+                          && request.resource.data.get("experience", 0) <= resource.data.get("experience", 0)
+                          && request.resource.data.get("bennies", 0) <= resource.data.get("bennies", 0));
 
         // Only GM/admin may delete a character.
         allow delete: if isGMOrAdmin(campaignId);

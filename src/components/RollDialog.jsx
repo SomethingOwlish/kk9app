@@ -108,7 +108,13 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   const baseMod = (target.modifier ?? 0) + numericMod + Number(situational || 0) + health.mod;
   const spellCost = isItem ? Number(target.spellCost || 0) : 0;
 
-  const canRollNow = !blocked && castCheck.ok;
+  // Spell energy gate: a spell cannot be cast without enough energy to pay its
+  // cost. (Foundry offers an overcast-with-health option; the port enforces the
+  // hard requirement.) Non-spell rolls are unaffected.
+  const energyValue = ch.energy?.value ?? 0;
+  const energyBlocked = isItem && target.itemType === "spell" && spellCost > 0 && energyValue < spellCost;
+
+  const canRollNow = !blocked && castCheck.ok && !energyBlocked;
   const canReroll = !manual && (ch.bennies ?? 0) >= 1;
 
   // Build the human-readable list of everything feeding the roll.
@@ -375,7 +381,8 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
 
           {health.halfResult && <div className="kk-roll-warn">{isToughness ? "Пип 5: результат броска стойкости делится пополам." : "Ранение: результат броска делится пополам."}</div>}
           {willTrigger && !blocked && <div className="kk-roll-tension-note">⚗ Способность вызывает проверку напряжения.</div>}
-          {spellCost > 0 && <div className="kk-roll-tension-note">Стоимость каста: {spellCost} энергии (при успехе).</div>}
+          {spellCost > 0 && <div className="kk-roll-tension-note">Стоимость каста: {spellCost} энергии (при успехе). Доступно: {energyValue}.</div>}
+          {energyBlocked && <div className="kk-roll-warn kk-roll-blocked">Недостаточно энергии для каста ({energyValue}/{spellCost}) — заклинание невозможно.</div>}
           {target.missingSkill && <div className="kk-roll-warn">Навык «{target.skillName}» не найден у персонажа — бросок идёт как d4.</div>}
           {target.needsSkill && <div className="kk-roll-warn">У предмета не задан навык — бросок идёт как d4.</div>}
           {stunBlocked && <div className="kk-roll-warn kk-roll-blocked">Оглушение (стан): броски заблокированы, пока стан активен.</div>}
