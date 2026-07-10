@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { rollPool, rollSnakeEyes, stepDie, successDegreeFromTotal, applySuccessMod, rollExtraDiceList, formatFaces } from "../lib/dice";
 import { collectRollModifiers, collectApplicableFeatures, collectHealthPenalties } from "../lib/statusEngine";
 import { canCastSpell } from "../lib/items";
+import { canOvercast, computeOvercast, energyDeficit } from "../lib/overcast";
 import { spellActivates, activateSpellEntry, collectActiveBuffMods, consumeSpellUse } from "../lib/activeSpells";
 import * as combat from "../lib/combat";
 import {
@@ -66,6 +67,8 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [confirmReroll, setConfirmReroll] = useState(false);
+  // Overcast (превозмогание): opt-in when energy is short.
+  const [overcastOn, setOvercastOn] = useState(false);
 
   // Attack producer (B-54): after a successful roll of an attack item, let the
   // attacker pick target(s) and dispatch pending-attack docs.
@@ -113,8 +116,14 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   // hard requirement.) Non-spell rolls are unaffected.
   const energyValue = ch.energy?.value ?? 0;
   const energyBlocked = isItem && target.itemType === "spell" && spellCost > 0 && energyValue < spellCost;
+  // Overcast: push through insufficient energy by burning health + a Spirit check.
+  // Possible only if the spell's damage track still has room (Foundry guard).
+  const overcastPossible = energyBlocked && canOvercast(ch, target.item);
+  const isOvercasting = energyBlocked && overcastOn && overcastPossible;
+  const overcastDeficit = energyBlocked ? energyDeficit(ch, target.item) : 0;
+  const overcastPips = Math.ceil(overcastDeficit / 2);
 
-  const canRollNow = !blocked && castCheck.ok && !energyBlocked;
+  const canRollNow = !blocked && castCheck.ok && (!energyBlocked || isOvercasting);
   const canReroll = !manual && (ch.bennies ?? 0) >= 1;
 
   // Build the human-readable list of everything feeding the roll.
@@ -147,13 +156,15 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   // Show the attack section only when an item roll of an attack item succeeded
   // (and it was not a snake-eyes critical failure).
   const attackItem = isItem ? target.item : null;
+  // A failed overcast means the spell never went off — no attack is produced.
+  const overcastFizzled = (r) => !!(r?.overcast && !r.overcast.spiritSuccess);
   const canAttack = !!(
     attackItem && combat.isAttackItem(attackItem) &&
     typeof onAttack === "function" &&
-    result && result.success && !result.snakeEyes
+    result && result.success && !result.snakeEyes && !overcastFizzled(result)
   );
   const attackData = useMemo(
-    () => (attackItem && combat.isAttackItem(attackItem) && result && result.success && !result.snakeEyes
+    () => (attackItem && combat.isAttackItem(attackItem) && result && result.success && !result.snakeEyes && !overcastFizzled(result)
       ? combat.buildAttackData(attackItem, { success: result.success, raises: result.raises })
       : null),
     [attackItem, result],
@@ -260,9 +271,29 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
 
       const outcome = (!isReroll && willTrigger) ? computeTensionOutcome(ch, abilityName, mainRoll, settings) : null;
 
-      // Spell energy cost: deduct on a successful cast (or snake-eyes) — initial roll only.
+      // Overcast (превозмогание): if the caster opted to push through insufficient
+      // energy, roll Spirit inline to gate whether the spell actually goes off, and
+      // pay the cost upfront (energy→0 + ⌈deficit/2⌉ health pips) regardless of the
+      // spell's own skill outcome — Foundry spendSpellEnergy order.
+      let overcastInfo = null;
+      if (!isReroll && isOvercasting) {
+        const spDie = ch.attributes?.spirit?.die ?? 4;
+        const spMod = ch.attributes?.spirit?.modifier ?? 0;
+        const spPool = rollPool(spDie);
+        const spTotal = spPool.kept + spMod;
+        const spiritSuccess = successDegreeFromTotal(spTotal, {}).success;
+        overcastInfo = { ...computeOvercast(ch, target.item, spiritSuccess), spTotal, spiritSuccess };
+      }
+      // A cast "proceeds" (activates, applies status, produces an attack) only when
+      // not overcasting, or when the overcast Spirit check passed.
+      const spellProceeds = !overcastInfo || overcastInfo.spellProceeds;
+
+      // Spell energy cost. Overcast pays upfront (energy→0 + health). Normal casts
+      // deduct on a successful cast (or snake-eyes). Initial roll only.
       let charPatch = null;
-      if (!isReroll && spellCost > 0 && (mainRoll.success || isSnake)) {
+      if (!isReroll && overcastInfo) {
+        charPatch = { ...overcastInfo.patch };
+      } else if (!isReroll && spellCost > 0 && (mainRoll.success || isSnake)) {
         const cur = ch.energy?.value ?? 0;
         charPatch = { "energy.value": Math.max(0, cur - spellCost) };
       }
@@ -281,7 +312,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
         }
         activeSpellsChanged = true;
       }
-      if (!isReroll && isItem && target.itemType === "spell" && mainRoll.success && target.item && spellActivates(target.item)) {
+      if (!isReroll && isItem && target.itemType === "spell" && mainRoll.success && spellProceeds && target.item && spellActivates(target.item)) {
         nextActiveSpells = activateSpellEntry(nextActiveSpells, target.item);
         activeSpellsChanged = true;
       }
@@ -295,7 +326,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
       // rolls. Enemy-targeting spells (attack/binding/transforming) instead land
       // their status on the victim through the attack→soak flow, so are excluded.
       let spellStatusInstance = null;
-      if (!isReroll && isItem && target.itemType === "spell" && mainRoll.success && !isSnake && target.item) {
+      if (!isReroll && isItem && target.itemType === "spell" && mainRoll.success && !isSnake && spellProceeds && target.item) {
         const sp = target.item;
         const SELF_STATUS_TYPES = new Set(["buff", "health_buff", "utility"]);
         if (sp.hasStatus && sp.statusName && SELF_STATUS_TYPES.has(sp.spellType)
@@ -332,7 +363,8 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
         tension: outcome ? { increment: outcome.increment, zone: outcome.zoneAfter } : null,
       };
 
-      const display = { ...rollData, isWild: dice.isWild, outcome, keptFaces: dice.keptFaces, spellCost: charPatch ? spellCost : 0 };
+      const display = { ...rollData, isWild: dice.isWild, outcome, keptFaces: dice.keptFaces, spellCost: (charPatch && !overcastInfo) ? spellCost : 0,
+        overcast: overcastInfo ? { pips: overcastInfo.pips, deficit: overcastInfo.deficit, spTotal: overcastInfo.spTotal, spiritSuccess: overcastInfo.spiritSuccess, damType: overcastInfo.damType } : null };
       setResult(display);
 
       if (isReroll) {
@@ -382,7 +414,20 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
           {health.halfResult && <div className="kk-roll-warn">{isToughness ? "Пип 5: результат броска стойкости делится пополам." : "Ранение: результат броска делится пополам."}</div>}
           {willTrigger && !blocked && <div className="kk-roll-tension-note">⚗ Способность вызывает проверку напряжения.</div>}
           {spellCost > 0 && <div className="kk-roll-tension-note">Стоимость каста: {spellCost} энергии (при успехе). Доступно: {energyValue}.</div>}
-          {energyBlocked && <div className="kk-roll-warn kk-roll-blocked">Недостаточно энергии для каста ({energyValue}/{spellCost}) — заклинание невозможно.</div>}
+          {energyBlocked && overcastPossible && (
+            <div className="kk-roll-tension-note">
+              <label style={{ display: "flex", gap: 6, alignItems: "flex-start", cursor: "pointer" }}>
+                <input type="checkbox" checked={overcastOn} onChange={(e) => setOvercastOn(e.target.checked)} />
+                <span>
+                  <strong>Превозмочь</strong> — не хватает {overcastDeficit} энергии. Каст обнулит энергию,
+                  нанесёт −{overcastPips} пип ({target.item?.damageType === "mental" ? "ментал." : "физ."}) и потребует бросок Духа (≥5).
+                  Провал: заклинание не активируется, но энергия и урон потрачены.
+                </span>
+              </label>
+            </div>
+          )}
+          {energyBlocked && !overcastPossible && <div className="kk-roll-warn kk-roll-blocked">Недостаточно энергии ({energyValue}/{spellCost}) и превозмогание невозможно — трек здоровья заполнен.</div>}
+          {result?.overcast && <div className={`kk-roll-tension-res${result.overcast.spiritSuccess ? "" : " kk-roll-warn"}`}>Превозмогание: −{result.overcast.deficit} энергии, −{result.overcast.pips} пип · Дух {result.overcast.spTotal} — {result.overcast.spiritSuccess ? "успех, заклинание проходит" : "провал, заклинание не активировалось"}</div>}
           {target.missingSkill && <div className="kk-roll-warn">Навык «{target.skillName}» не найден у персонажа — бросок идёт как d4.</div>}
           {target.needsSkill && <div className="kk-roll-warn">У предмета не задан навык — бросок идёт как d4.</div>}
           {stunBlocked && <div className="kk-roll-warn kk-roll-blocked">Оглушение (стан): броски заблокированы, пока стан активен.</div>}
