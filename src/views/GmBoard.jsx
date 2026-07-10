@@ -10,7 +10,7 @@ import NpcSheet from "./NpcSheet";
 // here — they're throwaway mooks, created fresh via "+ Добавить НПС".
 const LIBRARY_NPC_KINDS = new Set(["npc-hard", "npc-boss", "curator", "companion", "daemon"]);
 
-export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], peers = [], onAddNpcFromLibrary, onSaveNpcRelations, campaignStatuses = [], onTickRound }) {
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], onAddNpcFromLibrary, campaignStatuses = [], onTickRound }) {
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
@@ -212,8 +212,6 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
         npc={openNpc}
         campaignId={CAMPAIGN_ID}
         campaignStatuses={campaignStatuses}
-        peers={peers}
-        onSaveRelations={onSaveNpcRelations ? (next) => onSaveNpcRelations(openNpc, next) : null}
         onClose={() => setOpenNpcId(null)}
       />
     )}

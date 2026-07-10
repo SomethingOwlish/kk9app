@@ -179,21 +179,20 @@ export default function App({ user, signOut }) {
     () => npcs.map(n => (n.libraryRef ? resolveNpc(n, libById[n.libraryRef]) : n)),
     [npcs, libById],
   );
-  // Relations ref-picker source: all chars + board NPCs (except the open one),
-  // plus every library unit the viewer can see that isn't already on the board
-  // (players get visible-only via watchLibrary). Lets a player link other
-  // players, NPCs and library units into their relations.
+  // Relations ref-picker source: player characters + every Library unit the
+  // viewer can see (players get visible-only via watchLibrary). NPCs are
+  // referenced through their canonical Library entry — which is also where their
+  // relations live — not through an ephemeral board placement. Lets a player
+  // link other players and library units into their relations.
   const peers = useMemo(() => {
-    const npcSet = new Set(npcs.map(n => n.id));
-    const boardLibRefs = new Set(npcs.map(n => n.libraryRef).filter(Boolean));
-    const live = [...characters.filter(c => !c.isNpc), ...resolvedNpcs]
-      .filter(c => c.id !== activeId)
-      .map(c => ({ id: c.id, name: c.name, portrait: c.portrait || c.img || "", hint: npcSet.has(c.id) ? "НПС" : "" }));
+    const pcs = characters
+      .filter(c => !c.isNpc && c.id !== activeId)
+      .map(c => ({ id: c.id, name: c.name, portrait: c.portrait || "", hint: "" }));
     const lib = library
-      .filter(e => e.id !== activeId && !boardLibRefs.has(e.id))
+      .filter(e => e.id !== activeId)
       .map(e => ({ id: e.id, name: e.name, portrait: e.img || "", hint: LIBRARY_KIND_LABEL[e.kind] || "Библиотека" }));
-    return [...live, ...lib];
-  }, [characters, npcs, resolvedNpcs, activeId, library]);
+    return [...pcs, ...lib];
+  }, [characters, activeId, library]);
   // Players (incl. admin acting-as-player) only see organizations marked visible.
   const orgsForView = useMemo(() => isGM ? orgs : orgs.filter(o => o.visibleToPlayers), [orgs, isGM]);
   const ownChar = !!(activeChar && user && activeChar.ownerUid === user.uid);
@@ -443,12 +442,13 @@ export default function App({ user, signOut }) {
     const self = { id: activeChar.id, name: activeChar.name, portrait: activeChar.portrait || "" };
     mirrorRelations(CAMPAIGN_ID, prev, next, self, canWriteTarget).catch(console.error);
   }, [activeChar, save, canWriteTarget]);
-  // Save a board NPC's relations (GM only) + mirror.
-  const onSaveNpcRelations = useCallback(async (npc, next) => {
-    const prev = Array.isArray(npc.relations) ? npc.relations : [];
+  // Save a Library unit's relations (GM only — library is GM-write) + mirror.
+  // A Library NPC's relations live on its own entry, edited in the Library view.
+  const onSaveLibraryRelations = useCallback(async (entry, next) => {
+    const prev = Array.isArray(entry.relations) ? entry.relations : [];
     try {
-      await updateCharacterNow(CAMPAIGN_ID, npc.id, { relations: next });
-      const self = { id: npc.id, name: npc.name, portrait: npc.img || "" };
+      await updateLibraryEntry(CAMPAIGN_ID, entry.id, { relations: next });
+      const self = { id: entry.id, name: entry.name, portrait: entry.img || "" };
       await mirrorRelations(CAMPAIGN_ID, prev, next, self, canWriteTarget);
     } catch (e) { alert("Не удалось сохранить связь: " + (e?.message || e)); }
   }, [canWriteTarget]);
@@ -593,7 +593,7 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && role === "player" && gmModeData?.active && view === "card" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")} requestCount={requestCount} onOpenRequests={() => navigate("/requests-queue")}/>}
-        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={resolvedNpcs} library={library} peers={peers} onAddNpcFromLibrary={onAddNpcFromLibrary} onSaveNpcRelations={onSaveNpcRelations} campaignStatuses={campaignStatuses} onTickRound={onTickRound}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={resolvedNpcs} library={library} onAddNpcFromLibrary={onAddNpcFromLibrary} campaignStatuses={campaignStatuses} onTickRound={onTickRound}/>}
         {ready && cl && view === "requests" && baseRole && role !== "demo" && !isGM && <RequestsPlayer campaignId={CAMPAIGN_ID} uid={user.uid} myChars={myChars} campaignStatuses={campaignStatuses} requests={requests}/>}
         {ready && cl && view === "requests_queue" && isGM && <RequestsQueue campaignId={CAMPAIGN_ID} requests={requests} characters={characters} campaignStatuses={campaignStatuses} gmUid={user.uid}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
@@ -605,7 +605,7 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
         {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...resolvedNpcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage} onAddFeature={onAddFeature}/>}
         {ready && cl && view === "import" && isGM && <FoundryImportView onOpenChar={openCard} members={campaign?.members || {}}/>}
-        {ready && cl && view === "library" && baseRole && role !== "demo" && <LibraryView entries={library} isGM={isGM} onCreate={onCreateLibrary} onUpdate={onUpdateLibrary} onDelete={onDeleteLibrary} onSeed={onSeedLibrary} seedable={Object.keys(LIBRARY_SEED)}/>}
+        {ready && cl && view === "library" && baseRole && role !== "demo" && <LibraryView entries={library} isGM={isGM} onCreate={onCreateLibrary} onUpdate={onUpdateLibrary} onDelete={onDeleteLibrary} onSeed={onSeedLibrary} seedable={Object.keys(LIBRARY_SEED)} peers={peers} onSaveRelations={onSaveLibraryRelations}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={playerParty} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
         {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} onSaveRelations={onSaveCharRelations} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel} daemonLib={daemonLib} onLinkDaemon={onLinkDaemon} onUnlinkDaemon={onUnlinkDaemon} roster={roster} onAttack={onAttack}/>}
