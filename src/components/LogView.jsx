@@ -131,13 +131,16 @@ function BioLogCard({ e }) {
   );
 }
 
+const TYPE_TAG_LABEL = { request_applied: "Заявка" };
+
 function UnknownCard({ e }) {
   return (
     <div className="kk-log">
       <div className="kk-log-head">
-        <span className="kk-log-type-tag">{e.type || "запись"}</span>
+        <span className="kk-log-type-tag">{TYPE_TAG_LABEL[e.type] || e.type || "запись"}</span>
         <span className="kk-log-date">{fmtDate(e.at)}</span>
       </div>
+      {e.detail && <div className="kk-log-body"><span>{e.detail}</span></div>}
     </div>
   );
 }

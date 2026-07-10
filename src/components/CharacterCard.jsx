@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import Tip from "./Tip";
+import InlineMarkdown from "./InlineMarkdown";
 import { skillTipContent } from "./SkillTip";
 import Stat from "./Stat";
 import HealthTrack from "./HealthTrack";
@@ -468,7 +469,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
                       )}
                     </summary>
                     {(n.body || n.text) && (
-                      <p className="kk-note-body">{n.body || n.text}</p>
+                      <p className="kk-note-body"><InlineMarkdown text={n.body || n.text} /></p>
                     )}
                   </details>
                 );

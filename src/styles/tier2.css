@@ -416,3 +416,37 @@
 .kk-attack-resolve-degree { font-size: .82rem; opacity: .85; margin-top: .2rem; }
 .kk-attack-resolve-dmg { font-size: .84rem; color: var(--kk-danger, #c0563f); font-weight: 600; margin-top: .2rem; }
 .kk-attack-resolve-reasons { font-size: .76rem; opacity: .65; margin-top: .3rem; }
+
+/* ── Player Requests (Tier 10 / B-64 + B-65) ─────────────────────────── */
+.kk-topbar-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.kk-request-list { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; }
+.kk-request-row {
+  display: block; width: 100%; text-align: left;
+  border: 1px solid var(--kk-border, rgba(255,255,255,.14));
+  border-radius: 8px; padding: .55rem .7rem;
+  background: var(--kk-panel, rgba(255,255,255,.04));
+}
+.kk-request-row.is-btn { cursor: pointer; }
+.kk-request-row.is-btn:hover { border-color: var(--kk-accent, #c8a14e); }
+.kk-request-row-main { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.kk-request-name { font-weight: 600; }
+.kk-request-row-meta { font-size: .8rem; opacity: .7; margin-top: .15rem; }
+.kk-request-row-desc { font-size: .85rem; opacity: .85; margin-top: .3rem; white-space: pre-wrap; }
+.kk-request-row-answer { font-size: .85rem; margin-top: .3rem; }
+.kk-request-row-actions { display: flex; gap: .4rem; margin-top: .5rem; }
+.kk-request-group { margin-top: .75rem; }
+.kk-request-group-title { font-weight: 700; opacity: .85; margin-bottom: .25rem; }
+.kk-request-history { margin-top: 1rem; }
+.kk-request-history summary { cursor: pointer; opacity: .8; }
+.kk-request-fields { margin-top: .5rem; }
+.kk-request-answer { margin-top: .5rem; }
+.kk-request-modal { max-width: 640px; width: 92%; }
+.kk-request-modal-meta { font-size: .85rem; opacity: .85; margin: .25rem 0 .5rem; }
+.kk-chip {
+  display: inline-block; font-size: .72rem; font-weight: 600;
+  padding: .1rem .5rem; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--kk-border, rgba(255,255,255,.2));
+}
+.kk-chip.st-in_process { color: #e0b33a; border-color: #e0b33a66; }
+.kk-chip.st-applied { color: #4caf7d; border-color: #4caf7d66; }
+.kk-chip.st-denied { color: #d06666; border-color: #d0666666; }

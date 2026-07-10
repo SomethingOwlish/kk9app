@@ -16,6 +16,7 @@ import {
   linkDaemonToChar, unlinkDaemonFromChar, updatePortraitConfig,
   ensureUserDoc, watchUserDoc,
   createAttacks, watchAttacks, resolveAttackOnSelf, dismissAttack,
+  watchMyRequests, watchRequests,
 } from "./lib/db";
 import { effectiveRole } from "./lib/roles";
 import { libraryDefaultsFor, LIBRARY_KIND_LABEL } from "./lib/library";
@@ -62,6 +63,8 @@ import RollLogView from "./views/RollLogView";
 import ShopView from "./views/ShopView";
 import ShopManager from "./views/ShopManager";
 import LibraryView from "./views/LibraryView";
+import RequestsPlayer from "./views/RequestsPlayer";
+import RequestsQueue from "./views/RequestsQueue";
 import FoundryImportView from "./views/FoundryImportView";
 import PortraitLayer from "./components/PortraitLayer";
 import PortraitDock from "./components/PortraitDock";
@@ -99,6 +102,7 @@ export default function App({ user, signOut }) {
   // Глобальная роль из users/{uid} (admin/gm/player) — источник правды для доступа.
   const [globalRole, setGlobalRole] = useState(null);
   const [attacks, setAttacks] = useState([]);
+  const [requests, setRequests] = useState([]);
 
   useEffect(() => { ensureUserDoc(user).catch(() => {}); }, [user]);
   useEffect(() => watchUserDoc(user.uid, (u) => setGlobalRole(u?.role || null)), [user.uid]);
@@ -132,6 +136,8 @@ export default function App({ user, signOut }) {
     : pathname === "/rolls" ? "rolls"
     : pathname === "/shop" ? "shop"
     : pathname === "/library" ? "library"
+    : pathname === "/requests" ? "requests"
+    : pathname === "/requests-queue" ? "requests_queue"
     : pathname === "/import" ? "import"
     : pathname === "/items" ? "items" : "portal";
   // membership — роль в ЭТОЙ кампании (members map); globalRole — глобальная.
@@ -186,6 +192,13 @@ export default function App({ user, signOut }) {
   useEffect(() => watchOrganizations(CAMPAIGN_ID, setOrgs, !isGM), [isGM]);
   // Library (FEAT-04): same visible-only constraint for players.
   useEffect(() => watchLibrary(CAMPAIGN_ID, setLibrary, !isGM), [isGM]);
+  // Requests (B-64/B-65): GM reads the whole queue; a player may read only their
+  // own requests (rules scope the collection to requesterUid == uid).
+  useEffect(() => isGM
+    ? watchRequests(CAMPAIGN_ID, setRequests)
+    : watchMyRequests(CAMPAIGN_ID, user.uid, setRequests),
+  [isGM, user.uid]);
+  const requestCount = useMemo(() => requests.filter((r) => r.status === "in_process").length, [requests]);
   const daemonLib = useMemo(() => library.filter((e) => e.kind === "daemon"), [library]);
   const portraitIntensity = campaign?.portraits?.intensity ?? "normal";
 
@@ -449,6 +462,8 @@ export default function App({ user, signOut }) {
     else if (id === "rolls" && role !== "demo") navigate("/rolls");
     else if (id === "shop" && role !== "demo") navigate("/shop");
     else if (id === "library" && role !== "demo") navigate("/library");
+    else if (id === "requests" && role !== "demo" && !isGM) navigate("/requests");
+    else if (id === "requests_gm" && isGM) navigate("/requests-queue");
     else if (id === "print" && activeId) navigate(`/print/${activeId}`);
   }, [isGM, role, navigate, activeId, campaign]);
   const current = view === "portal" ? "portal"
@@ -462,6 +477,8 @@ export default function App({ user, signOut }) {
     : view === "rolls" ? "rolls"
     : view === "shop" ? "shop"
     : view === "library" ? "library"
+    : view === "requests" ? "requests"
+    : view === "requests_queue" ? "requests_gm"
     : view === "import" ? "import"
     : view === "items" ? "items" : "card";
   const actAs = useCallback((r) => { setActingAs(r); setMenu(false); setEditing(false); navigate("/"); }, [navigate]);
@@ -539,7 +556,9 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && role === "player" && gmModeData?.active && view === "card" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")}/>}
-        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} library={library} onAddNpcFromLibrary={onAddNpcFromLibrary} campaignStatuses={campaignStatuses} onTickRound={onTickRound}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} library={library} onAddNpcFromLibrary={onAddNpcFromLibrary} campaignStatuses={campaignStatuses} onTickRound={onTickRound} requestCount={requestCount} onOpenRequests={() => navigate("/requests-queue")}/>}
+        {ready && cl && view === "requests" && baseRole && role !== "demo" && !isGM && <RequestsPlayer campaignId={CAMPAIGN_ID} uid={user.uid} myChars={myChars} campaignStatuses={campaignStatuses} requests={requests}/>}
+        {ready && cl && view === "requests_queue" && isGM && <RequestsQueue campaignId={CAMPAIGN_ID} requests={requests} characters={characters} campaignStatuses={campaignStatuses} gmUid={user.uid}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
         {ready && cl && view === "orgs" && baseRole && role !== "demo" && <OrganizationsView orgs={orgsForView} isGM={isGM} characters={characters} onCreate={onCreateOrg} onUpdate={onUpdateOrg} onDelete={onDeleteOrg} onUnlinkChar={onUnlinkOrg} onOpenChar={openCard}/>}
         {ready && cl && view === "rolls" && baseRole && role !== "demo" && <RollLogView campaignId={CAMPAIGN_ID} isGM={isGM}/>}
