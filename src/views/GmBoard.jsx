@@ -6,10 +6,11 @@ import PartyRow from "../components/PartyRow";
 import TimeRewindDialog from "../components/TimeRewindDialog";
 import NpcSheet from "./NpcSheet";
 
-// Library kinds that make sense to spawn as a live board NPC.
-const LIBRARY_NPC_KINDS = new Set(["npc-light", "npc-hard", "npc-boss", "curator", "companion", "daemon"]);
+// Library kinds addable to the board as existing NPCs. Light NPCs are excluded
+// here — they're throwaway mooks, created fresh via "+ Добавить НПС".
+const LIBRARY_NPC_KINDS = new Set(["npc-hard", "npc-boss", "curator", "companion", "daemon"]);
 
-export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], onAddNpcFromLibrary, campaignStatuses = [], onTickRound }) {
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], peers = [], onAddNpcFromLibrary, onSaveNpcRelations, campaignStatuses = [], onTickRound }) {
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
@@ -211,6 +212,8 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
         npc={openNpc}
         campaignId={CAMPAIGN_ID}
         campaignStatuses={campaignStatuses}
+        peers={peers}
+        onSaveRelations={onSaveNpcRelations ? (next) => onSaveNpcRelations(openNpc, next) : null}
         onClose={() => setOpenNpcId(null)}
       />
     )}

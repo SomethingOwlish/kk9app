@@ -1,13 +1,20 @@
 import { useState } from "react";
 import { updateCharacterNow, deleteNpc, applyStatus, removeStatus } from "../lib/db";
+import { isLightNpc } from "../lib/npc";
 import StatusBar from "../components/StatusBar";
 import StatusEditor from "../components/StatusEditor";
+import RelationsList from "../components/RelationsList";
 
 const ATTRS = ["agility", "smarts", "spirit", "endurance"];
 const ATTR_RU = { agility: "Ловкость", smarts: "Интеллект", spirit: "Дух", endurance: "Выносливость" };
 const DIES = [4, 6, 8, 10, 12];
 
-export default function NpcSheet({ npc, campaignId, campaignStatuses, onClose }) {
+export default function NpcSheet({ npc, campaignId, campaignStatuses, peers = [], onSaveRelations, onClose }) {
+  // Linked board NPCs read their statblock from the Library entry (resolved
+  // upstream). Their attributes/toughness are shown read-only here — edit them
+  // in the Library. Only live per-board state (wounds, statuses, relations) is
+  // editable on the board doc.
+  const linked = !!npc.libraryRef;
   const [name, setName] = useState(npc.name || "");
   const [attrs, setAttrs] = useState(() => npc.attributes || {
     agility: { die: 6, mod: 0 }, smarts: { die: 6, mod: 0 },
@@ -20,15 +27,18 @@ export default function NpcSheet({ npc, campaignId, campaignStatuses, onClose })
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const showRelations = !isLightNpc(npc) && !!onSaveRelations;
+  const relations = Array.isArray(npc.relations) ? npc.relations : [];
+
   const save = async () => {
     setSaving(true);
     try {
-      await updateCharacterNow(campaignId, npc.id, {
-        name,
-        attributes: attrs,
-        health: { physical: { value: health, toughness } },
-        overflow_damage: overflow,
-      });
+      // Linked NPCs: never persist statblock (attributes/toughness) onto the
+      // board doc — those live in the Library entry.
+      const patch = linked
+        ? { name, health: { physical: { value: health } }, overflow_damage: overflow }
+        : { name, attributes: attrs, health: { physical: { value: health, toughness } }, overflow_damage: overflow };
+      await updateCharacterNow(campaignId, npc.id, patch);
     } finally {
       setSaving(false);
     }
@@ -41,6 +51,8 @@ export default function NpcSheet({ npc, campaignId, campaignStatuses, onClose })
 
   const setAttrField = (attr, field, value) =>
     setAttrs(prev => ({ ...prev, [attr]: { ...prev[attr], [field]: value } }));
+
+  const fmtDie = (a) => `к${a?.die ?? 6}${a?.mod ? (a.mod > 0 ? `+${a.mod}` : a.mod) : ""}`;
 
   return (
     <div className="kk-npcsheet-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -56,30 +68,42 @@ export default function NpcSheet({ npc, campaignId, campaignStatuses, onClose })
           <button className="kk-btn ghost sm" onClick={onClose}>✕</button>
         </div>
 
+        {linked && <div className="kk-npcsheet-linked">Статблок из библиотеки — правьте в разделе «Библиотека».</div>}
+
         <div className="kk-npcsheet-section">
           <div className="kk-h3">Характеристики</div>
-          <div className="kk-npcsheet-attrs">
-            {ATTRS.map(attr => (
-              <div key={attr} className="kk-npcsheet-attr">
-                <label>{ATTR_RU[attr]}</label>
-                <select
-                  className="kk-input"
-                  value={attrs[attr]?.die ?? 6}
-                  onChange={e => { setAttrField(attr, "die", +e.target.value); save(); }}
-                >
-                  {DIES.map(d => <option key={d} value={d}>к{d}</option>)}
-                </select>
-                <input
-                  className="kk-input kk-npcsheet-mod"
-                  type="number"
-                  value={attrs[attr]?.mod ?? 0}
-                  onChange={e => setAttrField(attr, "mod", +e.target.value)}
-                  onBlur={save}
-                  placeholder="мод"
-                />
+          {linked
+            ? <div className="kk-npcsheet-attrs">
+                {ATTRS.map(attr => (
+                  <div key={attr} className="kk-npcsheet-attr">
+                    <label>{ATTR_RU[attr]}</label>
+                    <span className="kk-npcsheet-attr-ro">{fmtDie(attrs[attr])}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            : <div className="kk-npcsheet-attrs">
+                {ATTRS.map(attr => (
+                  <div key={attr} className="kk-npcsheet-attr">
+                    <label>{ATTR_RU[attr]}</label>
+                    <select
+                      className="kk-input"
+                      value={attrs[attr]?.die ?? 6}
+                      onChange={e => { setAttrField(attr, "die", +e.target.value); save(); }}
+                    >
+                      {DIES.map(d => <option key={d} value={d}>к{d}</option>)}
+                    </select>
+                    <input
+                      className="kk-input kk-npcsheet-mod"
+                      type="number"
+                      value={attrs[attr]?.mod ?? 0}
+                      onChange={e => setAttrField(attr, "mod", +e.target.value)}
+                      onBlur={save}
+                      placeholder="мод"
+                    />
+                  </div>
+                ))}
+              </div>
+          }
         </div>
 
         <div className="kk-npcsheet-section">
@@ -92,8 +116,11 @@ export default function NpcSheet({ npc, campaignId, campaignStatuses, onClose })
             </div>
             <div className="kk-field">
               <label>Стойкость</label>
-              <input className="kk-input" type="number" min={1} value={toughness}
-                onChange={e => setToughness(+e.target.value)} onBlur={save}/>
+              {linked
+                ? <input className="kk-input" type="number" value={toughness} readOnly title="Из библиотеки"/>
+                : <input className="kk-input" type="number" min={1} value={toughness}
+                    onChange={e => setToughness(+e.target.value)} onBlur={save}/>
+              }
             </div>
             <div className="kk-field">
               <label>Переполнение</label>
@@ -112,6 +139,18 @@ export default function NpcSheet({ npc, campaignId, campaignStatuses, onClose })
             onRemove={(inst) => removeStatus(campaignId, npc.id, inst).catch(console.error)}
           />
         </div>
+
+        {showRelations && (
+          <div className="kk-npcsheet-section">
+            <RelationsList
+              relations={relations}
+              peers={peers}
+              canEdit={true}
+              onChange={onSaveRelations}
+              onDelete={onSaveRelations}
+            />
+          </div>
+        )}
 
         <div className="kk-npcsheet-footer">
           {!confirmDelete
