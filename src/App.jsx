@@ -312,14 +312,14 @@ export default function App({ user, signOut }) {
     await addFeatureToChar(CAMPAIGN_ID, charId, entry);
   }, []);
   // Persist a roll: merged status-tick + tension patch, then roll-log entry.
-  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance, charPatch, reroll, fateDebtInstance }) => {
+  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance, charPatch, spellStatusInstance, reroll, fateDebtInstance }) => {
     const snapshot = characters.find(c => c.id === charId) || activeChar;
     if (!snapshot) return;
     try {
       if (reroll) {
         await applyReroll(CAMPAIGN_ID, charId, { rollData, fateDebtInstance });
       } else {
-        await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData, charPatch, campaignStatuses, campaign });
+        await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, spellStatusInstance, rollData, charPatch, campaignStatuses, campaign });
       }
     } catch (e) { alert("Не удалось сохранить бросок: " + (e?.message || e)); }
   }, [characters, activeChar, campaignStatuses, campaign]);

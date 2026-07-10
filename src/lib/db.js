@@ -1167,7 +1167,7 @@ export function watchRolls(campaignId, cb, n = 50) {
 // patch to avoid races, then writes the roll-log entry.
 //   outcome: result of computeTensionOutcome (or null)
 //   exhaustionInstance: status instance to add when outcome.addExhaustion
-export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, rollData, charPatch, campaignStatuses, campaign }) {
+export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, spellStatusInstance, rollData, charPatch, campaignStatuses, campaign }) {
   const tickPatch = tickStatuses(ch, {
     campaignStatuses: campaignStatuses || [],
     settings: tensionSettings(campaign),
@@ -1190,7 +1190,11 @@ export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaus
       statuses = [...statuses, exhaustionInstance];
     }
   }
-  if (tickPatch.activeStatuses || outcome?.removeExhaustion || outcome?.addExhaustion) {
+  // Self-buff status from a successful spell cast (RollDialog builds the instance).
+  if (spellStatusInstance && !statuses.some((s) => s.name === spellStatusInstance.name)) {
+    statuses = [...statuses, spellStatusInstance];
+  }
+  if (tickPatch.activeStatuses || outcome?.removeExhaustion || outcome?.addExhaustion || spellStatusInstance) {
     merged.activeStatuses = statuses;
   }
 
