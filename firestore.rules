@@ -338,6 +338,35 @@ service cloud.firestore {
         allow create: if isMember(campaignId);
       }
 
+      // ── Player Requests (Tier 10 / B-64) ──────────────────────────────────
+      // A player files an item/skill/feature/info-plot request; the GM reviews a
+      // per-character queue and approves (creating the real entity on the target
+      // card via the GM write path) or denies. A player reads only their OWN
+      // requests, and may create/edit/withdraw only their own while in-process —
+      // never changing status or routing (that stays the GM's decision). The
+      // entity creation on approval runs on the character/items collections and
+      // is governed by their existing GM write rules.
+      match /requests/{requestId} {
+        allow read:   if isGMOrAdmin(campaignId)
+                      || (isMember(campaignId) && resource.data.requesterUid == request.auth.uid);
+        allow create: if isMember(campaignId)
+                      && request.resource.data.requesterUid == request.auth.uid
+                      && request.resource.data.status == "in_process";
+        // Player edits own in-process request only, and cannot flip status/routing.
+        allow update: if isGMOrAdmin(campaignId)
+                      || (isMember(campaignId)
+                          && resource.data.requesterUid == request.auth.uid
+                          && resource.data.status == "in_process"
+                          && request.resource.data.status == "in_process"
+                          && request.resource.data.requesterUid == resource.data.requesterUid
+                          && request.resource.data.targetCharacterId == resource.data.targetCharacterId
+                          && request.resource.data.kind == resource.data.kind);
+        allow delete: if isGMOrAdmin(campaignId)
+                      || (isMember(campaignId)
+                          && resource.data.requesterUid == request.auth.uid
+                          && resource.data.status == "in_process");
+      }
+
       // ── Status definitions (B-27) ─────────────────────────────────────────
       // All members can read the status library; only GM/admin can write.
 

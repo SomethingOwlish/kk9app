@@ -17,6 +17,7 @@ import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
 import { derivePhysicalToughness, deriveEnergyMax, deriveTensionMax } from "./derive";
 import { tickStatuses } from "./statusEngine";
 import { tensionSettings } from "./tension";
+import { buildFields as buildRequestFields } from "./requestFields";
 
 // Навык по имени — для подтягивания attr/categ при добавлении.
 const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
@@ -1645,6 +1646,189 @@ export async function approveSell(campaignId, req, finalPrice) {
 // GM (or the requesting player) cancels a sell request without paying out.
 export async function rejectSell(campaignId, reqId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "sellRequests", reqId));
+}
+
+// ── Player Requests (Tier 10 / B-64 + B-65) ─────────────────
+// A player files a request for an item/skill/feature/info-plot; the GM reviews
+// a per-character queue and approves (creates the real entity on the target
+// card) or denies. Mirrors the sellRequests queue/approval pattern. Enum values
+// stay ASCII; RU labels live in requestFields.js. Path:
+//   campaigns/{cid}/requests/{requestId}
+const reqMillis = (r) => (r?.createdAt?.toMillis ? r.createdAt.toMillis() : 0);
+
+// Player files a new request. `history.submitted` is frozen at first submit and
+// never overwritten; approval later reads the LAST-saved payload (GM wins).
+export async function createRequest(campaignId, { kind, requesterUid, targetCharacterId, targetCharacterName, payload = {}, gmAnswer = "" }) {
+  const col = collection(db, "campaigns", campaignId, "requests");
+  const now = new Date().toISOString();
+  return addDoc(col, {
+    schemaVersion: 1,
+    kind,
+    requesterUid,
+    targetCharacterId,
+    targetCharacterName: targetCharacterName || "",
+    status: "in_process",
+    payload,
+    gmAnswer,
+    includePlayerDescription: false,
+    history: { submitted: { at: now, byUid: requesterUid, payload } },
+    createdEntity: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// Edit an in-process request (player edits own; GM edits any). Never touches
+// status/routing or history.submitted. `patch` carries payload/gmAnswer/
+// includePlayerDescription.
+export async function updateRequest(campaignId, requestId, patch) {
+  await updateDoc(doc(db, "campaigns", campaignId, "requests", requestId), {
+    ...patch,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// Player withdraws own in-process request — hard delete (O-3 default).
+export async function withdrawRequest(campaignId, requestId) {
+  await deleteDoc(doc(db, "campaigns", campaignId, "requests", requestId));
+}
+
+// Player: live list of OWN requests (any status). Rules allow a member to read
+// only requests where requesterUid == their uid, so the query must be scoped.
+export function watchMyRequests(campaignId, uid, cb) {
+  const q = query(
+    collection(db, "campaigns", campaignId, "requests"),
+    where("requesterUid", "==", uid),
+  );
+  return onSnapshot(q, (snap) => {
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => reqMillis(b) - reqMillis(a));
+    cb(rows);
+  }, snapErr("watchMyRequests"));
+}
+
+// GM: live list of ALL requests (queue).
+export function watchRequests(campaignId, cb) {
+  return onSnapshot(collection(db, "campaigns", campaignId, "requests"), (snap) => {
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    rows.sort((a, b) => reqMillis(b) - reqMillis(a));
+    cb(rows);
+  }, snapErr("watchRequests"));
+}
+
+// GM denies a request: lock it, no entity created.
+export async function denyRequest(campaignId, requestId, resolvedByUid) {
+  await updateDoc(doc(db, "campaigns", campaignId, "requests", requestId), {
+    status: "denied",
+    resolvedAt: serverTimestamp(),
+    resolvedByUid: resolvedByUid || null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+// GM approves a request. Atomically (one transaction):
+//   1. builds the entity from the LAST-saved values (payload/gmAnswer):
+//        item       → new campaigns/{cid}/items doc, ownerCharacterId = target
+//        skill      → append to character.skills[]
+//        feature    → append to character.features[]
+//        info-plot  → append to character.notes[] (markdown body)
+//   2. marks the request applied + freezes history.applied + records createdEntity
+//   3. writes a provenance entry to the character's log subcollection
+// so a half-applied request can never exist. `final` = { payload, gmAnswer,
+// includePlayerDescription, resolvedByUid }.
+export async function approveRequest(campaignId, req, final = {}) {
+  const payload = final.payload || req.payload || {};
+  const gmAnswer = final.gmAnswer ?? req.gmAnswer ?? "";
+  const includePlayerDescription = !!final.includePlayerDescription;
+  const resolvedByUid = final.resolvedByUid || null;
+  const charId = req.targetCharacterId;
+  const name = (payload.name || "").trim() || "Без названия";
+  const description = payload.description || "";
+
+  if (req.kind === "info-plot" && !gmAnswer.trim()) {
+    throw new Error("Для инфо-сюжета обязателен ответ ГМ");
+  }
+
+  const reqRef = doc(db, "campaigns", campaignId, "requests", req.id);
+  const charRef = doc(db, "campaigns", campaignId, "characters", charId);
+  const logRef = doc(collection(db, "campaigns", campaignId, "characters", charId, "log"));
+  const itemRef = req.kind === "item"
+    ? doc(collection(db, "campaigns", campaignId, "items"))
+    : null;
+  const nowIso = new Date().toISOString();
+
+  return runTransaction(db, async (tx) => {
+    const [reqSnap, charSnap] = await Promise.all([tx.get(reqRef), tx.get(charRef)]);
+    if (!reqSnap.exists()) throw new Error("Заявка не найдена");
+    if (reqSnap.data().status !== "in_process") throw new Error("Заявка уже обработана");
+    if (!charSnap.exists()) throw new Error("Персонаж не найден");
+    const ch = charSnap.data();
+
+    let createdEntity;
+    let logDetail;
+
+    if (req.kind === "item") {
+      const subtype = payload.itemType || "gear";
+      const fields = buildRequestFields("item", subtype, payload);
+      tx.set(itemRef, {
+        type: subtype,
+        name,
+        description,
+        ownerCharacterId: charId,
+        condition: "good",
+        equipped: "home",
+        ...fields,
+        createdAt: serverTimestamp(),
+      });
+      createdEntity = { type: "item", itemId: itemRef.id, key: name };
+      logDetail = `Предмет: ${name}`;
+    } else if (req.kind === "skill") {
+      const fields = buildRequestFields("skill", null, payload);
+      const entry = { name, description, ...fields };
+      const skills = Array.isArray(ch.skills) ? ch.skills : [];
+      tx.update(charRef, { skills: [...skills, entry] });
+      createdEntity = { type: "skill", key: name };
+      logDetail = `Навык: ${name}`;
+    } else if (req.kind === "feature") {
+      const fields = buildRequestFields("feature", null, payload);
+      const entry = {
+        name,
+        description,
+        is_weakness: !!fields.is_weakness,
+        modifier: fields.modifier || {},
+        folder: fields.is_weakness ? "Слабости" : "Силы",
+      };
+      const features = Array.isArray(ch.features) ? ch.features : [];
+      tx.update(charRef, { features: [...features, entry] });
+      createdEntity = { type: "feature", key: name };
+      logDetail = `Черта: ${name}`;
+    } else {
+      // info-plot → formatted note: **player desc** (optional) then *GM answer*.
+      const body =
+        (includePlayerDescription && description ? `**${description}**\n\n` : "") +
+        `*${gmAnswer}*`;
+      const note = { title: name, body, at: nowIso, uid: req.requesterUid || "" };
+      const notes = Array.isArray(ch.notes) ? ch.notes : [];
+      tx.update(charRef, { notes: [...notes, note] });
+      createdEntity = { type: "note", key: nowIso };
+      logDetail = `Инфо-сюжет: ${name}`;
+    }
+
+    tx.update(reqRef, {
+      status: "applied",
+      payload,
+      gmAnswer,
+      includePlayerDescription,
+      resolvedAt: serverTimestamp(),
+      resolvedByUid,
+      createdEntity,
+      "history.applied": { at: nowIso, byUid: resolvedByUid, payload, createdRef: createdEntity },
+      updatedAt: serverTimestamp(),
+    });
+    tx.set(logRef, { type: "request_applied", kind: req.kind, detail: logDetail, at: serverTimestamp() });
+
+    return createdEntity;
+  });
 }
 
 // ── FEAT-19 · Portrait config (per character) ────────────────

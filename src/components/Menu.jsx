@@ -5,7 +5,7 @@ export default function Menu({ open, onClose, onNav, current, onSignOut, onSwitc
   // entirely (no disabled "скоро" placeholders).
   const items = MENU
     .filter(m => !m.gmOnly || isGM)
-    .map(m => ({ ...m, on: m.on || m.id === "scene" || (m.id === "set" && !isDemo) || (m.id === "guide" && !isDemo) || (m.id === "orgs" && !isDemo) || (m.id === "library" && !isDemo) || (m.id === "rolls" && !isDemo) || (m.id === "shop" && !isDemo) || (m.id === "lk" && hasLk) || (isGM && (m.id === "gm" || m.id === "items" || m.id === "import")) || (m.id === "adv" && hasChar && !isGM && !isDemo) || (m.id === "log" && hasChar && isGM) || (m.id === "print" && hasChar) }))
+    .map(m => ({ ...m, on: m.on || m.id === "scene" || (m.id === "set" && !isDemo) || (m.id === "guide" && !isDemo) || (m.id === "orgs" && !isDemo) || (m.id === "library" && !isDemo) || (m.id === "rolls" && !isDemo) || (m.id === "shop" && !isDemo) || (m.id === "requests" && !isDemo && !isGM) || (m.id === "lk" && hasLk) || (isGM && (m.id === "gm" || m.id === "items" || m.id === "import" || m.id === "requests_gm")) || (m.id === "adv" && hasChar && !isGM && !isDemo) || (m.id === "log" && hasChar && isGM) || (m.id === "print" && hasChar) }))
     .filter(m => m.on);
   return (
     <>

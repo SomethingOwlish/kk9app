@@ -10,7 +10,7 @@ import NpcSheet from "./NpcSheet";
 // here — they're throwaway mooks, created fresh via "+ Добавить НПС".
 const LIBRARY_NPC_KINDS = new Set(["npc-hard", "npc-boss", "curator", "companion", "daemon"]);
 
-export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], peers = [], onAddNpcFromLibrary, onSaveNpcRelations, campaignStatuses = [], onTickRound }) {
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], peers = [], onAddNpcFromLibrary, onSaveNpcRelations, campaignStatuses = [], onTickRound, requestCount = 0, onOpenRequests }) {
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
@@ -39,6 +39,9 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
       <div className="kk-board-topbar">
         <div className="kk-h2">ГМ Борд</div>
         <div style={{ display: "flex", gap: ".4rem" }}>
+          {requestCount > 0 && onOpenRequests && (
+            <button className="kk-btn sm" onClick={onOpenRequests}>Заявки — {requestCount} на рассмотрении</button>
+          )}
           {onTickRound && (
             <button className="kk-btn ghost sm" onClick={onTickRound} title="Следующий раунд боя: списать поддержание заклинаний, сократить длительность, снять истёкшие">Раунд →</button>
           )}
