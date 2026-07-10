@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { advSettings, DEFAULT_ADVANCEMENT } from "../lib/advancement";
 import { DEFAULT_BACKGROUNDS } from "../lib/chargen";
-import { seedStatuses, createStatus, seedItems, createScene, listScenes, updateCampaignNow } from "../lib/db";
+import { seedStatuses, createStatus, seedItems, resyncOwnedItems, createScene, listScenes, updateCampaignNow } from "../lib/db";
 import { STATUSES_DATA } from "../lib/seed-statuses";
 import { WEAPONS_DATA } from "../lib/seed-weapons";
 import { GEAR_DATA } from "../lib/seed-gear";
@@ -104,6 +104,25 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
   const [seedMsg, setSeedMsg] = useState("");
   const [seedingItems, setSeedingItems] = useState({});
   const [seedItemMsg, setSeedItemMsg] = useState({});
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncMsg, setResyncMsg] = useState("");
+
+  async function handleResyncItems() {
+    if (!campaignId) return;
+    setResyncing(true);
+    setResyncMsg("");
+    try {
+      const n = await resyncOwnedItems(campaignId, {
+        weapon: WEAPONS_DATA, gear: GEAR_DATA, artifact: ARTIFACTS_DATA,
+        spell: SPELLS_DATA, device: DEVICES_DATA, vehicle: VEHICLES_DATA,
+      });
+      setResyncMsg(n > 0 ? `Обновлено ${n} выданных предметов.` : "Все выданные предметы уже актуальны.");
+    } catch (e) {
+      setResyncMsg("Ошибка: " + e.message);
+    } finally {
+      setResyncing(false);
+    }
+  }
 
   async function handleSeedItems(type, data) {
     if (!campaignId) return;
@@ -477,6 +496,15 @@ export default function CampaignSettings({ campaign, advancementConfig, onSave, 
             {seedItemMsg[type] && <span className="kk-note" style={{ margin: 0 }}>{seedItemMsg[type]}</span>}
           </div>
         ))}
+        <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="kk-btn" onClick={handleResyncItems} disabled={resyncing}>
+            {resyncing ? "Обновление…" : "Обновить поля выданных предметов"}
+          </button>
+          {resyncMsg && <span className="kk-note" style={{ margin: 0 }}>{resyncMsg}</span>}
+        </div>
+        <p className="kk-note" style={{ marginTop: 4 }}>
+          Переносит актуальные поля из каталога на предметы, уже выданные персонажам (заклинания, выданные до обновления сидов, иначе остаются со старой схемой — без статусов/урона/соака). Сохраняет активацию, снаряжение, состояние и заряды.
+        </p>
       </section>
 
       <section className="kk-block">

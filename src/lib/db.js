@@ -1229,6 +1229,42 @@ export async function seedItems(campaignId, itemsData, type) {
   if (added > 0) await batch.commit();
 }
 
+// Refresh DEFINITIONAL fields on every OWNED item from the seed catalogs (matched
+// by type + name), preserving per-instance state. Items handed to a character are
+// copied at assign time (or, for artifacts, are the catalog doc); a later seed
+// update therefore never reaches those already-assigned copies, leaving them on
+// the old, thin schema (e.g. spells missing hasStatus/damageType/soakType). This
+// re-syncs them so buffs/soak/damage work. seedByType: { spell: SPELLS_DATA, ... }.
+export async function resyncOwnedItems(campaignId, seedByType) {
+  const col = collection(db, "campaigns", campaignId, "items");
+  const snap = await getDocs(col);
+  const owned = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((it) => it.ownerCharacterId != null);
+  // Never overwrite identity or per-instance state on the owned copy.
+  const KEEP = new Set([
+    "type", "name", "ownerCharacterId", "createdAt",
+    "active", "equipped", "condition", "charges", "maxCharges",
+    "soakAbsoluteCurrent", "quantity", "destroyed", "usesRemaining",
+  ]);
+  const batch = writeBatch(db);
+  let updated = 0;
+  for (const it of owned) {
+    const arr = seedByType[it.type];
+    if (!Array.isArray(arr)) continue;
+    const tmpl = arr.find((t) => t.name === it.name);
+    if (!tmpl) continue; // custom / renamed item — leave as-is
+    const patch = {};
+    for (const [k, v] of Object.entries(tmpl)) {
+      if (KEEP.has(k)) continue;
+      if (JSON.stringify(it[k]) !== JSON.stringify(v)) patch[k] = v;
+    }
+    if (Object.keys(patch).length) { batch.update(doc(col, it.id), patch); updated++; }
+  }
+  if (updated > 0) await batch.commit();
+  return updated;
+}
+
 // ── Roll log (B-18 / FEAT-16) ────────────────────────────────
 // Path: campaigns/{id}/rolls/{rollId}. Members read all; create only own char.
 export async function addRollEntry(campaignId, rollData) {
