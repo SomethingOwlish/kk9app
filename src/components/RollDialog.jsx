@@ -49,8 +49,8 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   // SKIP-02: active buff spells that modify this roll's attribute. Auto-applied,
   // with a per-buff opt-out; each applied buff loses one use after the roll.
   const buffMods = useMemo(
-    () => collectActiveBuffMods(ch.activeSpells, items, target.attribute),
-    [ch.activeSpells, items, target.attribute],
+    () => collectActiveBuffMods(ch.activeSpells, items, target.attribute, skillNameForMods),
+    [ch.activeSpells, items, target.attribute, skillNameForMods],
   );
   const [excludedBuffs, setExcludedBuffs] = useState(() => new Set());
   const appliedBuffs = useMemo(
@@ -283,6 +283,21 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
         charPatch = { ...(charPatch || {}), activeSpells: nextActiveSpells };
       }
 
+      // Self-buff status: a successful cast of a self-targeting spell that carries
+      // a status (buff/utility/health_buff) applies it to the CASTER, so the status
+      // engine's roll_modifier effects (e.g. Адреналин +2 ловк.) take hold on later
+      // rolls. Enemy-targeting spells (attack/binding/transforming) instead land
+      // their status on the victim through the attack→soak flow, so are excluded.
+      let spellStatusInstance = null;
+      if (!isReroll && isItem && target.itemType === "spell" && mainRoll.success && !isSnake && target.item) {
+        const sp = target.item;
+        const SELF_STATUS_TYPES = new Set(["buff", "health_buff", "utility"]);
+        if (sp.hasStatus && sp.statusName && SELF_STATUS_TYPES.has(sp.spellType)
+            && !(ch.activeStatuses || []).some((s) => s.name === sp.statusName)) {
+          spellStatusInstance = buildStatusInstance(campaignStatuses, sp.statusName, "spell");
+        }
+      }
+
       const rollData = {
         characterId: ch.id,
         characterName: ch.name || "",
@@ -321,7 +336,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
         const exhaustionInstance = outcome?.addExhaustion
           ? buildStatusInstance(campaignStatuses, MENTAL_EXHAUSTION, "tension", ["shock_mental"])
           : null;
-        await onCommit({ charId: ch.id, rollData, outcome, exhaustionInstance, charPatch });
+        await onCommit({ charId: ch.id, rollData, outcome, exhaustionInstance, charPatch, spellStatusInstance });
       }
     } catch (e) {
       alert("Ошибка броска: " + (e?.message || e));

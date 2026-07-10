@@ -1059,35 +1059,66 @@ export async function createNpc(campaignId, { name = "Новый НПС" } = {})
   });
   return ref.id;
 }
-// Spawn a live board NPC from a Library entry (npc-light/hard/boss, curator,
-// companion, daemon). Copies the statblock; library uses {die,modifier} while
-// the NPC sheet expects {die,mod}, so attributes/abilities are normalized here.
+// Place an existing Library NPC on the board WITHOUT copying its statblock.
+// The board doc holds only a reference (libraryRef + kind) plus live per-board
+// state; attributes/toughness/skills are resolved from the Library entry at read
+// time (see resolveNpc in lib/npc.js). Light NPCs are excluded by the caller.
 export async function createNpcFromLibrary(campaignId, entry = {}) {
-  const CORE = ["agility", "smarts", "spirit", "endurance"];
-  const src = entry.attributes || {};
-  const attributes = {};
-  for (const k of [...CORE, "magic"]) {
-    const a = src[k];
-    if (a) attributes[k] = { die: a.die ?? 6, mod: a.modifier ?? a.mod ?? 0 };
-  }
-  for (const k of CORE) if (!attributes[k]) attributes[k] = { die: 6, mod: 0 };
-  const skills = Array.isArray(entry.abilities)
-    ? entry.abilities.map((s) => ({ name: s.name || "", die: s.die ?? 6, mod: s.modifier ?? s.mod ?? 0 }))
-    : [];
   const ref = doc(collection(db, "campaigns", campaignId, "characters"));
   await setDoc(ref, {
     isNpc: true,
-    name: entry.name || "Новый НПС",
     libraryRef: entry.id || null,
+    kind: entry.kind || "npc-hard",
+    name: entry.name || "Новый НПС",
     img: entry.img || "",
-    attributes,
-    skills,
-    health: { physical: { value: 0, toughness: entry.toughness ?? 4 } },
+    // Live-only state — statblock stays in the Library entry.
+    health: { physical: { value: 0 } },
     overflow_damage: 0,
     activeStatuses: [],
+    relations: [],
     createdAt: serverTimestamp(),
   });
   return ref.id;
+}
+
+// Bidirectional relation mirror. After actor A's relations are saved, diff the
+// previous vs next ref-links and write the reverse relation onto each added
+// target, or strip it from each removed target — but only for targets the
+// caller may write (canWriteTarget). Targets with no character doc (e.g. a
+// Library unit not on the board) are silently skipped → one-directional.
+export async function mirrorRelations(campaignId, prevRels, nextRels, self, canWriteTarget) {
+  const refsOf = (arr) => new Set((arr || []).filter((r) => r.ref).map((r) => r.ref));
+  const prev = refsOf(prevRels);
+  const next = refsOf(nextRels);
+  const added   = [...next].filter((r) => !prev.has(r) && r !== self.id);
+  const removed = [...prev].filter((r) => !next.has(r) && r !== self.id);
+
+  const writeTarget = async (targetId, mutate) => {
+    if (canWriteTarget && !canWriteTarget(targetId)) return;
+    const ref = doc(db, "campaigns", campaignId, "characters", targetId);
+    const snap = await getDoc(ref).catch(() => null);
+    if (!snap || !snap.exists()) return; // library-only unit — no relations store
+    const cur = Array.isArray(snap.data().relations) ? snap.data().relations : [];
+    const nextArr = mutate(cur);
+    if (nextArr) await updateDoc(ref, { relations: nextArr }).catch(() => {});
+  };
+
+  for (const targetId of added) {
+    await writeTarget(targetId, (cur) => {
+      if (cur.some((r) => r.ref === self.id)) return null; // already linked
+      return [...cur, {
+        id: Math.random().toString(36).slice(2, 10),
+        name: self.name || "", ref: self.id, portrait: self.portrait || "",
+        level: 0, tags: [], notes: "",
+      }];
+    });
+  }
+  for (const targetId of removed) {
+    await writeTarget(targetId, (cur) => {
+      const filtered = cur.filter((r) => r.ref !== self.id);
+      return filtered.length === cur.length ? null : filtered;
+    });
+  }
 }
 export async function deleteNpc(campaignId, charId) {
   await deleteDoc(doc(db, "campaigns", campaignId, "characters", charId));
@@ -1209,7 +1240,7 @@ export function watchRolls(campaignId, cb, n = 50) {
 // patch to avoid races, then writes the roll-log entry.
 //   outcome: result of computeTensionOutcome (or null)
 //   exhaustionInstance: status instance to add when outcome.addExhaustion
-export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, rollData, charPatch, campaignStatuses, campaign }) {
+export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaustionInstance, spellStatusInstance, rollData, charPatch, campaignStatuses, campaign }) {
   const tickPatch = tickStatuses(ch, {
     campaignStatuses: campaignStatuses || [],
     settings: tensionSettings(campaign),
@@ -1232,7 +1263,11 @@ export async function applyRollOutcome(campaignId, charId, ch, { outcome, exhaus
       statuses = [...statuses, exhaustionInstance];
     }
   }
-  if (tickPatch.activeStatuses || outcome?.removeExhaustion || outcome?.addExhaustion) {
+  // Self-buff status from a successful spell cast (RollDialog builds the instance).
+  if (spellStatusInstance && !statuses.some((s) => s.name === spellStatusInstance.name)) {
+    statuses = [...statuses, spellStatusInstance];
+  }
+  if (tickPatch.activeStatuses || outcome?.removeExhaustion || outcome?.addExhaustion || spellStatusInstance) {
     merged.activeStatuses = statuses;
   }
 

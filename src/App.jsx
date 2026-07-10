@@ -12,7 +12,7 @@ import {
   watchShopList, createShop, updateShop, deleteShop,
   purchaseStackable, purchaseUnique, requestSell, watchSellRequests, approveSell, rejectSell,
   watchLibrary, createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, seedLibrary,
-  createNpcFromLibrary,
+  createNpcFromLibrary, mirrorRelations,
   linkDaemonToChar, unlinkDaemonFromChar, updatePortraitConfig,
   ensureUserDoc, watchUserDoc,
   createAttacks, watchAttacks, resolveAttackOnSelf, dismissAttack,
@@ -20,6 +20,7 @@ import {
 } from "./lib/db";
 import { effectiveRole } from "./lib/roles";
 import { libraryDefaultsFor, LIBRARY_KIND_LABEL } from "./lib/library";
+import { resolveNpc } from "./lib/npc";
 import { FACULTIES } from "./lib/seed-faculties";
 import { CURATORS_DATA } from "./lib/seed-curators";
 import { COMPANIONS_DATA } from "./lib/seed-companions";
@@ -171,19 +172,28 @@ export default function App({ user, signOut }) {
   }, [overrides, overridesCharId, activeId, activeChar]);
   const viewCh = activeChar ? applyOverrides(activeChar, effectiveOverrides) : null;
   const canAdv = activeChar ? canAdvance(activeChar, settings) : false;
-  // Relations ref-picker source: all chars + npcs (except the open one), plus
-  // every library unit the current viewer can see (players get visible-only via
-  // watchLibrary). Lets players link NPCs and other library units into relations.
+  // Board NPCs may be "linked" to a Library entry (no copied statblock); resolve
+  // their stats live so combat, portraits and the NPC sheet keep working.
+  const libById = useMemo(() => Object.fromEntries(library.map(e => [e.id, e])), [library]);
+  const resolvedNpcs = useMemo(
+    () => npcs.map(n => (n.libraryRef ? resolveNpc(n, libById[n.libraryRef]) : n)),
+    [npcs, libById],
+  );
+  // Relations ref-picker source: all chars + board NPCs (except the open one),
+  // plus every library unit the viewer can see that isn't already on the board
+  // (players get visible-only via watchLibrary). Lets a player link other
+  // players, NPCs and library units into their relations.
   const peers = useMemo(() => {
     const npcSet = new Set(npcs.map(n => n.id));
-    const live = [...characters, ...npcs]
+    const boardLibRefs = new Set(npcs.map(n => n.libraryRef).filter(Boolean));
+    const live = [...characters.filter(c => !c.isNpc), ...resolvedNpcs]
       .filter(c => c.id !== activeId)
-      .map(c => ({ id: c.id, name: c.name, portrait: c.portrait, hint: npcSet.has(c.id) ? "НПС" : "" }));
+      .map(c => ({ id: c.id, name: c.name, portrait: c.portrait || c.img || "", hint: npcSet.has(c.id) ? "НПС" : "" }));
     const lib = library
-      .filter(e => e.id !== activeId)
+      .filter(e => e.id !== activeId && !boardLibRefs.has(e.id))
       .map(e => ({ id: e.id, name: e.name, portrait: e.img || "", hint: LIBRARY_KIND_LABEL[e.kind] || "Библиотека" }));
     return [...live, ...lib];
-  }, [characters, npcs, activeId, library]);
+  }, [characters, npcs, resolvedNpcs, activeId, library]);
   // Players (incl. admin acting-as-player) only see organizations marked visible.
   const orgsForView = useMemo(() => isGM ? orgs : orgs.filter(o => o.visibleToPlayers), [orgs, isGM]);
   const ownChar = !!(activeChar && user && activeChar.ownerUid === user.uid);
@@ -287,11 +297,12 @@ export default function App({ user, signOut }) {
       .slice(0, 3);
   }, [attacks, characters, npcIds, isGM, myUid]);
   const onResolveAttack = useCallback(async (attack, plan) => {
-    const targetCh = characters.find((c) => c.id === attack.targetCharId)
-      || npcs.find((c) => c.id === attack.targetCharId);
+    // resolvedNpcs first: `characters` also contains raw (unresolved) NPC docs.
+    const targetCh = resolvedNpcs.find((c) => c.id === attack.targetCharId)
+      || characters.find((c) => c.id === attack.targetCharId);
     if (!targetCh) return;
     await resolveAttackOnSelf(CAMPAIGN_ID, attack.targetCharId, targetCh, attack.id, plan);
-  }, [characters, npcs]);
+  }, [characters, resolvedNpcs]);
   const onDismissAttack = useCallback(async (attack) => {
     await dismissAttack(CAMPAIGN_ID, attack.id);
   }, []);
@@ -332,14 +343,14 @@ export default function App({ user, signOut }) {
     await addFeatureToChar(CAMPAIGN_ID, charId, entry);
   }, []);
   // Persist a roll: merged status-tick + tension patch, then roll-log entry.
-  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance, charPatch, reroll, fateDebtInstance }) => {
+  const onCommitRoll = useCallback(async ({ charId, rollData, outcome, exhaustionInstance, charPatch, spellStatusInstance, reroll, fateDebtInstance }) => {
     const snapshot = characters.find(c => c.id === charId) || activeChar;
     if (!snapshot) return;
     try {
       if (reroll) {
         await applyReroll(CAMPAIGN_ID, charId, { rollData, fateDebtInstance });
       } else {
-        await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, rollData, charPatch, campaignStatuses, campaign });
+        await applyRollOutcome(CAMPAIGN_ID, charId, snapshot, { outcome, exhaustionInstance, spellStatusInstance, rollData, charPatch, campaignStatuses, campaign });
       }
     } catch (e) { alert("Не удалось сохранить бросок: " + (e?.message || e)); }
   }, [characters, activeChar, campaignStatuses, campaign]);
@@ -410,11 +421,37 @@ export default function App({ user, signOut }) {
       alert(added > 0 ? `Добавлено записей: ${added}` : "Все записи уже в библиотеке.");
     } catch (e) { alert("Ошибка: " + (e?.message || e)); }
   }, []);
-  // GM: spawn a live board NPC from an existing Library entry.
+  // GM: place an existing Library NPC on the board (linked, no copy).
   const onAddNpcFromLibrary = useCallback(async (entry) => {
     try { return await createNpcFromLibrary(CAMPAIGN_ID, entry); }
     catch (e) { alert("Ошибка: " + (e?.message || e)); }
   }, []);
+  // A relation target is mirror-writable if we're GM/admin (may write any doc)
+  // or it's our own character. NPC/other-player targets aren't writable by a
+  // player, so their mirror is skipped (one-directional) rather than erroring.
+  const canWriteTarget = useCallback((targetId) => {
+    if (isGM || isAdmin) return true;
+    const t = characters.find(c => c.id === targetId);
+    return !!(t && t.ownerUid === user.uid);
+  }, [isGM, isAdmin, characters, user.uid]);
+  // Save the open character's relations (own side via optimistic `save`) then
+  // mirror added/removed ref-links onto the target actors.
+  const onSaveCharRelations = useCallback((next) => {
+    if (!activeChar) return;
+    const prev = Array.isArray(activeChar.relations) ? activeChar.relations : [];
+    save({ relations: next });
+    const self = { id: activeChar.id, name: activeChar.name, portrait: activeChar.portrait || "" };
+    mirrorRelations(CAMPAIGN_ID, prev, next, self, canWriteTarget).catch(console.error);
+  }, [activeChar, save, canWriteTarget]);
+  // Save a board NPC's relations (GM only) + mirror.
+  const onSaveNpcRelations = useCallback(async (npc, next) => {
+    const prev = Array.isArray(npc.relations) ? npc.relations : [];
+    try {
+      await updateCharacterNow(CAMPAIGN_ID, npc.id, { relations: next });
+      const self = { id: npc.id, name: npc.name, portrait: npc.img || "" };
+      await mirrorRelations(CAMPAIGN_ID, prev, next, self, canWriteTarget);
+    } catch (e) { alert("Не удалось сохранить связь: " + (e?.message || e)); }
+  }, [canWriteTarget]);
   const onLinkDaemon = useCallback(async (charId, daemonId) => {
     await linkDaemonToChar(CAMPAIGN_ID, charId, daemonId).catch((e) => alert("Ошибка: " + (e?.message || e)));
   }, []);
@@ -495,7 +532,7 @@ export default function App({ user, signOut }) {
   // DEC-01: portrait zones can hold NPCs too. PortraitLayer only renders actors
   // whose portraitConfig.zone is set, so passing all NPCs is safe — only zoned
   // ones appear. The GM dock (below) is where zones get assigned.
-  const portraitActors = useMemo(() => [...partyMembers, ...npcs], [partyMembers, npcs]);
+  const portraitActors = useMemo(() => [...partyMembers, ...resolvedNpcs], [partyMembers, resolvedNpcs]);
   const cl = campaign !== null;
   const themeClass = theme !== "original" ? ` te-theme-${theme}` : "";
   // BUG-02 — demo is a public, chrome-free scene preview. No topbar; the burger
@@ -528,7 +565,7 @@ export default function App({ user, signOut }) {
           allowPlayerEmotions={campaign?.scene?.allowPlayerEmotions ?? false}
           onSetEmotion={onSetOwnEmotion}
         />
-        {isGM && <PortraitDock characters={partyMembers} npcs={npcs} onUpdate={onUpdatePortrait} />}
+        {isGM && <PortraitDock characters={partyMembers} npcs={resolvedNpcs} onUpdate={onUpdatePortrait} />}
         {!isGM && (
           <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню">
             <span/><span/><span/>
@@ -556,7 +593,7 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && role === "player" && gmModeData?.active && view === "card" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")}/>}
-        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={npcs} library={library} onAddNpcFromLibrary={onAddNpcFromLibrary} campaignStatuses={campaignStatuses} onTickRound={onTickRound} requestCount={requestCount} onOpenRequests={() => navigate("/requests-queue")}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={resolvedNpcs} library={library} peers={peers} onAddNpcFromLibrary={onAddNpcFromLibrary} onSaveNpcRelations={onSaveNpcRelations} campaignStatuses={campaignStatuses} onTickRound={onTickRound} requestCount={requestCount} onOpenRequests={() => navigate("/requests-queue")}/>}
         {ready && cl && view === "requests" && baseRole && role !== "demo" && !isGM && <RequestsPlayer campaignId={CAMPAIGN_ID} uid={user.uid} myChars={myChars} campaignStatuses={campaignStatuses} requests={requests}/>}
         {ready && cl && view === "requests_queue" && isGM && <RequestsQueue campaignId={CAMPAIGN_ID} requests={requests} characters={characters} campaignStatuses={campaignStatuses} gmUid={user.uid}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
@@ -566,12 +603,12 @@ export default function App({ user, signOut }) {
         {ready && cl && view === "shop" && baseRole && role !== "demo" && !isGM && <ShopView shops={shops} char={activeChar || myChar} ownedItems={activeItems} allItems={allItems} defaultItemPrice={campaign?.shop?.defaultItemPrice ?? 0} onBuyUnique={onBuyUnique} onBuyStackable={onBuyStackable} onSell={onSellItem}/>}
         {ready && cl && view === "guide" && baseRole && role !== "demo" && <GuideView campaign={campaign} canEdit={isGM || isAdmin} onSave={saveGuide}/>}
         {ready && cl && view === "guide" && role === "demo" && <div className="kk-empty">Раздел недоступен в демо-режиме.</div>}
-        {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...npcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage} onAddFeature={onAddFeature}/>}
+        {ready && cl && view === "items" && isGM && <ItemsView items={allItems} characters={[...characters, ...resolvedNpcs]} statuses={campaignStatuses} onCreateItem={onCreateCatalogItem} onDeleteItem={onDeleteCatalogItem} onUpdateItem={onUpdateItem} onAssign={onAssignItem} onUnassign={onUnassignItem} onAddLanguage={onAddLanguage} onAddFeature={onAddFeature}/>}
         {ready && cl && view === "import" && isGM && <FoundryImportView onOpenChar={openCard} members={campaign?.members || {}}/>}
         {ready && cl && view === "library" && baseRole && role !== "demo" && <LibraryView entries={library} isGM={isGM} onCreate={onCreateLibrary} onUpdate={onUpdateLibrary} onDelete={onDeleteLibrary} onSeed={onSeedLibrary} seedable={Object.keys(LIBRARY_SEED)}/>}
         {ready && cl && view === "portal" && role === "player" && myChar?.characterCreated && <LiveSession campaign={campaign} party={playerParty} activeScene={activeScene} role={baseRole} onOpen={openCard} canOpen={(ch) => ch.ownerUid === user.uid}/>}
         {ready && cl && view === "settings" && role !== "demo" && advConfigReady && <CampaignSettings campaign={campaign} advancementConfig={advancementConfig} onSave={saveSettings} onClose={() => navigate("/")} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} isGM={isGM} theme={theme} onThemeChange={saveTheme}/>}
-        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel} daemonLib={daemonLib} onLinkDaemon={onLinkDaemon} onUnlinkDaemon={onUnlinkDaemon} roster={roster} onAttack={onAttack}/>}
+        {ready && view === "card" && viewCh && !editing && !(role === "player" && gmModeData?.active) && <CharacterCard ch={viewCh} save={save} isGM={isGM} user={user} canAdv={canAdv} onEdit={() => setEditing(true)} onEditBio={() => setEditingBio(true)} onAdvance={() => navigate(`/card/${activeId}/advance`)} onLog={() => navigate(`/card/${activeId}/log`)} campaignId={CAMPAIGN_ID} campaignStatuses={campaignStatuses} items={activeItems} onCreateItem={onCreateItem} onDeleteItem={onDeleteItem} onUpdateItem={onUpdateItem} peers={peers} onSaveRelations={onSaveCharRelations} orgs={orgsForView} campaign={campaign} canRoll={canRoll} onCommitRoll={onCommitRoll} onLinkOrg={onLinkOrg} onUnlinkOrg={onUnlinkOrg} onSetOrgLevel={onSetOrgLevel} daemonLib={daemonLib} onLinkDaemon={onLinkDaemon} onUnlinkDaemon={onUnlinkDaemon} roster={roster} onAttack={onAttack}/>}
         {ready && view === "card" && viewCh && editingBio && <BioEditCard ch={activeChar} onSave={saveBio} onCancel={() => setEditingBio(false)}/>}
         {ready && view === "card" && viewCh && editing && isGM && <EditCard ch={activeChar} campaignId={CAMPAIGN_ID} onSave={saveEdit} onCancel={() => setEditing(false)}/>}
         {ready && view === "log" && viewCh && isGM && <LogView char={activeChar} onClose={() => navigate(`/card/${activeId}`)} onClear={clearLog}/>}
@@ -594,8 +631,8 @@ export default function App({ user, signOut }) {
       {pendingAttacks.length > 0 && (
         <div className="kk-attack-toasts">
           {pendingAttacks.map((a) => {
-            const targetCh = characters.find((c) => c.id === a.targetCharId)
-              || npcs.find((c) => c.id === a.targetCharId);
+            const targetCh = resolvedNpcs.find((c) => c.id === a.targetCharId)
+              || characters.find((c) => c.id === a.targetCharId);
             if (!targetCh) return null;
             const targetItems = allItems.filter((it) => it.ownerCharacterId === a.targetCharId);
             return (

@@ -32,7 +32,7 @@ const DEMO_FIELDS = [
 
 const FEATURE_KIND_LABEL = { character: "Черта характера", unique: "Уникальная возможность" };
 
-export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onDeleteItem, onUpdateItem, peers = [], orgs = [], campaign, canRoll = false, onCommitRoll, onLinkOrg, onUnlinkOrg, onSetOrgLevel, daemonLib = [], onLinkDaemon, onUnlinkDaemon, roster = [], onAttack }) {
+export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onDeleteItem, onUpdateItem, peers = [], onSaveRelations, orgs = [], campaign, canRoll = false, onCommitRoll, onLinkOrg, onUnlinkOrg, onSetOrgLevel, daemonLib = [], onLinkDaemon, onUnlinkDaemon, roster = [], onAttack }) {
   const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
   // Stored energy.max falls back to derived for pre-B07 characters
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
@@ -430,8 +430,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         relations={relations}
         peers={peers}
         canEdit={canEditRelations}
-        onChange={(next) => save({ relations: next })}
-        onDelete={(next) => save({ relations: next })}
+        onChange={(next) => (onSaveRelations ? onSaveRelations(next) : save({ relations: next }))}
+        onDelete={(next) => (onSaveRelations ? onSaveRelations(next) : save({ relations: next }))}
       />
 
       <ContactsList
