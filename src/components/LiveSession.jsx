@@ -8,17 +8,25 @@ import PartyCard from "./PartyCard";
 // the standalone #/landing route (LandingPage.jsx). Presentational: data and
 // the open-character handler are passed in.
 //   canOpen(ch) -> whether clicking the card opens that character.
-export default function LiveSession({ campaign, party = [], activeScene, role, isGM = false, onOpen, canOpen, onSettings }) {
+export default function LiveSession({ campaign, party = [], activeScene, role, isGM = false, onOpen, canOpen, onSettings, requestCount = 0, onOpenRequests }) {
   const openable = (ch) => onOpen && (canOpen ? canOpen(ch) : true);
   return (
     <div className="kk-portal kk-live">
       <CampaignHead campaign={campaign} role={role}/>
-      {isGM && onSettings && (
+      {isGM && (onSettings || (requestCount > 0 && onOpenRequests)) && (
         <div className="kk-gm-actions">
-          <button className="kk-big" onClick={onSettings}>
-            <span className="kk-big-t">⚙ Настройки кампании</span>
-            <span className="kk-big-s">стоимость прокачки</span>
-          </button>
+          {onSettings && (
+            <button className="kk-big" onClick={onSettings}>
+              <span className="kk-big-t">⚙ Настройки кампании</span>
+              <span className="kk-big-s">стоимость прокачки</span>
+            </button>
+          )}
+          {requestCount > 0 && onOpenRequests && (
+            <button className="kk-big" onClick={onOpenRequests}>
+              <span className="kk-big-t">📥 Заявки игроков</span>
+              <span className="kk-big-s">{requestCount} на рассмотрении</span>
+            </button>
+          )}
         </div>
       )}
       {/* IMP-13 — scene banner full-width; date/weather + session side by side. */}
