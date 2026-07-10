@@ -51,7 +51,11 @@ export default function ItemList({ items = [], isGM, onDelete, onUpdateItem, cha
 
         const renderControls = (item) => {
           const canRollIt = showRoll && isRollable(item) && onRollItem;
-          const canAct = canActivate && ACTIVATABLE_TYPES.has(item.type) && onToggleFlag;
+          // Manual activation is only for items that activate WITHOUT a roll
+          // (artifact/gear/device). Spells activate by CASTING (the «Бросок»
+          // button) — a manual active flag on a spell does nothing (their live
+          // state lives on activeSpells), so we don't offer it.
+          const canAct = canActivate && item.type !== "spell" && ACTIVATABLE_TYPES.has(item.type) && onToggleFlag;
           const canEquip = canActivate && EQUIPPABLE_TYPES.has(item.type) && onToggleFlag;
           if (!canRollIt && !canAct && !canEquip) return null;
           return (
