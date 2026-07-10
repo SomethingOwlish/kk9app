@@ -1071,11 +1071,10 @@ export async function createNpcFromLibrary(campaignId, entry = {}) {
     kind: entry.kind || "npc-hard",
     name: entry.name || "Новый НПС",
     img: entry.img || "",
-    // Live-only state — statblock stays in the Library entry.
+    // Live-only state — statblock AND relations stay in the Library entry.
     health: { physical: { value: 0 } },
     overflow_damage: 0,
     activeStatuses: [],
-    relations: [],
     createdAt: serverTimestamp(),
   });
   return ref.id;
@@ -1084,8 +1083,9 @@ export async function createNpcFromLibrary(campaignId, entry = {}) {
 // Bidirectional relation mirror. After actor A's relations are saved, diff the
 // previous vs next ref-links and write the reverse relation onto each added
 // target, or strip it from each removed target — but only for targets the
-// caller may write (canWriteTarget). Targets with no character doc (e.g. a
-// Library unit not on the board) are silently skipped → one-directional.
+// caller may write (canWriteTarget). A target is resolved as a character doc or,
+// failing that, a Library entry (Library NPCs carry relations too). Targets that
+// resolve to neither are silently skipped → one-directional.
 export async function mirrorRelations(campaignId, prevRels, nextRels, self, canWriteTarget) {
   const refsOf = (arr) => new Set((arr || []).filter((r) => r.ref).map((r) => r.ref));
   const prev = refsOf(prevRels);
@@ -1093,14 +1093,22 @@ export async function mirrorRelations(campaignId, prevRels, nextRels, self, canW
   const added   = [...next].filter((r) => !prev.has(r) && r !== self.id);
   const removed = [...prev].filter((r) => !next.has(r) && r !== self.id);
 
+  const resolveRef = async (targetId) => {
+    for (const col of ["characters", "library"]) {
+      const ref = doc(db, "campaigns", campaignId, col, targetId);
+      const snap = await getDoc(ref).catch(() => null);
+      if (snap && snap.exists()) return { ref, snap };
+    }
+    return null;
+  };
+
   const writeTarget = async (targetId, mutate) => {
     if (canWriteTarget && !canWriteTarget(targetId)) return;
-    const ref = doc(db, "campaigns", campaignId, "characters", targetId);
-    const snap = await getDoc(ref).catch(() => null);
-    if (!snap || !snap.exists()) return; // library-only unit — no relations store
-    const cur = Array.isArray(snap.data().relations) ? snap.data().relations : [];
+    const found = await resolveRef(targetId);
+    if (!found) return; // no actor/library doc — nothing to mirror onto
+    const cur = Array.isArray(found.snap.data().relations) ? found.snap.data().relations : [];
     const nextArr = mutate(cur);
-    if (nextArr) await updateDoc(ref, { relations: nextArr }).catch(() => {});
+    if (nextArr) await updateDoc(found.ref, { relations: nextArr }).catch(() => {});
   };
 
   for (const targetId of added) {

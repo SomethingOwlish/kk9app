@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { updateCharacterNow, deleteNpc, applyStatus, removeStatus } from "../lib/db";
-import { isLightNpc } from "../lib/npc";
 import StatusBar from "../components/StatusBar";
 import StatusEditor from "../components/StatusEditor";
-import RelationsList from "../components/RelationsList";
 
 const ATTRS = ["agility", "smarts", "spirit", "endurance"];
 const ATTR_RU = { agility: "Ловкость", smarts: "Интеллект", spirit: "Дух", endurance: "Выносливость" };
 const DIES = [4, 6, 8, 10, 12];
 
-export default function NpcSheet({ npc, campaignId, campaignStatuses, peers = [], onSaveRelations, onClose }) {
+// Board NPC quick-sheet. Live combat state only (wounds, statuses). For linked
+// (library-backed) NPCs the statblock is read-only — edit it, and relations, in
+// the Library. Blank NPCs remain fully editable here.
+export default function NpcSheet({ npc, campaignId, campaignStatuses, onClose }) {
   // Linked board NPCs read their statblock from the Library entry (resolved
   // upstream). Their attributes/toughness are shown read-only here — edit them
   // in the Library. Only live per-board state (wounds, statuses, relations) is
@@ -26,9 +27,6 @@ export default function NpcSheet({ npc, campaignId, campaignStatuses, peers = []
   const [statusEditorOpen, setStatusEditorOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const showRelations = !isLightNpc(npc) && !!onSaveRelations;
-  const relations = Array.isArray(npc.relations) ? npc.relations : [];
 
   const save = async () => {
     setSaving(true);
@@ -139,18 +137,6 @@ export default function NpcSheet({ npc, campaignId, campaignStatuses, peers = []
             onRemove={(inst) => removeStatus(campaignId, npc.id, inst).catch(console.error)}
           />
         </div>
-
-        {showRelations && (
-          <div className="kk-npcsheet-section">
-            <RelationsList
-              relations={relations}
-              peers={peers}
-              canEdit={true}
-              onChange={onSaveRelations}
-              onDelete={onSaveRelations}
-            />
-          </div>
-        )}
 
         <div className="kk-npcsheet-footer">
           {!confirmDelete

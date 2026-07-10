@@ -3,6 +3,10 @@ import {
   LIBRARY_KINDS, LIBRARY_KIND_LABEL, DAEMON_CORPORATIONS, DAEMON_SUITS,
   DAEMON_COLORS, CONDITIONS, MAJOR_ARCANA,
 } from "../lib/library";
+import RelationsList from "../components/RelationsList";
+
+// Library kinds that carry a relations block (all NPC weights except light).
+const RELATION_KINDS = new Set(["npc-hard", "npc-boss", "curator", "companion", "daemon"]);
 
 // FEAT-04 (reshaped) — Library. GM reference collection for NPCs (all weights),
 // faculty curators, faculties, companions, daemons. Each card has a global
@@ -18,7 +22,7 @@ import {
 //   entries[], isGM
 //   onCreate(kind), onUpdate(id, patch), onDelete(id), onSeed(kind) | null
 //   seedable — Set of kinds that have a catalog to seed from
-export default function LibraryView({ entries = [], isGM, onCreate, onUpdate, onDelete, onSeed, seedable }) {
+export default function LibraryView({ entries = [], isGM, onCreate, onUpdate, onDelete, onSeed, seedable, peers = [], onSaveRelations }) {
   const [tab, setTab] = useState(LIBRARY_KINDS[0].kind);
   const [editing, setEditing] = useState(null); // entry being edited (GM modal)
   const seedSet = seedable instanceof Set ? seedable : new Set(seedable || []);
@@ -78,6 +82,8 @@ export default function LibraryView({ entries = [], isGM, onCreate, onUpdate, on
             key={e.id}
             entry={e}
             isGM={isGM}
+            peers={peers}
+            onSaveRelations={onSaveRelations}
             onEdit={() => setEditing(e)}
             onDelete={() => onDelete(e.id)}
           />
@@ -96,7 +102,11 @@ export default function LibraryView({ entries = [], isGM, onCreate, onUpdate, on
 }
 
 // ── Read-only card (both players and GM) ─────────────────────
-function LibCard({ entry, isGM, onEdit, onDelete }) {
+function LibCard({ entry, isGM, peers = [], onSaveRelations, onEdit, onDelete }) {
+  const relations = Array.isArray(entry.relations) ? entry.relations : [];
+  // Relations block lives here (the Library entry IS the NPC). GM edits; players
+  // see it read-only. Hidden entirely for players when there are no relations.
+  const showRelations = RELATION_KINDS.has(entry.kind) && !!onSaveRelations && (isGM || relations.length > 0);
   return (
     <div className={`kk-lib-card ${isGM && entry.visibleToPlayers ? "kk-lib-visible" : ""}`}>
       <div className="kk-lib-head">
@@ -110,6 +120,16 @@ function LibCard({ entry, isGM, onEdit, onDelete }) {
       </div>
 
       <ReadBody entry={entry} isGM={isGM} />
+
+      {showRelations && (
+        <RelationsList
+          relations={relations}
+          peers={peers.filter((p) => p.id !== entry.id)}
+          canEdit={isGM}
+          onChange={(next) => onSaveRelations(entry, next)}
+          onDelete={(next) => onSaveRelations(entry, next)}
+        />
+      )}
 
       {isGM && (
         <div className="kk-lib-cardactions">
