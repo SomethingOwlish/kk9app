@@ -19,8 +19,9 @@ export function spellActivates(spell) {
       || spell.durationHours === -1;
 }
 
-// Cast: add or refresh the active-spell entry. Re-casting refreshes uses/duration
-// (Foundry adds extraUses/extraDuration; the port refreshes to the spell's base).
+// Cast: add or REFRESH the active-spell entry. Re-casting an already-active spell
+// does NOT stack — it replaces the entry with a fresh instance (uses/duration reset
+// to the spell's base), so casting again mid-duration simply restarts it.
 export function activateSpellEntry(activeSpells = [], spell) {
   const list = [...(activeSpells || [])];
   const idx = list.findIndex((s) => s.itemId === spell.id);
@@ -31,17 +32,14 @@ export function activateSpellEntry(activeSpells = [], spell) {
     durationRemaining: spell.durationHours ?? 0,
     upkeepCost: spell.upkeepCost ?? 0,
   };
-  if (idx >= 0) {
-    // Foundry adds extraUses/extraDuration on recast (weapon-combat.mjs:2512) —
-    // the port mirrors that: uses accumulate, duration refreshes to the larger.
-    list[idx] = {
-      ...list[idx],
-      ...entry,
-      usesRemaining: (list[idx].usesRemaining ?? 0) + (spell.uses ?? 1),
-      durationRemaining: Math.max(list[idx].durationRemaining ?? 0, entry.durationRemaining ?? 0),
-    };
-  } else list.push(entry);
+  if (idx >= 0) list[idx] = entry; // refresh in place — no stacking
+  else list.push(entry);
   return list;
+}
+
+// Manually deactivate (dispel) an active spell — drop its entry entirely.
+export function deactivateSpellEntry(activeSpells = [], itemId) {
+  return (activeSpells || []).filter((s) => s.itemId !== itemId);
 }
 
 // SKIP-02: active buff spells whose attribute bonus matches this roll's attribute
@@ -51,6 +49,9 @@ export function activateSpellEntry(activeSpells = [], spell) {
 // Buff spells that instead grant a status contribute through the status engine and
 // are inert here (their attribute-bonus map is empty), matching Foundry.
 const BUFF_ATTR_KEYS = ["agility", "smarts", "spirit", "endurance", "magic"];
+// A buff can carry any of the roll_modifier effect KINDS, not just a flat number:
+// numeric (+N), die change (grade steps), extra die, and success modifier — the
+// same four the status/feature roll_modifier schema exposes in the old code.
 export function collectActiveBuffMods(activeSpells = [], items = [], attribute, skillName = null) {
   if (!attribute && !skillName) return [];
   const out = [];
@@ -71,7 +72,16 @@ export function collectActiveBuffMods(activeSpells = [], items = [], attribute, 
         if (sb.skillName === skillName && sb.bonus) numericMod += Number(sb.bonus);
       }
     }
-    if (numericMod) out.push({ itemId: entry.itemId, name: entry.name || spell.name || "Заклинание", numericMod });
+    // Non-numeric modifier kinds — applied whenever the buff bonuses/skills matched
+    // (i.e. this buff already contributes to the roll), mirroring roll_modifier.
+    const dieSteps = Number(spell.dieChange || 0);
+    const successMod = Number(spell.successMod || 0);
+    const extra = [];
+    const ed = spell.extraDie;
+    if (ed && ed.enabled) extra.push({ faces: Number(ed.faces) || 6, mode: ed.mode === "subtract" ? "subtract" : "add" });
+    if (numericMod || dieSteps || successMod || extra.length) {
+      out.push({ itemId: entry.itemId, name: entry.name || spell.name || "Заклинание", numericMod, dieSteps, successMod, extra });
+    }
   }
   return out;
 }

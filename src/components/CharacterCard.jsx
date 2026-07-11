@@ -18,6 +18,7 @@ import DiceIcon from "./DiceIcon";
 import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus, removeLanguageFromChar, addFeatureToChar, removeFeatureFromChar } from "../lib/db";
 import { buildItemRollTarget } from "../lib/items";
+import { deactivateSpellEntry } from "../lib/activeSpells";
 import { resizePortrait, validatePortraitFile } from "../lib/storage";
 import { loadPrefs, savePref } from "../lib/userPrefs";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
@@ -69,6 +70,15 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
     if (user?.uid) savePref(user.uid, "rollerOn", next);
   }
   const rollItem = (item) => setRollTarget(buildItemRollTarget(item, ch));
+  // Manually dispel an active spell: drop its activeSpells entry and, if it applied
+  // a self-status (buff), remove that status too so its modifiers stop at once.
+  const deactivateSpell = (item) => {
+    const patch = { activeSpells: deactivateSpellEntry(ch.activeSpells, item.id) };
+    if (item.hasStatus && item.statusName) {
+      patch.activeStatuses = (ch.activeStatuses || []).filter((s) => s.name !== item.statusName);
+    }
+    save(patch);
+  };
   const toggleItemFlag = (item, field) => onUpdateItem?.(item.id, { [field]: !item[field] });
   const activeStatuses = Array.isArray(ch.activeStatuses) ? ch.activeStatuses : [];
   const companions = Array.isArray(ch.companions) ? ch.companions : [];
@@ -420,6 +430,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
         showRoll={showRoll}
         onRollItem={rollItem}
         onToggleFlag={toggleItemFlag}
+        onDeactivateSpell={deactivateSpell}
         onDelete={onDeleteItem}
         onUpdateItem={onUpdateItem}
         character={ch}

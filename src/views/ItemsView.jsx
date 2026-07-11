@@ -79,7 +79,7 @@ function defaultsFor(type) {
     weapon: { condition:"perfect", equipped:"home", damageLevel:"light", damageType:"physical", range:0, size:"small", ap:0, rof:1, attackModifier:0, conditionChance:0, hasStatus:false, statusName:"" },
     gear: { condition:"perfect", gearType:"utility", size:"small", quantity:1, equipped:"home", energyRestore:0, soakType:"bonus", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, soakBonusDie:0, soakBonusModifier:0, soakUses:0, healthBufferPip:0, healthBufferTrack:"physical", damageLevel:"light", damageType:"physical", skillName:"", attackModifier:0, conditionChance:0, hasStatus:false, statusName:"" },
     artifact: { condition:"good", artifactType:"ring", artifactClass:"simple", artifactAge:0, rarity:"common", size:"finger", ringMaterial:"", ringStone:"", creator:"", lkArticleUrl:"", activationCondition:"", equipped:"home", energyRestore:0, bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[], soakType:"bonus", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, soakBonusDie:0, soakBonusModifier:0, soakBonusUses:0, healthBufferPip:0, healthBufferTrack:"physical", active:false, destroyed:false, damageLevel:"light", damageType:"physical", skillName:"", attackModifier:0, conditionChance:0, hasStatus:false, statusName:"" },
-    spell: { spellType:"utility", effectColor:"#a855f7", effectDescription:"", cost:1, range:0, uses:1, durationHours:0, upkeepCost:0, skillName:"", folder:"", noWandNeeded:false, isAoe:false, snakeEyesStatusName:"", active:false, hasStatus:false, statusName:"", bypassSoak:false, unresistable:false, damageType:"physical", soakType:"absolute", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, toughnessBonus:0, bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[], healthBufferPip:0, healthBufferTrack:"physical", contestedSkillName:"" },
+    spell: { spellType:"utility", effectColor:"#a855f7", effectDescription:"", cost:1, range:0, uses:1, durationHours:0, upkeepCost:0, skillName:"", folder:"", noWandNeeded:false, isAoe:false, snakeEyesStatusName:"", active:false, hasStatus:false, statusName:"", bypassSoak:false, unresistable:false, damageType:"physical", soakType:"absolute", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, toughnessBonus:0, bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[], dieChange:0, successMod:0, extraDie:{enabled:false,faces:6,mode:"add"}, healthBufferPip:0, healthBufferTrack:"physical", contestedSkillName:"" },
     device: { condition:"perfect", deviceType:"gadget", charges:0, maxCharges:-1, folder:"", creator:"", equipped:"home", worksUpper:true, worksLower:true, bonusSkillName:"", bonusValue:0, damageLevel:"light", damageType:"physical", range:0, attackSkillName:"", attackModifier:0, conditionChance:0, hasStatus:false, statusName:"", soakBonusDie:0, soakBonusModifier:0 },
     vehicle: { vehicleType:"ground", speed:0, toughness:0, capacity:0, notes:"" },
     language: { world:"lower", isDead:false },
@@ -101,7 +101,7 @@ const SUBTYPE_DEFAULTS = {
   artifactType: {
     attack:  { damageLevel:"light", damageType:"physical", attackModifier:0 },
     defense: { soakType:"bonus", soakAbsoluteCapacity:0, soakAbsoluteCurrent:0, soakBonusDie:0, soakBonusModifier:0, soakBonusUses:0 },
-    buff:    { bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[] },
+    buff:    { bonuses:{agility:0,smarts:0,spirit:0,endurance:0,magic:0,toughness:0}, skillBonuses:[], dieChange:0, successMod:0, extraDie:{enabled:false,faces:6,mode:"add"} },
     utility: { energyRestore:0 },
   },
   spellType: {
@@ -873,6 +873,24 @@ function AddItemForm({
                 <input type="number" className="kk-item-num" value={b.bonus} onChange={e => setSkillBonusValue(b.skillName, e.target.value)} />
               </div>
             ))}
+            {/* Non-numeric modifier KINDS (like a status/feature roll_modifier):
+                die-grade change, success modifier, and an extra die. */}
+            <div className="kk-item-form-section-title" style={{ marginTop: ".5rem" }}>Другие модификаторы броска</div>
+            <div className="kk-item-form-row">
+              <label className="kk-item-form-label">Грань куба:</label>{numf("dieChange")}
+              <label className="kk-item-form-label" style={{ marginLeft: ".5rem" }}>К успеху:</label>{numf("successMod")}
+            </div>
+            <div className="kk-item-form-row">
+              <label className="kk-item-form-chk"><input type="checkbox" checked={!!data.extraDie?.enabled} onChange={e => setData("extraDie", { faces: 6, mode: "add", ...(data.extraDie || {}), enabled: e.target.checked })} /> Доп. куб</label>
+              {data.extraDie?.enabled && (<>
+                <label className="kk-item-form-label" style={{ marginLeft: ".5rem" }}>d:</label>
+                <input type="number" className="kk-item-num" value={data.extraDie?.faces ?? 6} onChange={e => setData("extraDie", { ...(data.extraDie || {}), faces: Number(e.target.value) || 6 })} />
+                <select className="kk-item-select" style={{ marginLeft: ".5rem" }} value={data.extraDie?.mode || "add"} onChange={e => setData("extraDie", { ...(data.extraDie || {}), mode: e.target.value })}>
+                  <option value="add">прибавить</option>
+                  <option value="subtract">вычесть</option>
+                </select>
+              </>)}
+            </div>
             {/* A buff can stack a STATUS on top of the attribute/skill bonuses
                 (e.g. Виртус → Адреналин). Applied to the caster on a successful cast. */}
             <label className="kk-item-form-chk" style={{ marginTop: ".5rem" }}><input type="checkbox" checked={!!data.hasStatus} onChange={chk("hasStatus")} /> Накладывает статус на кастующего</label>
