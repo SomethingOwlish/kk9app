@@ -20,6 +20,9 @@ function enhancementTags(item) {
   if (item.toughnessBonus) tags.push(`Стойк ${item.toughnessBonus > 0 ? "+" : ""}${item.toughnessBonus}`);
   if (item.soakType === "absolute" && item.soakAbsoluteCapacity) tags.push(`Поглощение ${item.soakAbsoluteCapacity}`);
   if (item.healthBufferPip) tags.push(`Буфер ${item.healthBufferPip} (${item.healthBufferTrack === "mental" ? "мент." : "физ."})`);
+  if (item.dieChange) tags.push(`Грань ${item.dieChange > 0 ? "+" : ""}${item.dieChange}`);
+  if (item.successMod) tags.push(`Успех ${item.successMod > 0 ? "+" : ""}${item.successMod}`);
+  if (item.extraDie?.enabled) tags.push(`${item.extraDie.mode === "subtract" ? "−" : "+"}d${item.extraDie.faces || 6}`);
   return tags;
 }
 

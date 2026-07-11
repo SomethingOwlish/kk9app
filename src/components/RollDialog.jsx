@@ -58,7 +58,10 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
     () => buffMods.filter((b) => !excludedBuffs.has(b.itemId)),
     [buffMods, excludedBuffs],
   );
-  const buffNumericMod = appliedBuffs.reduce((a, b) => a + b.numericMod, 0);
+  const buffNumericMod = appliedBuffs.reduce((a, b) => a + (b.numericMod || 0), 0);
+  const buffDieSteps = appliedBuffs.reduce((a, b) => a + (b.dieSteps || 0), 0);
+  const buffSuccessMod = appliedBuffs.reduce((a, b) => a + (b.successMod || 0), 0);
+  const buffExtra = appliedBuffs.flatMap((b) => b.extra || []);
 
   // Pre-roll state: selected traits (default all applicable checked) + manual mods.
   const [selFeats, setSelFeats] = useState(() => new Set(applicableFeats.map((f) => f.id)));
@@ -101,13 +104,13 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
     };
   }, [applicableFeats, selFeats]);
 
-  const dieSteps = mods.dieSteps + feat.dieSteps;
+  const dieSteps = mods.dieSteps + feat.dieSteps + buffDieSteps;
   const effDie = stepDie(target.die, dieSteps);
   const attackMod = isItem ? Number(target.attackModifier || 0) : 0;
   const baseSkillMod = (target.modifier ?? 0) - attackMod; // skill/attr part only
   const numericMod = mods.numericMod + feat.numericMod + buffNumericMod;
-  const successMod = mods.successMod + feat.successMod + Number(successManual || 0);
-  const extraDiceList = [...(mods.extraDiceList || []), ...feat.extra];
+  const successMod = mods.successMod + feat.successMod + buffSuccessMod + Number(successManual || 0);
+  const extraDiceList = [...(mods.extraDiceList || []), ...feat.extra, ...buffExtra];
   const baseMod = (target.modifier ?? 0) + numericMod + Number(situational || 0) + health.mod;
   const spellCost = isItem ? Number(target.spellCost || 0) : 0;
 
@@ -147,7 +150,13 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
     if (f.extra.length) bits.push(`+${f.extra.length} доп. куб.`);
     modParts.push({ label: `Черта: ${f.name}`, detail: bits.join(", "), kind: "feature" });
   }
-  for (const b of appliedBuffs) modParts.push({ label: `Заклинание: ${b.name}`, value: b.numericMod, kind: "artifact" });
+  for (const b of appliedBuffs) {
+    const bits = [];
+    if (b.dieSteps) bits.push(`${signed(b.dieSteps)} ступ.`);
+    if (b.successMod) bits.push(`${signed(b.successMod)} к успеху`);
+    if (b.extra?.length) bits.push(`+${b.extra.length} доп. куб.`);
+    modParts.push({ label: `Заклинание: ${b.name}`, value: b.numericMod || undefined, detail: bits.join(", ") || undefined, kind: "artifact" });
+  }
   if (Number(situational)) modParts.push({ label: "Ситуативный", value: Number(situational) });
   if (Number(successManual)) modParts.push({ label: "Модификатор успехов", value: Number(successManual), detail: "к успеху" });
   if (health.mod) modParts.push({ label: "Штраф здоровья", value: health.mod, kind: "health" });

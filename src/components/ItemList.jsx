@@ -28,7 +28,7 @@ function isRollable(item) {
 // Read-only per-character item display. All creating/editing lives in ItemsView
 // (the GM catalog). This component renders cards + keeps GM delete, activation,
 // equip and roll controls.
-export default function ItemList({ items = [], isGM, onDelete, onUpdateItem, character, canActivate = false, showRoll = false, onRollItem, onToggleFlag }) {
+export default function ItemList({ items = [], isGM, onDelete, onUpdateItem, character, canActivate = false, showRoll = false, onRollItem, onToggleFlag, onDeactivateSpell }) {
   const byType = {};
   for (const t of ITEM_TYPES) byType[t] = items.filter(i => i.type === t);
 
@@ -57,12 +57,19 @@ export default function ItemList({ items = [], isGM, onDelete, onUpdateItem, cha
           // state lives on activeSpells), so we don't offer it.
           const canAct = canActivate && item.type !== "spell" && ACTIVATABLE_TYPES.has(item.type) && onToggleFlag;
           const canEquip = canActivate && EQUIPPABLE_TYPES.has(item.type) && onToggleFlag;
-          if (!canRollIt && !canAct && !canEquip) return null;
+          // A spell that is currently active can be manually dispelled.
+          const canDeactivate = canActivate && item.type === "spell" && !!activeSpellsMap[item.id] && onDeactivateSpell;
+          if (!canRollIt && !canAct && !canEquip && !canDeactivate) return null;
           return (
             <div className="kk-item-controls">
               {canRollIt && (
                 <button className="kk-item-roll-btn" onClick={() => onRollItem(item)} title="Бросок предмета">
                   <DiceIcon size={14}/> Бросок
+                </button>
+              )}
+              {canDeactivate && (
+                <button className="kk-item-toggle on" onClick={() => onDeactivateSpell(item)} title="Погасить активное заклинание">
+                  Погасить
                 </button>
               )}
               {canAct && (
