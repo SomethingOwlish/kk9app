@@ -25,10 +25,10 @@ function stripLookbehindForIos16() {
   }
 }
 
-// Deployed under the GitHub Pages subpath /kk9app/ — base, PWA scope and
-// start_url must all agree on that prefix or the installed app 404s on launch.
+// Served from the root of kk9.argentummortis.workers.dev (Cloudflare) — base,
+// PWA scope and start_url must all be '/' or assets/SW/manifest 404 on launch.
 export default defineConfig({
-  base: '/kk9app/',
+  base: '/',
   // Keep older iOS Safari a first-class target so modern syntax gets downleveled.
   build: { target: ['es2020', 'safari16'] },
   plugins: [stripLookbehindForIos16(), react(), VitePWA({
@@ -39,15 +39,15 @@ export default defineConfig({
       name: 'Колледж Кощея',
       short_name: 'КК9',
       lang: 'ru',
-      start_url: '/kk9app/',
-      scope: '/kk9app/',
+      start_url: '/',
+      scope: '/',
       display: 'standalone',
       background_color: '#1a1a1a',
       theme_color: '#1a1a1a',
       icons: [
-        { src: '/kk9app/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-        { src: '/kk9app/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-        { src: '/kk9app/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
     },
     workbox: {
