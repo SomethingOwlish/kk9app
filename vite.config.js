@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // iOS 16.0–16.3 WebKit cannot parse regex lookbehind `(?<=…)` (added in Safari
 // 16.4). `remark-gfm`'s autolink-literal ships exactly one such regex to match
 // bare emails, so on those devices the whole bundle throws a SyntaxError at
@@ -29,35 +31,31 @@ export default defineConfig({
   base: '/kk9app/',
   // Keep older iOS Safari a first-class target so modern syntax gets downleveled.
   build: { target: ['es2020', 'safari16'] },
-  plugins: [
-    stripLookbehindForIos16(),
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'favicon.svg', 'icons/apple-touch-icon.png'],
-      manifest: {
-        name: 'Колледж Кощея',
-        short_name: 'КК9',
-        lang: 'ru',
-        start_url: '/kk9app/',
-        scope: '/kk9app/',
-        display: 'standalone',
-        background_color: '#1a1a1a',
-        theme_color: '#1a1a1a',
-        icons: [
-          { src: '/kk9app/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/kk9app/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/kk9app/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
-        // Install-only offline: cache static build assets. Firestore manages
-        // its own offline persistence and is not handled here.
-        globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico}'],
-        skipWaiting: true,
-        clientsClaim: true,
-      },
-    }),
-  ],
+  plugins: [stripLookbehindForIos16(), react(), VitePWA({
+    registerType: 'autoUpdate',
+    injectRegister: 'auto',
+    includeAssets: ['favicon.ico', 'favicon.svg', 'icons/apple-touch-icon.png'],
+    manifest: {
+      name: 'Колледж Кощея',
+      short_name: 'КК9',
+      lang: 'ru',
+      start_url: '/kk9app/',
+      scope: '/kk9app/',
+      display: 'standalone',
+      background_color: '#1a1a1a',
+      theme_color: '#1a1a1a',
+      icons: [
+        { src: '/kk9app/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/kk9app/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: '/kk9app/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    },
+    workbox: {
+      // Install-only offline: cache static build assets. Firestore manages
+      // its own offline persistence and is not handled here.
+      globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico}'],
+      skipWaiting: true,
+      clientsClaim: true,
+    },
+  }), cloudflare()],
 })
