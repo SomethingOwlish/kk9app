@@ -8,6 +8,11 @@
    ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
+/* Card view breaks the app's narrow (760px) shell out to a desktop-width column
+   so the masthead + rail + tabs layout has room. Scoped to the card view only —
+   portal/party/edit views keep the mobile-first 760px shell. */
+.kk-shell.kk-shell--card{max-width:1600px;}
+
 .cc-doc{
   --serif:var(--kk-font-d,'Playfair Display',Georgia,serif);
   --sans:var(--kk-font-b,'Golos Text',system-ui,sans-serif);
@@ -16,7 +21,7 @@
   /* density */
   --railw:328px; --pad:26px; --rowpad:9px; --gap:22px; --namefs:34px;
 
-  width:86%;max-width:1760px;margin:0 auto;background:var(--kk-bg);border:1px solid var(--kk-line);
+  width:100%;max-width:100%;margin:0 auto;background:var(--kk-bg);border:1px solid var(--kk-line);
   box-shadow:0 40px 100px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.015);position:relative;
   color:var(--kk-text);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
 }
