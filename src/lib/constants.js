@@ -57,3 +57,34 @@ export const dieStr = (die, mod) =>
   `d${die}${mod ? (mod > 0 ? `+${mod}` : `${mod}`) : ""}`;
 
 export const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
+
+// ── Магические таланты (шкала −1..5) ────────────────────────────────
+// Справочник дисциплин мира = магические навыки (categ === "magic") из
+// seed-skills. Талант — отдельная от кубика навыка величина: −1 (провал)
+// … 0 (нейтрально) … 5 (мастерство). Хранится на персонаже как
+// magicTalents[] {name, value}; у нового персонажа все дисциплины = 0.
+export const MAGIC_DISCIPLINES = SKILLS_DATA
+  .filter((s) => s.categ === "magic")
+  .map((s) => s.name);
+
+export const MAGIC_TALENT_MIN = -1;
+export const MAGIC_TALENT_MAX = 5;
+
+// Дефолт для генератора персонажа: все дисциплины со значением 0.
+export const buildMagicTalents = () =>
+  MAGIC_DISCIPLINES.map((name) => ({ name, value: 0 }));
+
+// Слить справочник с сохранёнными значениями так, чтобы всегда показать все
+// дисциплины (в т.ч. для персонажей, созданных до появления поля), не потеряв
+// нестандартные записи (напр. из импорта Foundry) — их добавляем в конец.
+export function resolveMagicTalents(stored) {
+  const out = MAGIC_DISCIPLINES.map((name) => ({ name, value: 0 }));
+  const idx = new Map(out.map((t, i) => [t.name, i]));
+  for (const t of stored || []) {
+    if (!t || !t.name) continue;
+    const v = Math.max(MAGIC_TALENT_MIN, Math.min(MAGIC_TALENT_MAX, Number(t.value) || 0));
+    if (idx.has(t.name)) out[idx.get(t.name)].value = v;
+    else out.push({ name: t.name, value: v });
+  }
+  return out;
+}

@@ -44,6 +44,7 @@ import "./styles/app.css";
 import "./styles/theme-explorer.css";
 import "./styles/tier2.css";
 import "./styles/portrait.css";
+import "./styles/character-card.css";
 import CharacterCard from "./components/CharacterCard";
 import AttackResolvePanel from "./components/AttackResolvePanel";
 import AdvancementDialog from "./components/AdvancementDialog";

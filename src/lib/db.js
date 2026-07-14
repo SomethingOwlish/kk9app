@@ -18,6 +18,7 @@ import { derivePhysicalToughness, deriveEnergyMax, deriveTensionMax } from "./de
 import { tickStatuses } from "./statusEngine";
 import { tensionSettings } from "./tension";
 import { buildFields as buildRequestFields } from "./requestFields";
+import { buildMagicTalents } from "./constants";
 
 // Навык по имени — для подтягивания attr/categ при добавлении.
 const SKILL_BY_NAME = Object.fromEntries(SKILLS_DATA.map((s) => [s.name, s]));
@@ -312,6 +313,7 @@ export async function createCharacter(campaignId, characterId, { name, ownerUid,
     activeSpells: [],
     activeStatuses: [],
     magicLevels: [],
+    magicTalents: buildMagicTalents(),
     customSkills: [],
     languages: [],
     features: [],
@@ -360,6 +362,7 @@ export async function createCharacterFromImport(campaignId, characterId, parsed,
     },
     energy: { value: mapped.energy?.value || energyMax, max: energyMax },
     tension: { ...mapped.tension, max: tensionMax },
+    magicTalents: mapped.magicTalents?.length ? mapped.magicTalents : buildMagicTalents(),
     portraitConfig: { ...PORTRAIT_DEFAULTS, portraitImage: mapped.portrait || "" },
     createdAt: serverTimestamp(),
   };
