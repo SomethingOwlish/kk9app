@@ -581,7 +581,7 @@ export default function App({ user, signOut }) {
     <div className={`kk-root${themeClass}`}>
       <div className="kk-bg" aria-hidden/>
       <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню"><span/><span/><span/></button>
-      <div className="kk-shell">
+      <div className={`kk-shell${ready && view === "card" && viewCh && !editing && !editingBio && !(role === "player" && gmModeData?.active) ? " kk-shell--card" : ""}`}>
         <div className="kk-topbar">
           <div className="kk-burger-placeholder" aria-hidden/>
           <button className="kk-logo" onClick={() => navigate("/")}>КК<span>9</span></button>
