@@ -33,6 +33,55 @@ const DEMO_FIELDS = [
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// Faculty accent must stay visible on both dark and light themes. Near-black
+// (Чёрный) or near-white (Белый) faculty colours would paint fills invisibly
+// against the card, so clamp the colour's lightness into a mid band while
+// keeping its hue/saturation.
+function hexToRgb(hex) {
+  let h = String(hex).replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0; const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+  }
+  return { h, s, l };
+}
+function hslToHex(h, s, l) {
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  let r, g, b;
+  if (s === 0) { r = g = b = l; }
+  else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1 / 3);
+  }
+  return "#" + [r, g, b].map((x) => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
+}
+function safeAccent(hex) {
+  try {
+    const { r, g, b } = hexToRgb(hex);
+    const { h, s, l } = rgbToHsl(r, g, b);
+    return hslToHex(h, s, clamp(l, 0.44, 0.6));
+  } catch { return hex; }
+}
+
 // ── Пипы здоровья (формула = derive._attrPipSizes) ──────────────────
 function attrPipSizes(die) {
   switch (die) {
@@ -94,7 +143,7 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const overflow = ch.overflow_damage ?? 0;
   const initStr = `d${ch.attributes.agility.die} · d${ch.attributes.smarts.die} · d6`;
   const fac = ch.faculty || {};
-  const facColor = fac.color || "#c8a14e";
+  const facColor = safeAccent(fac.color || "#c8a14e");
 
   // Skills: two groups — факультетские (categ magic) + прочие.
   const skills = ch.skills || [];
@@ -268,7 +317,6 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
                 <DiceIcon size={14} /> Броски: {rollerOn ? "вкл" : "выкл"}
               </button>
             )}
-            {isGM && <button className="mbtn" onClick={onLog}>▤ Лог</button>}
             {isGM && (
               <button className={`mbtn${activeTab === "gm" ? " on" : ""}`} onClick={() => setTab("gm")}>✒ Мастерская</button>
             )}
@@ -539,9 +587,14 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
                 </div>
               </section>
               <section className="sec">
-                <div className="sh"><span className="idx">02</span><span className="tt">Спутники и даймоны</span><span className="rule" /></div>
+                <div className="sh"><span className="idx">02</span><span className="tt">Спутники</span><span className="rule" /><span className="ct">{companions.length}</span></div>
                 <div className="cc-legacy">
                   <CompanionRefs companions={companions} canEdit={canEditRelations} onChange={(next) => save({ companions: next })} />
+                </div>
+              </section>
+              <section className="sec">
+                <div className="sh"><span className="idx">03</span><span className="tt">Даймоны</span><span className="rule" /></div>
+                <div className="cc-legacy">
                   <DaemonRefs
                     daemonIds={Array.isArray(ch.refs?.daemons) ? ch.refs.daemons : []}
                     library={daemonLib}
@@ -632,13 +685,14 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
                 {relations.length > 0 && (
                   <div className="rels">
                     {[...relations].sort((a, b) => Math.abs(b.level ?? 0) - Math.abs(a.level ?? 0)).map((r) => {
+                      const rk = r.id ?? `i${relations.indexOf(r)}`;
                       const lvl = clamp(r.level ?? 0, -100, 100);
-                      const open = openRels.has(r.id);
+                      const open = openRels.has(rk);
                       const half = (Math.abs(lvl) / 100) * 50;
                       const kindTag = r.tags?.length ? (RELATION_TAG_LABELS[r.tags[0]] || r.tags[0]) : getRelationLabel(lvl);
                       return (
-                        <div className={`rel${open ? " open" : ""}`} key={r.id}>
-                          <div className="rel-head" onClick={() => toggleRel(r.id)}>
+                        <div className={`rel${open ? " open" : ""}`} key={rk}>
+                          <div className="rel-head" onClick={() => toggleRel(rk)}>
                             <span className="rn">{r.name}</span>
                             <span className="rk">{kindTag}</span>
                             <span className="rlvl">Связь <b className={lvl < 0 ? "neg" : ""}>{lvl > 0 ? `+${lvl}` : lvl}</b></span>

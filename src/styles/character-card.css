@@ -16,7 +16,7 @@
   /* density */
   --railw:328px; --pad:26px; --rowpad:9px; --gap:22px; --namefs:34px;
 
-  max-width:1180px;margin:0 auto;background:var(--kk-bg);border:1px solid var(--kk-line);
+  width:86%;max-width:1760px;margin:0 auto;background:var(--kk-bg);border:1px solid var(--kk-line);
   box-shadow:0 40px 100px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.015);position:relative;
   color:var(--kk-text);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
 }
@@ -145,16 +145,16 @@
 .cc-doc .stat-tag{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-right:1px solid var(--kk-line-soft);font-size:12.5px;}
 
 /* skills ledger */
-.cc-doc .skcols{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;}
-.cc-doc .skgroup{margin-bottom:16px;break-inside:avoid;}
+.cc-doc .skcols{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;min-width:0;}
+.cc-doc .skgroup{margin-bottom:16px;break-inside:avoid;min-width:0;}
 .cc-doc .skcat{display:flex;align-items:center;gap:8px;font:600 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--kk-text-faint);margin-bottom:6px;}
 .cc-doc .skcat .l{flex:1;height:1px;background:var(--kk-line-soft);}
 .cc-doc .skgroup.fac .skcat{color:var(--fac);opacity:1;}
 .cc-doc .skgroup.fac .skcat .l{background:color-mix(in srgb,var(--fac) 35%,transparent);}
 .cc-doc .skgroup.fac .sk .kd{color:var(--fac);}
-.cc-doc .sk{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:10px;padding:var(--rowpad) 2px;border-bottom:1px solid var(--kk-line-soft);}
+.cc-doc .sk{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:10px;padding:var(--rowpad) 2px;border-bottom:1px solid var(--kk-line-soft);min-width:0;}
 .cc-doc .sk:hover{background:rgba(255,255,255,.02);}
-.cc-doc .sk .kn{font-size:13.5px;}
+.cc-doc .sk .kn{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .cc-doc .sk.untr .kn{color:var(--kk-text-faint);font-style:italic;}
 .cc-doc .sk .ka{font:500 9.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--kk-text-faint);}
 .cc-doc .sk .kd{font:600 13px/1 var(--mono);color:var(--kk-text);min-width:40px;text-align:right;}
@@ -274,6 +274,18 @@
 
 /* wrappers for reused legacy components (items, companions, daemons, contacts, notes) */
 .cc-doc .cc-legacy{margin-top:4px;}
+/* our .sh headers replace the reused components' own block titles */
+.cc-doc .cc-legacy .kk-block{gap:8px;}
+.cc-doc .cc-legacy > .kk-block > .kk-h2:first-child,
+.cc-doc .cc-legacy > section > .kk-h2:first-child{display:none;}
+/* align reused item chrome with the ledger aesthetic */
+.cc-doc .cc-legacy .kk-items-group-label,
+.cc-doc .cc-legacy .kk-spell-folder-label{font:600 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--kk-text-faint);}
+.cc-doc .cc-legacy .kk-item-controls{display:flex;flex-wrap:wrap;gap:6px;}
+.cc-doc .cc-legacy .kk-item-toggle{font:600 9.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--kk-line-soft);padding:5px 8px;background:transparent;color:var(--kk-text-faint);border-radius:0;cursor:pointer;}
+.cc-doc .cc-legacy .kk-item-toggle.on{color:var(--fac);border-color:color-mix(in srgb,var(--fac) 45%,transparent);background:color-mix(in srgb,var(--fac) 8%,transparent);}
+.cc-doc .cc-legacy .kk-item-roll-btn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--kk-line);background:var(--kk-bg-2);color:var(--kk-text-dim);padding:4px 8px;cursor:pointer;font:600 10px/1 var(--mono);border-radius:0;}
+.cc-doc .cc-legacy .kk-item-roll-btn:hover{color:var(--kk-gold-bright);border-color:var(--kk-gold-dim);}
 
 @media(max-width:820px){
   .cc-doc .cc-body{grid-template-columns:1fr;}
