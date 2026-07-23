@@ -10,10 +10,12 @@ const OUTCOME_LABEL = {
   "absorbed": "Поглощено (абсолютная защита)",
   "companion-stun": "Спутник — только стан",
   "bypass-auto-damage": "Стойкость пробита — урон автоматически",
+  "unresistable-auto-damage": "Неотразимо — урон автоматически",
   "resisted": "Устоял",
-  "bleed": "Кровотечение",
-  "half-damage": "Урон пополам",
+  "status-only": "Только статус (без урона)",
+  "half-damage": "Урон пополам (округл. вверх)",
   "full-damage": "Полный урон",
+  "double-damage": "Двойной урон",
 };
 
 // Gather the target's resistance abilities in soak's expected shape
@@ -50,16 +52,16 @@ function gatherResistAbilities(ch) {
 //      → the attack's statusName. Missing campaign status is skipped.
 function buildPlan(res, ch, attackData, campaignStatuses) {
   // 1) health application. SKIP-01: cross-track overflow (Foundry
-  // applyDamageToActor with overflow=true) fires ONLY on the bypass-auto-damage
-  // outcome — toughness pierced. Foundry's normal defender-soak path passes
-  // overflow=false, so every other outcome caps at the track max. When overflow
-  // is on, physical spills → mental → overflow_damage; mental spills → overflow_damage.
+  // applyDamageToActor with overflow=true) fires ONLY on the "can't defend"
+  // outcomes — bypass-auto-damage and unresistable-auto-damage. Every other
+  // outcome caps at the track max. When overflow is on, physical spills →
+  // mental → overflow_damage; mental spills → overflow_damage.
   const healthPatch = {};
   const physMax = healthMax(ch.attributes?.endurance?.die ?? 4);
   const mentMax = healthMax(ch.attributes?.spirit?.die ?? 4);
   const physCur = ch.health?.physical?.value || 0;
   const mentCur = ch.health?.mental?.value || 0;
-  const allowOverflow = res.outcome === "bypass-auto-damage";
+  const allowOverflow = res.outcome === "bypass-auto-damage" || res.outcome === "unresistable-auto-damage";
   const physDmg = res.damageApplied?.physical > 0 ? res.damageApplied.physical : 0;
   const mentDmg = res.damageApplied?.mental > 0 ? res.damageApplied.mental : 0;
   let appliedBreakdown = null;
@@ -167,7 +169,9 @@ export default function AttackResolvePanel({ attack, ch, items = [], campaignSta
     if (busy) return;
     setBusy(true);
     try {
-      // resolveSoak handles unresistable / bypassSoak internally per its outcomes.
+      // resolveSoak handles unresistable and bypassSoak internally: unresistable
+      // ignores soak/abilities/absolute entirely (auto full damage); bypassSoak
+      // leaves only absolute protection. Selected abilities are ignored in both.
       const soakRes = soak.resolveSoak({
         target: ch,
         attackData,
@@ -194,9 +198,15 @@ export default function AttackResolvePanel({ attack, ch, items = [], campaignSta
       </div>
       <div className="kk-attack-resolve-summary">{combat.attackSummary(attackData)}</div>
 
+      {!res && attackData.unresistable && (
+        <div className="kk-attack-resolve-note">
+          Неотразимая атака — защита невозможна (ни бросок, ни навыки, ни абсолютная защита). Урон пройдёт автоматически.
+        </div>
+      )}
+
       {!res && (
         <>
-          {eligible.length > 0 && (
+          {!attackData.unresistable && eligible.length > 0 && (
             <div className="kk-attack-resolve-abils">
               <div className="kk-attack-resolve-abils-title">Способности сопротивления</div>
               {eligible.map((a) => (
@@ -216,21 +226,30 @@ export default function AttackResolvePanel({ attack, ch, items = [], campaignSta
             </div>
           )}
 
-          {bonuses.length > 0 && (
+          {!attackData.unresistable && bonuses.length > 0 && (
             <div className="kk-attack-resolve-bonuses">
               Авто-бонусы соака: {bonuses.map((b) => b.name).join(", ")}
             </div>
           )}
 
           <div className="kk-attack-resolve-actions">
-            <button className="kk-btn primary sm" disabled={busy}
-              onClick={() => resolve([...selected])}>
-              {busy ? "…" : "Сопротивляться"}
-            </button>
-            <button className="kk-btn ghost sm" disabled={busy}
-              onClick={() => resolve([])}>
-              Без защиты
-            </button>
+            {attackData.unresistable ? (
+              <button className="kk-btn primary sm" disabled={busy}
+                onClick={() => resolve([])}>
+                {busy ? "…" : "Принять урон"}
+              </button>
+            ) : (
+              <>
+                <button className="kk-btn primary sm" disabled={busy}
+                  onClick={() => resolve([...selected])}>
+                  {busy ? "…" : "Сопротивляться"}
+                </button>
+                <button className="kk-btn ghost sm" disabled={busy}
+                  onClick={() => resolve([])}>
+                  Без защиты
+                </button>
+              </>
+            )}
             {isGM && (
               <button className="kk-btn ghost sm" disabled={busy}
                 onClick={() => { if (!busy) onDismiss(); }}>

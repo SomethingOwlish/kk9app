@@ -61,7 +61,8 @@ export function calcSpellDamage(cost = 0, isAoe = false) {
 
 // Build the Foundry-shaped attackData from an attack item + the roll result.
 //   item: the catalog/owned item being rolled
-//   roll: { success, raises } from RollDialog's mainRoll
+//   roll: { success, raises, total } from RollDialog's mainRoll (total = the
+//         final, health-halved roll total, used for soak success tie-breaks)
 // Spell-only flags (bypassSoak/unresistable/isAoe) default false on other types.
 export function buildAttackData(item, roll) {
   const attackSuccesses = attackSuccessesFromRoll(roll);
@@ -72,6 +73,10 @@ export function buildAttackData(item, roll) {
   return {
     attackSource:  attackSourceOf(item),
     attackSuccesses,
+    // Raw (already health-halved) attack total — the defender's soak resolver
+    // uses it to break success ties: equal successes but higher attackTotal
+    // still lands a status. See soak.resolveSoak's outcome table.
+    attackTotal:   Math.max(0, Number(roll.total) || 0),
     damageType:    item.damageType || "physical",
     damageLevel:   spellDmg ? spellDmg.level : (item.damageLevel || "light"),
     extraPips:     attackExtraPips(roll) + (spellDmg ? spellDmg.extraPips : 0),

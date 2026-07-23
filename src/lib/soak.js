@@ -108,9 +108,18 @@
 //               selectedAbilityIds, selectedBonusIds, rng }) → SoakResult
 //   Main resolver. Mirrors `_processSoakForActor` → `_rollSoak` →
 //   `_applyResistOutcome`. Pure: never writes. Returns:
+//   Base die = the STRONGER of Spirit / Endurance (deriveSoakBase); the roll
+//   total is ALWAYS halved (÷2, round down) before counting successes; and the
+//   outcome follows the success-difference table (diff = attack − soak):
+//     diff<0 или (diff=0 и значения равны) → resisted
+//     diff=0 и attackTotal>rollTotal        → status-only (свой статус / кровь)
+//     diff=1                                → half-damage (round up)
+//     diff=2..6                             → full-damage
+//     diff≥7                                → double-damage
 //   {
 //     outcome: "absorbed" | "companion-stun" | "bypass-auto-damage"
-//            | "resisted" | "bleed" | "half-damage" | "full-damage",
+//            | "unresistable-auto-damage" | "resisted" | "status-only"
+//            | "half-damage" | "full-damage" | "double-damage",
 //     soakSuccesses: number,
 //     attackSuccesses: number,
 //     degree: { type, label, successes },   // soak roll degree
@@ -138,7 +147,7 @@
 // ============================================================
 
 import { DIE_SCALE, successDegreeFromTotal } from "./dice";
-import { deriveHealthModForAttr } from "./derive";
+import { deriveHealthModForAttr, deriveSoakBase } from "./derive";
 import { collectRollModifiers } from "./statusEngine";
 import { collectActiveToughnessMods } from "./activeSpells";
 
@@ -468,17 +477,23 @@ export function getEligibleAbilities(target, attackData, abilities = []) {
 function _rollSoak(target, selectedAbilityIds, bonuses, attackData, abilities, rng) {
   const reasons = [];
 
-  const spiritDie = target.attributes?.spirit?.die || 4;
-  const spiritMod = target.attributes?.spirit?.modifier || 0;
+  // Base die = the STRONGER of Spirit / Endurance (deriveSoakBase). The base
+  // attribute's modifier and health context follow the same attribute.
+  const base = deriveSoakBase(target);
+  const baseDie = base.die;
+  const baseMod = base.modifier;
+  const baseAttr = base.attrKey;
+  const baseLabel = baseAttr === "endurance" ? "Вын" : "Дух";
   const isWC = target.type === "character";
 
-  // Health penalty to toughness (isToughness=true — pip 5 halves, not blocks).
-  const healthResult = deriveHealthModForAttr(target, "spirit", true);
+  // Health penalty to toughness (isToughness=true). NB: the standing "÷2" soak
+  // rule (below) subsumes the old pip-4/5 "half result", so we take only the
+  // NUMERIC penalty here and never halve twice — the ÷2 always applies anyway.
+  const healthResult = deriveHealthModForAttr(target, baseAttr, true);
   const healthMod = healthResult?.mod ?? 0;
-  const healthHalfResult = healthResult?.halfResult ?? false;
   for (const r of healthResult?.reasons ?? []) reasons.push(r);
 
-  if (spiritMod !== 0) reasons.push(`Дух: ${spiritMod > 0 ? "+" : ""}${spiritMod}`);
+  if (baseMod !== 0) reasons.push(`${baseLabel}: ${baseMod > 0 ? "+" : ""}${baseMod}`);
 
   // Selected abilities.
   const abilityById = new Map(abilities.map((a) => [a.id, a]));
@@ -490,7 +505,7 @@ function _rollSoak(target, selectedAbilityIds, bonuses, attackData, abilities, r
   // Foundry collects per-attribute (spirit) + per-ability contexts. The port's
   // collectRollModifiers returns { numericMod, dieSteps, extraDiceList, successMod }.
   let totalDieMod = 0;
-  let totalNumericMod = spiritMod + healthMod;
+  let totalNumericMod = baseMod + healthMod;
   let totalSuccessMod = 0;
   const extraDiceList = [];
 
@@ -509,11 +524,11 @@ function _rollSoak(target, selectedAbilityIds, bonuses, attackData, abilities, r
     }
   };
 
-  // spirit / toughness context
-  foldMods({ attribute: "spirit", isToughness: true });
-  // per-ability contexts (linkedAttribute or spirit)
+  // base-attribute / toughness context
+  foldMods({ attribute: baseAttr, isToughness: true });
+  // per-ability contexts (linkedAttribute or the base attribute)
   for (const ab of selectedAbilities) {
-    foldMods({ attribute: ab.attr || "spirit", skillName: ab.name, isToughness: true });
+    foldMods({ attribute: ab.attr || baseAttr, skillName: ab.name, isToughness: true });
   }
 
   // Dedup extra dice across the combined passes (spirit + abilities): the same
@@ -548,9 +563,9 @@ function _rollSoak(target, selectedAbilityIds, bonuses, attackData, abilities, r
   }
 
   // ── Build the dice pool ──
-  const effSpiritDie = shiftDie(spiritDie, totalDieMod);
+  const effBaseDie = shiftDie(baseDie, totalDieMod);
   const abilityDice = selectedAbilities.map((a) => shiftDie(a.die || 4, totalDieMod));
-  const allDice = [effSpiritDie, ...abilityDice];
+  const allDice = [effBaseDie, ...abilityDice];
 
   // Roll every die (exploding). Track natural faces for snake-eyes.
   const rolledDice = []; // { total, natural }
@@ -589,8 +604,13 @@ function _rollSoak(target, selectedAbilityIds, bonuses, attackData, abilities, r
     reasons.push(`Статус: ${sign > 0 ? "+" : "−"}1d${ed.faces} = ${sign > 0 ? "+" : "−"}${face}`);
   }
 
+  // STANDING RULE: the toughness roll total is ALWAYS halved (round down)
+  // before counting successes. This is baked into the formula here — the card's
+  // displayed formula ends in "÷2" to match. It also subsumes the old pip-4/5
+  // "half result" (we never halve twice).
   const rollTotalRaw = poolTotal + totalNumericMod + extraDieTotal;
-  const rollTotal = healthHalfResult ? Math.floor(rollTotalRaw / 2) : rollTotalRaw;
+  const rollTotal = Math.floor(rollTotalRaw / 2);
+  reasons.push(`Стойкость ÷2: ${rollTotalRaw} → ${rollTotal}`);
 
   // ── Success degree ──
   // Foundry snake-eyes: ≥2 ACTIVE dice all natural-1. In the port, kept dice
@@ -652,22 +672,35 @@ function _trackFor(damageType) {
   return damageType === "mental" ? "mental" : "physical";
 }
 
-// Full damage as pip counts. Foundry _applyFullDamage: base level pips + extraPips light pips.
+// Base full pip count for an attack: level pips + bonus pips.
+function _fullPips(damageLevel, extraPips) {
+  return (DAMAGE_LEVELS[damageLevel] || 1) + Math.max(0, extraPips);
+}
+
+// Full damage as pip counts (attack lands with +2..+6 successes over soak).
 function _fullDamage(damageLevel, extraPips, damageType) {
   const track = _trackFor(damageType);
-  const pips = (DAMAGE_LEVELS[damageLevel] || 1) + Math.max(0, extraPips);
-  const desc = `Полный урон: ${DAMAGE_LABELS[damageLevel] || damageLevel}${extraPips ? ` +${extraPips} пип` : ""}`;
+  const pips = _fullPips(damageLevel, extraPips);
+  const desc = `Полный урон: ${DAMAGE_LABELS[damageLevel] || damageLevel}${extraPips ? ` +${extraPips} пип` : ""} (${pips} пип)`;
   return { track, pips, desc };
 }
 
-// Half damage as pip counts. Foundry _applyHalfDamage: level stepped down one,
-// extraPips halved (floor).
+// Half damage as pip counts — HALF of the full pip count, ROUNDED UP
+// (attack lands with +1 success over soak). E.g. Тяжёлый (2 пип) → 1 пип,
+// Летальный (3 пип) → 2 пип.
 function _halfDamage(damageLevel, extraPips, damageType) {
   const track = _trackFor(damageType);
-  const halfLevel = halfDamageLevel(damageLevel);
-  const halfPips = Math.floor(Math.max(0, extraPips) / 2);
-  const pips = (DAMAGE_LEVELS[halfLevel] || 1) + halfPips;
-  const desc = `Урон пополам: ${DAMAGE_LABELS[halfLevel] || halfLevel}${halfPips ? ` +${halfPips} пип` : ""}`;
+  const pips = Math.ceil(_fullPips(damageLevel, extraPips) / 2);
+  const desc = `Урон пополам (округл. вверх): ${DAMAGE_LABELS[damageLevel] || damageLevel} → ${pips} пип`;
+  return { track, pips, desc };
+}
+
+// Double damage as pip counts — TWICE the full pip count (attack lands with
+// +7 or more successes over soak).
+function _doubleDamage(damageLevel, extraPips, damageType) {
+  const track = _trackFor(damageType);
+  const pips = _fullPips(damageLevel, extraPips) * 2;
+  const desc = `Двойной урон: ${DAMAGE_LABELS[damageLevel] || damageLevel}${extraPips ? ` +${extraPips} пип` : ""} ×2 (${pips} пип)`;
   return { track, pips, desc };
 }
 
@@ -698,12 +731,14 @@ export function resolveSoak({
 
   const {
     attackSuccesses = 0,
+    attackTotal = 0,
     damageType,
     damageLevel = "light",
     extraPips = 0,
     hasStatus = false,
     statusUuid = "",
     bypassSoak = false,
+    unresistable = false,
   } = attackData;
 
   // Companion — always just stun, no soak, no pip damage tracked here.
@@ -713,6 +748,24 @@ export function resolveSoak({
       outcome: "companion-stun",
       soakSuccesses: 0, attackSuccesses,
       degree: { type: "failure", label: "—", successes: 0 },
+      rollTotal: 0,
+      damageApplied, itemPatches, statusesToApply, reasons: [], log,
+    };
+  }
+
+  // unresistable — the attack you cannot defend against. Ignores EVERYTHING:
+  // no soak roll, no resistance abilities, no bonus items, and not even
+  // absolute protection. Full damage is applied automatically (with overflow,
+  // via the panel's allowOverflow) plus the attack's carried status.
+  if (unresistable) {
+    const dmg = _fullDamage(damageLevel, extraPips, damageType);
+    damageApplied[dmg.track] += dmg.pips;
+    if (hasStatus && statusUuid) statusesToApply.push({ attackStatusUuid: statusUuid });
+    log.push(`${target.name}: неотразимая атака — защита невозможна, урон автоматически (${dmg.desc}).`);
+    return {
+      outcome: "unresistable-auto-damage",
+      soakSuccesses: 0, attackSuccesses,
+      degree: { type: "failure", label: "Неотразимо", successes: 0 },
       rollTotal: 0,
       damageApplied, itemPatches, statusesToApply, reasons: [], log,
     };
@@ -775,30 +828,55 @@ export function resolveSoak({
   itemPatches.push(...roll.bonusPatches);
   const { soakSuccesses, degree, rollTotal, reasons } = roll;
 
-  // Step 6: compare & apply.
+  // Carry the attack's status onto any damage-dealing outcome (its own status
+  // if it has one). The "status-only" tier below has its own bleed fallback.
+  const carryAttackStatus = () => {
+    if (hasStatus && statusUuid) statusesToApply.push({ attackStatusUuid: statusUuid });
+  };
+
+  // Step 6: compare & apply. NEW outcome table (rollTotal is already ÷2):
+  //   diff = attackSuccesses − soakSuccesses
+  //   diff < 0                       → устоял (защита сильнее)
+  //   diff = 0 и значения равны       → устоял (ничья)
+  //   diff = 0 и атака выше в числах   → только статус (свой статус, иначе кровь)
+  //   diff = 1                       → урон пополам (округл. вверх)
+  //   diff = 2..6                    → полный урон
+  //   diff ≥ 7                       → двойной урон
+  const diff = attackSuccesses - soakSuccesses;
   let outcome;
-  if (soakSuccesses >= attackSuccesses) {
-    outcome = "resisted";
-    log.push(`${target.name}: устоял — ${soakSuccesses} усп. ≥ ${attackSuccesses} усп. атаки.`);
-  } else {
-    const remainder = attackSuccesses - soakSuccesses;
-    if (remainder > 10) {
-      outcome = "full-damage";
-      const dmg = _fullDamage(damageLevel, extraPips, damageType);
-      damageApplied[dmg.track] += dmg.pips;
-      if (hasStatus && statusUuid) statusesToApply.push({ attackStatusUuid: statusUuid });
-      log.push(`${target.name}: стойкость сломлена — остаток ${remainder} усп. (>10) · ${dmg.desc}.`);
-    } else if (remainder === 1) {
-      outcome = "bleed";
-      statusesToApply.push("bleed");
-      log.push(`${target.name}: остаток 1 усп. · кровотечение.`);
+  if (diff <= 0) {
+    if (diff === 0 && attackTotal > rollTotal) {
+      // Ничья по успехам, но атака выше в числах → только статус, урона нет.
+      outcome = "status-only";
+      if (hasStatus && statusUuid) {
+        statusesToApply.push({ attackStatusUuid: statusUuid });
+        log.push(`${target.name}: ничья по успехам, атака выше (${attackTotal} > ${rollTotal}) — только статус атаки.`);
+      } else {
+        statusesToApply.push("bleed");
+        log.push(`${target.name}: ничья по успехам, атака выше (${attackTotal} > ${rollTotal}) — кровотечение.`);
+      }
     } else {
-      outcome = "half-damage";
-      const dmg = _halfDamage(damageLevel, extraPips, damageType);
-      damageApplied[dmg.track] += dmg.pips;
-      if (hasStatus && statusUuid) statusesToApply.push({ attackStatusUuid: statusUuid });
-      log.push(`${target.name}: частичный урон — остаток ${remainder} усп. (2–10) · ${dmg.desc}.`);
+      outcome = "resisted";
+      log.push(`${target.name}: устоял — ${soakSuccesses} усп. / ${rollTotal} против ${attackSuccesses} усп. / ${attackTotal}.`);
     }
+  } else if (diff === 1) {
+    outcome = "half-damage";
+    const dmg = _halfDamage(damageLevel, extraPips, damageType);
+    damageApplied[dmg.track] += dmg.pips;
+    carryAttackStatus();
+    log.push(`${target.name}: +1 успех атаки · ${dmg.desc}.`);
+  } else if (diff <= 6) {
+    outcome = "full-damage";
+    const dmg = _fullDamage(damageLevel, extraPips, damageType);
+    damageApplied[dmg.track] += dmg.pips;
+    carryAttackStatus();
+    log.push(`${target.name}: +${diff} усп. атаки (2–6) · ${dmg.desc}.`);
+  } else {
+    outcome = "double-damage";
+    const dmg = _doubleDamage(damageLevel, extraPips, damageType);
+    damageApplied[dmg.track] += dmg.pips;
+    carryAttackStatus();
+    log.push(`${target.name}: +${diff} усп. атаки (≥7) · ${dmg.desc}.`);
   }
 
   return {
