@@ -6,6 +6,11 @@
 // teacher_uuid в Foundry строится динамически — здесь не хардкодим,
 // связь с куратором хранится через curatorKey.
 // ============================================================
+// Навыки факультета по ключу (faculty.key). На персонаже хранится только
+// {name,key,color}, поэтому полный список abilities достаём из справочника.
+export const facultyAbilities = (key) =>
+  FACULTIES.find((f) => f.key === key)?.abilities || [];
+
 export const FACULTIES = [
   {
     name: "Белый факультет",

@@ -156,6 +156,8 @@
 .cc-doc .skgroup{margin-bottom:16px;break-inside:avoid;min-width:0;}
 .cc-doc .skcat{display:flex;align-items:center;gap:8px;font:600 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--kk-text-faint);margin-bottom:6px;}
 .cc-doc .skcat .l{flex:1;height:1px;background:var(--kk-line-soft);}
+.cc-doc .skgroup.fac{border:1px solid color-mix(in srgb,var(--fac) 45%,transparent);
+  background:color-mix(in srgb,var(--fac) 6%,transparent);padding:10px 12px;}
 .cc-doc .skgroup.fac .skcat{color:var(--fac);opacity:1;}
 .cc-doc .skgroup.fac .skcat .l{background:color-mix(in srgb,var(--fac) 35%,transparent);}
 .cc-doc .skgroup.fac .sk .kd{color:var(--fac);}

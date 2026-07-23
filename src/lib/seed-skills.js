@@ -301,3 +301,36 @@ export function buildBaseSkills() {
     .filter((s) => s.base)
     .map((s) => ({ name: s.name, attr: s.attr, categ: s.categ, die: 4, modifier: -2 }));
 }
+
+// Нетренированный навык — сид d4-2 без вложений («значение как д4-2»).
+export const isUntrainedSkill = (s) => s?.die === 4 && s?.modifier === -2;
+
+// Разложить навыки персонажа на колонки карточки с учётом навыков факультета:
+//   fac   — навыки, пришедшие от факультета (имя ∈ facAbilities), в рамку;
+//   magic — магические дисциплины ВНЕ факультета, которые у персонажа реально
+//           есть (тренированные, т.е. значение ≠ д4-2) — отдельная колонка;
+//   other — всё остальное.
+// Нетренированные (д4-2) магические навыки не из факультета не показываем:
+// это сид-мусор (напр. из импорта Foundry), персонаж ими не владеет.
+export function categorizeSkills(skills, facAbilities = []) {
+  const facSet = facAbilities instanceof Set ? facAbilities : new Set(facAbilities);
+  const fac = [], magic = [], other = [];
+  for (const s of skills || []) {
+    if (facSet.has(s.name)) fac.push(s);
+    else if (s.categ === "magic") { if (!isUntrainedSkill(s)) magic.push(s); }
+    else other.push(s);
+  }
+  return { fac, magic, other };
+}
+
+// Миграция: выкинуть нетренированные (д4-2) магические навыки, которых нет в
+// факультете. Оставляем всё с значением ≠ д4-2 и всё, что прописано в факультете.
+// Возвращает null, если чистить нечего (ничего не изменилось).
+export function pruneMagicSkills(skills, facAbilities = []) {
+  const facSet = facAbilities instanceof Set ? facAbilities : new Set(facAbilities);
+  const src = skills || [];
+  const next = src.filter(
+    (s) => !(s.categ === "magic" && !facSet.has(s.name) && isUntrainedSkill(s)),
+  );
+  return next.length === src.length ? null : next;
+}
