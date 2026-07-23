@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import InlineMarkdown from "./InlineMarkdown";
 import Stat from "./Stat";
 import StatusEditor from "./StatusEditor";
@@ -21,6 +21,8 @@ import {
   ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, dieStr,
   resolveMagicTalents, MAGIC_TALENT_MIN, MAGIC_TALENT_MAX,
 } from "../lib/constants";
+import { categorizeSkills, pruneMagicSkills } from "../lib/seed-skills";
+import { facultyAbilities } from "../lib/seed-faculties";
 
 const DEMO_FIELDS = [
   ["birthplace", "Место рождения"],
@@ -145,10 +147,12 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const fac = ch.faculty || {};
   const facColor = safeAccent(fac.color || "#c8a14e");
 
-  // Skills: two groups — факультетские (categ magic) + прочие.
+  // Skills: три колонки — факультетские (пришли от факультета, в рамку),
+  // магические вне факультета (те, что персонаж реально имеет), прочие.
   const skills = ch.skills || [];
-  const facSkills = skills.filter((s) => s.categ === "magic");
-  const otherSkills = skills.filter((s) => s.categ !== "magic");
+  const facAbil = facultyAbilities(fac.key);
+  const { fac: facSkills, magic: magicSkills, other: otherSkills } =
+    categorizeSkills(skills, facAbil);
   const facName = fac.name || "Факультетские";
 
   const talents = resolveMagicTalents(ch.magicTalents);
@@ -167,6 +171,16 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
   const canEditRelations = isOwner || isGM;
   const canAddNote = isOwner || isGM;
   const canChangePortrait = isOwner || isGM;
+
+  // Ленивая миграция: убрать сид-мусор — нетренированные (д4-2) магические
+  // навыки не из факультета. Пишет только владелец/ГМ и только когда есть что
+  // чистить (иначе идемпотентно, без лишних записей). См. pruneMagicSkills.
+  useEffect(() => {
+    if (!(isOwner || isGM)) return;
+    const pruned = pruneMagicSkills(skills, facAbil);
+    if (pruned) save({ skills: pruned });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ch.id]);
 
   // ── local state ────────────────────────────────────────────────────
   const [tab, setTab] = useState("overview");
@@ -553,6 +567,12 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
                     <div className="skgroup fac">
                       <div className="skcat">{facName}<span className="l" /></div>
                       {facSkills.map((s) => <SkillRow key={s.name} s={s} showRoll={showRoll} onRoll={setRollTarget} />)}
+                    </div>
+                  )}
+                  {magicSkills.length > 0 && (
+                    <div className="skgroup magic">
+                      <div className="skcat">Магические<span className="l" /></div>
+                      {magicSkills.map((s) => <SkillRow key={s.name} s={s} showRoll={showRoll} onRoll={setRollTarget} />)}
                     </div>
                   )}
                   {otherSkills.length > 0 && (
