@@ -174,7 +174,7 @@ export default function RollDialog({ ch, target, campaign, campaignStatuses = []
   );
   const attackData = useMemo(
     () => (attackItem && combat.isAttackItem(attackItem) && result && result.success && !result.snakeEyes && !overcastFizzled(result)
-      ? combat.buildAttackData(attackItem, { success: result.success, raises: result.raises })
+      ? combat.buildAttackData(attackItem, { success: result.success, raises: result.raises, total: result.finalTotal })
       : null),
     [attackItem, result],
   );

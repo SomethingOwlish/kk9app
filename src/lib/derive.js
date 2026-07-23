@@ -39,6 +39,40 @@ export function derivePhysicalToughness(ch) {
 }
 
 /**
+ * Soak base attribute: the STRONGER of Spirit / Endurance, by die size.
+ * Spirit wins ties. This is the base die of the toughness (soak) roll — the
+ * character resists with whichever of body (Endurance) or will (Spirit) is
+ * tougher. Resistance skills are added on top, at roll time (opt-in).
+ * @param {object} ch - character document
+ * @returns {{ attrKey:"spirit"|"endurance", die:number, modifier:number }}
+ */
+export function deriveSoakBase(ch) {
+  const sp = ch.attributes?.spirit ?? {};
+  const en = ch.attributes?.endurance ?? {};
+  const spDie = sp.die ?? 4;
+  const enDie = en.die ?? 4;
+  if (enDie > spDie) return { attrKey: "endurance", die: enDie, modifier: en.modifier ?? 0 };
+  return { attrKey: "spirit", die: spDie, modifier: sp.modifier ?? 0 };
+}
+
+/**
+ * Human-readable toughness ROLL formula for the card — replaces the old
+ * static number. Shows the base = max(Spirit, Endurance) die (+ its modifier)
+ * and the standing "÷2" rule. Resistance skills are opt-in per roll, so they're
+ * summarised as "+навыки" rather than baked in.
+ * @param {object} ch - character document
+ * @returns {string}
+ */
+export function deriveToughnessFormula(ch) {
+  const base = deriveSoakBase(ch);
+  const m = base.modifier;
+  const modStr = m ? (m > 0 ? ` +${m}` : ` ${m}`) : "";
+  const spDie = ch.attributes?.spirit?.die ?? 4;
+  const enDie = ch.attributes?.endurance?.die ?? 4;
+  return `(макс d${spDie}·d${enDie}${modStr} +навыки) ÷2`;
+}
+
+/**
  * Maximum energy pool.
  * Formula: age + spirit.die
  * Status modifiers (D-06) applied separately via tension.energyPenalty.

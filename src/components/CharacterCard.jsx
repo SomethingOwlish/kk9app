@@ -10,7 +10,7 @@ import ContactsList from "./ContactsList";
 import RelationEditor from "./RelationEditor";
 import RollDialog from "./RollDialog";
 import DiceIcon from "./DiceIcon";
-import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
+import { deriveToughnessFormula, deriveSoakBase, deriveEnergyMax } from "../lib/derive";
 import { applyStatus, removeStatus, removeLanguageFromChar, addFeatureToChar, removeFeatureFromChar } from "../lib/db";
 import { buildItemRollTarget } from "../lib/items";
 import { deactivateSpellEntry } from "../lib/activeSpells";
@@ -136,7 +136,7 @@ function RollBtn({ title, onClick, cls = "roll" }) {
 
 export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, onEditBio, onAdvance, onLog, campaignId, campaignStatuses = [], items = [], onDeleteItem, onUpdateItem, peers = [], onSaveRelations, orgs = [], campaign, canRoll = false, onCommitRoll, onLinkOrg, onUnlinkOrg, onSetOrgLevel, daemonLib = [], onLinkDaemon, onUnlinkDaemon, roster = [], onAttack }) {
   // ── derived ────────────────────────────────────────────────────────
-  const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
+  const toughnessFormula = deriveToughnessFormula(ch);
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
   const tension = ch.tension || { current: 0, overcap: 0, energyPenalty: 0, max: 0 };
   const energyMax = Math.max(0, energyMaxRaw - (tension.energyPenalty ?? 0));
@@ -440,8 +440,8 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
             {/* railstats */}
             <div className="railstats">
               <div className="rsbtn">
-                <span className="rl">Стойкость{showRoll && <RollBtn title="Бросок стойкости (Дух)" onClick={() => setRollTarget({ kind: "toughness", name: "Стойкость", die: ch.attributes.spirit.die, modifier: ch.attributes.spirit.modifier, attribute: "spirit", isToughness: true })} />}</span>
-                <span className="rv">{toughness}</span>
+                <span className="rl">Стойкость{showRoll && <RollBtn title="Бросок стойкости (макс Дух/Вын, ÷2)" onClick={() => { const b = deriveSoakBase(ch); setRollTarget({ kind: "toughness", name: "Стойкость", die: b.die, modifier: b.modifier, attribute: b.attrKey, isToughness: true }); }} />}</span>
+                <span className="rv sm">{toughnessFormula}</span>
               </div>
               <div className="rsbtn">
                 <span className="rl">Инициатива</span>

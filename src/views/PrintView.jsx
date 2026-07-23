@@ -5,7 +5,7 @@ import { db } from "../lib/firebase";
 import { watchAuth } from "../lib/auth";
 import { CAMPAIGN_ID } from "../lib/config";
 import { ATTR_ORDER, ATTR_LABEL, ATTR_SHORT, CAT_ORDER, CAT_LABEL, dieStr } from "../lib/constants";
-import { derivePhysicalToughness, deriveEnergyMax } from "../lib/derive";
+import { deriveToughnessFormula, deriveEnergyMax } from "../lib/derive";
 import "../styles/print.css";
 
 function attrPipSizes(die) {
@@ -112,7 +112,7 @@ export default function PrintView() {
   if (status === "notfound")        return <div className="pr-msg">Персонаж не найден.</div>;
 
   const fac = ch.faculty || {};
-  const toughness = ch.health?.physical?.toughness ?? derivePhysicalToughness(ch);
+  const toughness = deriveToughnessFormula(ch);
   const energyMaxRaw = ch.energy?.max ?? deriveEnergyMax(ch);
   const tension = ch.tension || { current: 0, overcap: 0, energyPenalty: 0, max: 0 };
   const energyMax = Math.max(0, energyMaxRaw - (tension.energyPenalty ?? 0));
