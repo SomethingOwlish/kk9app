@@ -23,6 +23,7 @@ export default function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [pos, setPos] = useState(null);
+  const [container, setContainer] = useState(null);
   const ref = useRef(null);
   const panelRef = useRef(null);
 
@@ -37,6 +38,11 @@ export default function SearchableSelect({
 
   useLayoutEffect(() => {
     if (!open) return;
+    // Resolve the portal target here (in an effect, not during render): the
+    // nearest .kk-root so the theme's CSS custom properties cascade into the
+    // panel — otherwise --kk-surface etc. resolve to nothing and it renders
+    // transparent/unreadable. Falls back to <body>.
+    setContainer(ref.current?.closest(".kk-root") || document.body);
     reposition();
     window.addEventListener("resize", reposition);
     window.addEventListener("scroll", reposition, true);
@@ -108,7 +114,7 @@ export default function SearchableSelect({
         <span className="kk-ss-caret">{open ? "▲" : "▼"}</span>
       </div>
 
-      {open && pos && createPortal(
+      {open && pos && container && createPortal(
         <div
           className="kk-ss-panel"
           ref={panelRef}
@@ -142,10 +148,7 @@ export default function SearchableSelect({
             ))}
           </div>
         </div>,
-        // Portal into the nearest .kk-root (not <body>) so the theme's CSS
-        // custom properties cascade — otherwise --kk-surface etc. resolve to
-        // nothing and the panel renders transparent/unreadable.
-        ref.current?.closest(".kk-root") || document.body
+        container
       )}
     </div>
   );
