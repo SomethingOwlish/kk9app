@@ -144,6 +144,7 @@
 .kk-log-type-tag.chargen{background:color-mix(in srgb,var(--kk-gold) 15%,transparent);color:var(--kk-gold);}
 .kk-log-type-tag.advancement{background:color-mix(in srgb,var(--kk-accent,#5b8dd9) 15%,transparent);color:var(--kk-accent,#5b8dd9);}
 .kk-log-type-tag.bio{background:color-mix(in srgb,var(--kk-gold) 12%,transparent);color:var(--kk-text-dim);}
+.kk-log-type-tag.purchase{background:color-mix(in srgb,var(--kk-green,#4caf6a) 15%,transparent);color:var(--kk-green,#4caf6a);}
 /* Chargen card sections */
 .kk-log--chargen{border-color:color-mix(in srgb,var(--kk-gold) 30%,var(--kk-line-soft));}
 .kk-log-section{margin-top:8px;padding-top:8px;border-top:1px solid var(--kk-line-soft);}

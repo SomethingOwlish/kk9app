@@ -131,6 +131,30 @@ function BioLogCard({ e }) {
   );
 }
 
+const ITEM_TYPE_LABELS = {
+  weapon: "Оружие", gear: "Снаряжение", artifact: "Артефакт",
+  spell: "Заклинание", device: "Устройство", vehicle: "Транспорт",
+  language: "Язык", feature: "Особенность",
+};
+
+function PurchaseCard({ e }) {
+  return (
+    <div className="kk-log kk-log--purchase">
+      <div className="kk-log-head">
+        <span className="kk-log-type-tag purchase">Покупка</span>
+        <span className="kk-log-date">{fmtDate(e.at)}</span>
+        <span className="kk-log-spent">−◈ {e.price}</span>
+      </div>
+      <div className="kk-log-body">
+        <span className="kk-log-name">{e.name}</span>
+        {e.quantity > 1 && <span className="kk-log-kind">×{e.quantity}</span>}
+        {e.itemType && <span className="kk-log-kind">{ITEM_TYPE_LABELS[e.itemType] || e.itemType}</span>}
+        {e.shopName && <span className="kk-log-kind">{e.shopName}</span>}
+      </div>
+    </div>
+  );
+}
+
 const TYPE_TAG_LABEL = { request_applied: "Заявка" };
 
 function UnknownCard({ e }) {
@@ -148,6 +172,7 @@ function UnknownCard({ e }) {
 function renderEntry(e) {
   if (e.type === "chargen_created") return <ChargenCard key={e.id} e={e} />;
   if (e.type === "bio_edit") return <BioLogCard key={e.id} e={e} />;
+  if (e.type === "purchase") return <PurchaseCard key={e.id} e={e} />;
   if (!e.type || e.type === "advancement") return <AdvancementCard key={e.id} e={e} />;
   return <UnknownCard key={e.id} e={e} />;
 }
@@ -159,6 +184,7 @@ const TABS = [
   { id: "chargen_created", label: "Создание" },
   { id: "advancement",     label: "Прокачка" },
   { id: "bio_edit",        label: "Анкета" },
+  { id: "purchase",        label: "Покупки" },
 ];
 
 function tabMatches(tabId, e) {

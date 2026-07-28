@@ -295,6 +295,15 @@ export const SKILLS_DATA = [
     description:"Магия чарующих иллюзий — наведение облика, обмана чувств и очарования." },
 ];
 
+// Имена всех магических навыков (школ магии). Навык считается магическим, если
+// его атрибут — «магия» ЛИБО он отнесён к категории magic (напр. Викка/Псионика,
+// у которых атрибут иной). Используется для раскладки заклинаний по школам в
+// магазине: заклинание, привязанное к немагическому навыку, идёт в «Остальное».
+export const MAGIC_SKILL_NAMES = new Set(
+  SKILLS_DATA.filter((s) => s.attr === "magic" || s.categ === "magic").map((s) => s.name),
+);
+export const isMagicSkillName = (name) => !!name && MAGIC_SKILL_NAMES.has(name);
+
 // Навыки чистой карточки: только base, нетренированные d4-2.
 export function buildBaseSkills() {
   return SKILLS_DATA

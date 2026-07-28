@@ -1599,6 +1599,19 @@ export async function purchaseStackable(campaignId, shopId, stockIndex, buyerCha
       ownerCharacterId: buyerCharId,
       createdAt: serverTimestamp(),
     });
+    // Record the spend on the character log (type "purchase") atomically with the
+    // money debit — so a failed write can't leave money spent without a trace.
+    const logRef = doc(collection(db, "campaigns", campaignId, "characters", buyerCharId, "log"));
+    tx.set(logRef, {
+      type: "purchase",
+      name: entry.itemData?.name || "товар",
+      itemType: entry.itemData?.type || "",
+      quantity: qty,
+      price: total,
+      shopId,
+      shopName: shopSnap.data().name || "",
+      at: serverTimestamp(),
+    });
     return { name: entry.itemData?.name || "товар", price: total };
   });
 }
@@ -1628,6 +1641,19 @@ export async function purchaseUnique(campaignId, shopId, itemId, buyerCharId) {
     // above ("Предмет уже занят").
     tx.update(charRef, { money: money - total });
     tx.update(itemRef, { ownerCharacterId: buyerCharId });
+    // Record the spend on the character log (type "purchase") atomically with the
+    // money debit — so a failed write can't leave money spent without a trace.
+    const logRef = doc(collection(db, "campaigns", campaignId, "characters", buyerCharId, "log"));
+    tx.set(logRef, {
+      type: "purchase",
+      name: itemSnap.data().name || "предмет",
+      itemType: itemSnap.data().type || "",
+      quantity: 1,
+      price: total,
+      shopId,
+      shopName: shopSnap.data().name || "",
+      at: serverTimestamp(),
+    });
     return { name: itemSnap.data().name || "предмет", price: total };
   });
 }
