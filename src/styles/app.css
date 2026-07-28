@@ -673,7 +673,7 @@
 .kk-ss-link,.kk-ss-x{background:none;border:none;cursor:pointer;padding:0 1px;font-size:11px;line-height:1;color:var(--kk-text-faint);}
 .kk-ss-link:hover{color:var(--kk-accent,#c4a44a);}
 .kk-ss-x:hover{color:#ef4444;}
-.kk-ss-panel{position:absolute;z-index:50;top:calc(100% + 2px);left:0;right:0;background:var(--kk-surface);border:1px solid var(--kk-line);border-radius:var(--kk-r-sm);box-shadow:0 6px 18px rgba(0,0,0,0.4);overflow:hidden;}
+.kk-ss-panel{position:fixed;z-index:1000;background:var(--kk-surface);border:1px solid var(--kk-line);border-radius:var(--kk-r-sm);box-shadow:0 6px 18px rgba(0,0,0,0.4);overflow:hidden;}
 .kk-ss-search{width:100%;box-sizing:border-box;padding:6px 8px;border:none;border-bottom:1px solid var(--kk-line-soft);background:var(--kk-surface);color:var(--kk-text);font-size:13px;outline:none;}
 .kk-ss-list{max-height:200px;overflow-y:auto;}
 .kk-ss-opt{display:flex;align-items:center;gap:6px;padding:5px 8px;font-size:13px;cursor:pointer;color:var(--kk-text);}

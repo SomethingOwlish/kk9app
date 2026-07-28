@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 // Searchable single/multi select sourced from a list of DB-backed options.
 // Replaces Foundry-style drag&drop slots (skills, statuses, …).
@@ -21,11 +22,35 @@ export default function SearchableSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [pos, setPos] = useState(null);
   const ref = useRef(null);
+  const panelRef = useRef(null);
+
+  // Portal the panel to <body> so it escapes any `overflow:hidden`/low-z-index
+  // ancestor (e.g. the shop's collapsible groups) that would otherwise clip it.
+  const reposition = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ top: r.bottom + 2, left: r.left, width: r.width });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    reposition();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [open, reposition]);
 
   useEffect(() => {
     function onDoc(e) {
-      if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQ(""); }
+      const inControl = ref.current && ref.current.contains(e.target);
+      const inPanel = panelRef.current && panelRef.current.contains(e.target);
+      if (!inControl && !inPanel) { setOpen(false); setQ(""); }
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -83,8 +108,12 @@ export default function SearchableSelect({
         <span className="kk-ss-caret">{open ? "▲" : "▼"}</span>
       </div>
 
-      {open && (
-        <div className="kk-ss-panel">
+      {open && pos && createPortal(
+        <div
+          className="kk-ss-panel"
+          ref={panelRef}
+          style={{ top: pos.top, left: pos.left, width: pos.width }}
+        >
           <input
             autoFocus
             className="kk-ss-search"
@@ -112,7 +141,8 @@ export default function SearchableSelect({
               </div>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
