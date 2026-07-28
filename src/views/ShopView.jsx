@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import StockList from "../components/shop/StockList";
 import PurchaseDialog from "../components/shop/PurchaseDialog";
 import Group from "../components/shop/Group";
-import { groupByType } from "../components/shop/groupUtils";
+import { groupShopSections } from "../components/shop/groupUtils";
 
 // Player-facing shop (FEAT-17, TASK-087/088/089).
 // Props:
@@ -117,7 +117,7 @@ export default function ShopView({ shops = [], char, ownedItems = [], allItems =
 // Price-0 items are still sellable. Grouped sale items are kept separate per type.
 function SellList({ shop, ownedItems, busy, onSell, typeLabels, defaultItemPrice }) {
   const sellable = ownedItems.filter((i) => i.name !== "Кулаки"); // never sell the default fists
-  const groups = useMemo(() => groupByType(sellable), [sellable]);
+  const sections = useMemo(() => groupShopSections(sellable), [sellable]);
   if (sellable.length === 0) {
     return (
       <section className="kk-shop-sec">
@@ -127,14 +127,19 @@ function SellList({ shop, ownedItems, busy, onSell, typeLabels, defaultItemPrice
     );
   }
   const priceFor = (type) => shop.defaultPrices?.[type] ?? defaultItemPrice ?? 0;
+  const titleOf = (sec) =>
+    sec.type === "spell"
+      ? `Заклинания · ${sec.school} (${sec.items.length})`
+      : `${typeLabels[sec.type] || sec.type} (${sec.items.length})`;
   return (
     <section className="kk-shop-sec">
       <div className="kk-shop-sec-title">Продать</div>
       <div className="kk-note">Продажа подтверждается ГМ — укажите желаемую цену, ГМ её утвердит или изменит.</div>
-      {groups.map(([type, list]) => (
-        <Group key={type} title={`${typeLabels[type] || type} (${list.length})`}>
-          {list.map((item) => (
-            <SellRow key={item.id} item={item} suggested={priceFor(type)} busy={busy} onSell={onSell} typeLabel={typeLabels[type] || type} />
+      {sections.map((sec) => (
+        <Group key={sec.key} title={titleOf(sec)}>
+          {sec.items.map((item) => (
+            <SellRow key={item.id} item={item} suggested={priceFor(sec.type)} busy={busy} onSell={onSell}
+              typeLabel={sec.type === "spell" ? sec.school : (typeLabels[sec.type] || sec.type)} />
           ))}
         </Group>
       ))}
@@ -149,6 +154,7 @@ function SellRow({ item, suggested, busy, onSell, typeLabel }) {
       <div className="kk-shop-main">
         <span className="kk-shop-name">{item.name}</span>
         <span className="kk-shop-sub">{typeLabel}</span>
+        {item.description && <span className="kk-shop-desc">{item.description}</span>}
       </div>
       <input className="kk-input kk-shop-price-input" type="number" min={0} value={price}
         onChange={(e) => setPrice(Math.max(0, Number(e.target.value) || 0))} />
