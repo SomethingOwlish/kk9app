@@ -142,7 +142,10 @@ export default function SearchableSelect({
             ))}
           </div>
         </div>,
-        document.body
+        // Portal into the nearest .kk-root (not <body>) so the theme's CSS
+        // custom properties cascade — otherwise --kk-surface etc. resolve to
+        // nothing and the panel renders transparent/unreadable.
+        ref.current?.closest(".kk-root") || document.body
       )}
     </div>
   );
