@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import guideDefault from "../content/guide.md?raw";
+import LoreNote from "../components/LoreNote";
 
 // FEAT-06 — Player-facing rules guide. Content comes from campaign.guideMarkdown
 // (editable in-app by GM/admin) and falls back to the bundled docs/player.md.
@@ -97,12 +98,14 @@ export default function GuideView({ campaign, canEdit = false, onSave }) {
     <div className="kk-guide">
       <div className="kk-edit-bar">
         <span className="kk-edit-title">Правила игры</span>
-        {canEdit && (
+        {/* Гайд, забранный в Лорбук, правится там. */}
+        {canEdit && !campaign?._lore && (
           <div className="kk-edit-actions">
             <button className="kk-btn ghost" onClick={startEdit}>Редактировать</button>
           </div>
         )}
       </div>
+      <LoreNote doc={campaign} />
       {toc.length > 0 && (
         <nav className="kk-guide-toc">
           {toc.map((t, i) => (

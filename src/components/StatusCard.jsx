@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { updateStatus, deleteStatus } from "../lib/db";
+import { isLocked } from "../lib/lorebook";
+import LoreNote from "./LoreNote";
 
 const DURATION_MODE_LABEL = { time: "Время (вручную)", charges: "Заряды", counter: "Счётчик (раунды)" };
 const EFFECT_TYPE_LABEL   = { roll_modifier: "Модификатор бросков", health: "Здоровье", energy: "Энергия", tension: "Напряжение" };
@@ -104,12 +106,15 @@ function EditView({ status, campaignId, onSaved, onDelete }) {
   async function save() {
     setSaving(true);
     try {
-      await updateStatus(campaignId, status.id, {
+      const patch = {
         name,
         description,
         removal_instruction: removal,
         duration: { mode: durMode, value: Number(durVal), auto_reduce: autoReduce },
-      });
+      };
+      // Описание статуса, связанного с Лорбуком, правится там.
+      for (const key of status._lore?.locked || []) delete patch[key];
+      await updateStatus(campaignId, status.id, patch);
       onSaved?.();
     } catch (e) { alert("Ошибка: " + e.message); }
     finally { setSaving(false); }
@@ -125,6 +130,7 @@ function EditView({ status, campaignId, onSaved, onDelete }) {
 
   return (
     <div className="kk-sc-body kk-sc-edit">
+      <LoreNote doc={status} />
       <label className="kk-sc-field">
         <span>Название</span>
         <input className="kk-input" value={name} onChange={e => setName(e.target.value)}/>
@@ -153,12 +159,12 @@ function EditView({ status, campaignId, onSaved, onDelete }) {
 
       <label className="kk-sc-field">
         <span>Описание</span>
-        <textarea className="kk-input kk-textarea" rows={3} value={description} onChange={e => setDesc(e.target.value)}/>
+        <textarea className="kk-input kk-textarea" rows={3} value={description} disabled={isLocked(status, "description")} onChange={e => setDesc(e.target.value)}/>
       </label>
 
       <label className="kk-sc-field">
         <span>Инструкция снятия <span className="kk-gm-badge">ГМ</span></span>
-        <textarea className="kk-input kk-textarea" rows={2} value={removal} onChange={e => setRemoval(e.target.value)}/>
+        <textarea className="kk-input kk-textarea" rows={2} value={removal} disabled={isLocked(status, "removal_instruction")} onChange={e => setRemoval(e.target.value)}/>
       </label>
 
       <p className="kk-sc-edit-note">Эффекты редактируются через базовый редактор.</p>

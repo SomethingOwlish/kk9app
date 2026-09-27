@@ -1,10 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { watchActiveScene } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
 import SceneManager from "../components/SceneManager";
+import { useLore } from "../lib/useLorebook";
+import { overlay } from "../lib/lorebook";
 
 export default function ScenePlayerView({ isGM = false, onBack }) {
-  const [scene, setScene] = useState(undefined);
+  const [rawScene, setScene] = useState(undefined);
+  const lore = useLore();
+  const scene = useMemo(() => (rawScene ? overlay(rawScene, lore, `scenes/${rawScene.id}`, "scene") : rawScene), [rawScene, lore]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 

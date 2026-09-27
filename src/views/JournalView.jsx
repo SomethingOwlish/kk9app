@@ -1,6 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { watchJournalPages, addJournalPage, editJournalPage, deleteJournalPage } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
+import { useLore } from "../lib/useLorebook";
+import { overlayList } from "../lib/lorebook";
+import LoreNote from "../components/LoreNote";
 
 const STREAMS = [
   { id: "campaign",   label: "Кампания",  gmOnly: false },
@@ -21,9 +24,11 @@ function PageCard({ page, isGM, onEdit, onDelete }) {
       {open && (
         <div className="kk-jpage-body">
           <pre className="kk-jpage-text">{page.body}</pre>
+          {isGM || page._lore?.hidden ? <LoreNote doc={page} compact /> : null}
+          {/* Страница, забранная в Лорбук, правится целиком там: у неё нет своего, кроме даты. */}
           {isGM && (
             <div className="kk-jpage-acts">
-              <button className="kk-btn ghost sm" onClick={() => onEdit(page)}>Ред.</button>
+              {!page._lore && <button className="kk-btn ghost sm" onClick={() => onEdit(page)}>Ред.</button>}
               <button className="kk-btn danger sm" onClick={() => onDelete(page.id)}>Удалить</button>
             </div>
           )}
@@ -61,7 +66,8 @@ function PageForm({ initial, onSave, onCancel }) {
 
 export default function JournalView({ isGM, campaign }) {
   const [stream, setStream] = useState("campaign");
-  const [pages, setPages] = useState([]);
+  const [rawPages, setPages] = useState([]);
+  const lore = useLore();
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState(null);
 
@@ -69,6 +75,10 @@ export default function JournalView({ isGM, campaign }) {
   const visibleStreams = isGM ? STREAMS : STREAMS.filter(s => !s.gmOnly);
   // Clamp stream to a visible stream without calling setState inside an effect.
   const effectiveStream = visibleStreams.some(s => s.id === stream) ? stream : "campaign";
+  const pages = useMemo(
+    () => overlayList(rawPages, lore, "journal", `journal/${effectiveStream}/pages`),
+    [rawPages, lore, effectiveStream],
+  );
 
   useEffect(() => {
     return watchJournalPages(CAMPAIGN_ID, effectiveStream, setPages, archiveThreshold);

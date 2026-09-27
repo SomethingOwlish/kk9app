@@ -747,3 +747,8 @@
 @media (max-width:720px){
   .kk-items-split{grid-template-columns:1fr;}
 }
+
+/* Пометка у записи, текст которой живёт в Лорбуке (lib/lorebook.js). */
+.kk-lore-note { font-size: 0.8rem; opacity: 0.75; margin: 4px 0; }
+.kk-lore-note a { color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; }
+.kk-lore-note--wait { color: var(--kk-warn, #d97706); opacity: 1; }
