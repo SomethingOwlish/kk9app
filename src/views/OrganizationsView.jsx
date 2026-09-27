@@ -1,4 +1,6 @@
 import { useState } from "react";
+import LoreNote from "../components/LoreNote";
+import { isLocked } from "../lib/lorebook";
 import SearchableSelect from "../components/SearchableSelect";
 import { normalizeMembers } from "../lib/db";
 
@@ -74,7 +76,13 @@ function OrgCard({ org, isGM, characters, onUpdate, onDelete, onUnlinkChar, onOp
   const [open, setOpen] = useState(false);
   const [memberPick, setMemberPick] = useState("");
   const [memberName, setMemberName] = useState("");
-  const save = (patch) => onUpdate(org.id, patch);
+  // Текст организации, связанной с Лорбуком, правится там: запертые ключи
+  // отсюда не пишутся, чтобы правка не легла под текст мира.
+  const lk = (key) => isLocked(org, key);
+  const save = (patch) => {
+    const own = Object.fromEntries(Object.entries(patch).filter(([k]) => !lk(k)));
+    if (Object.keys(own).length) onUpdate(org.id, own);
+  };
 
   const members = normalizeMembers(org.members);
   const formerMembers = Array.isArray(org.formerMembers) ? org.formerMembers : [];
@@ -99,6 +107,7 @@ function OrgCard({ org, isGM, characters, onUpdate, onDelete, onUnlinkChar, onOp
         <div className="kk-org-head"><span className="kk-org-name">{org.name}</span>
           {org.orgType && <span className="kk-org-type">{typeLabel(org.orgType)}</span>}</div>
         {org.accessLevel && <div className="kk-org-access">Доступ: {accessLabel(org.accessLevel)}</div>}
+        {org._lore?.hidden && <LoreNote doc={org} />}
         {org.description && <p className="kk-org-desc">{org.description}</p>}
         {org.leader && <div className="kk-org-sub"><b>Лидер:</b> {org.leader}</div>}
         {org.representative && <div className="kk-org-sub"><b>Представитель:</b> {org.representative}</div>}
@@ -127,12 +136,13 @@ function OrgCard({ org, isGM, characters, onUpdate, onDelete, onUnlinkChar, onOp
   return (
     <div className={`kk-org-card kk-org-edit ${org.visibleToPlayers ? "kk-org-visible" : ""}`}>
       <div className="kk-org-head">
-        <input className="kk-input kk-org-name-input" defaultValue={org.name}
+        <input className="kk-input kk-org-name-input" defaultValue={org.name} disabled={lk("name")}
           onBlur={(e) => e.target.value !== org.name && save({ name: e.target.value })} />
         <button className="kk-icon-btn kk-icon-del" title="Удалить организацию"
           onClick={() => window.confirm(`Удалить «${org.name}»? Связи будут сняты.`) && onDelete(org.id)}>✕</button>
       </div>
 
+      <LoreNote doc={org} compact />
       <label className="kk-org-vis">
         <input type="checkbox" checked={!!org.visibleToPlayers}
           onChange={(e) => save({ visibleToPlayers: e.target.checked })} />
@@ -152,19 +162,19 @@ function OrgCard({ org, isGM, characters, onUpdate, onDelete, onUnlinkChar, onOp
             <SearchableSelect options={ACCESS_LEVELS} value={org.accessLevel || "open"}
               onChange={(v) => save({ accessLevel: v })} /></label>
           <label className="kk-sc-field"><span>Лидер</span>
-            <input className="kk-input" defaultValue={org.leader || ""}
+            <input className="kk-input" defaultValue={org.leader || ""} disabled={lk("leader")}
               onBlur={(e) => save({ leader: e.target.value })} /></label>
           <label className="kk-sc-field"><span>Представитель</span>
-            <input className="kk-input" defaultValue={org.representative || ""}
+            <input className="kk-input" defaultValue={org.representative || ""} disabled={lk("representative")}
               onBlur={(e) => save({ representative: e.target.value })} /></label>
           <label className="kk-sc-field"><span>Цели</span>
-            <textarea className="kk-input kk-textarea" rows={2} defaultValue={org.goals || ""}
+            <textarea className="kk-input kk-textarea" rows={2} defaultValue={org.goals || ""} disabled={lk("goals")}
               onBlur={(e) => save({ goals: e.target.value })} /></label>
           <label className="kk-sc-field"><span>Описание</span>
-            <textarea className="kk-input kk-textarea" rows={3} defaultValue={org.description || ""}
+            <textarea className="kk-input kk-textarea" rows={3} defaultValue={org.description || ""} disabled={lk("description")}
               onBlur={(e) => save({ description: e.target.value })} /></label>
           <label className="kk-sc-field"><span>Заметки (ГМ)</span>
-            <textarea className="kk-input kk-textarea" rows={2} defaultValue={org.notes || ""}
+            <textarea className="kk-input kk-textarea" rows={2} defaultValue={org.notes || ""} disabled={lk("notes")}
               onBlur={(e) => save({ notes: e.target.value })} /></label>
 
           <div className="kk-sc-field">
@@ -199,7 +209,7 @@ function OrgCard({ org, isGM, characters, onUpdate, onDelete, onUnlinkChar, onOp
               }) })} /></label>
 
           <label className="kk-sc-field"><span>События (по строке)</span>
-            <textarea className="kk-input kk-textarea" rows={3} defaultValue={(org.events || []).join("\n")}
+            <textarea className="kk-input kk-textarea" rows={3} defaultValue={(org.events || []).join("\n")} disabled={lk("events")}
               onBlur={(e) => save({ events: linesToArr(e.target.value) })} /></label>
         </div>
       )}

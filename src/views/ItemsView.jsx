@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import LoreNote from "../components/LoreNote";
+import { isLocked } from "../lib/lorebook";
 import SearchableSelect from "../components/SearchableSelect";
 import { SKILLS_DATA } from "../lib/seed-skills";
 import { ATTR_SHORT, ATTR_ORDER, ATTR_LABEL } from "../lib/constants";
@@ -223,6 +225,8 @@ export default function ItemsView({
       } else {
         // eslint-disable-next-line no-unused-vars
         const { id: _id, createdAt: _ca, ...fields } = formData;
+        // Название и описание предмета, связанного с Лорбуком, правятся там.
+        for (const key of selectedItem?._lore?.locked || []) delete fields[key];
         await onUpdateItem(selectedId, fields);
       }
     } catch (err) {
@@ -421,7 +425,9 @@ export default function ItemsView({
                 </div>
               )}
 
+              {paneMode === "edit" && <LoreNote doc={selectedItem} />}
               <AddItemForm
+                lore={paneMode === "edit" ? selectedItem : null}
                 type={paneMode === "create" ? activeTab : (selectedItem?.type || activeTab)}
                 data={formData}
                 setData={setField}
@@ -502,7 +508,7 @@ export default function ItemsView({
 //  Full-schema add/edit form — sections instead of Foundry tabs.
 // ════════════════════════════════════════════════════════════════
 function AddItemForm({
-  type, data, setData, onSubmit, onCancel, saving, submitLabel = "Добавить",
+  lore, type, data, setData, onSubmit, onCancel, saving, submitLabel = "Добавить",
   skillOptions, magicSkillOptions, statusOptions, onSkillInfo, onStatusInfo,
 }) {
   const txt = k => e => setData(k, e.target.value);
@@ -550,8 +556,8 @@ function AddItemForm({
 
   return (
     <form className="kk-item-form" onSubmit={onSubmit} style={{ marginTop: "0.5rem" }}>
-      <input className="kk-note-input" placeholder="Название *" value={data.name || ""} onChange={txt("name")} required maxLength={100} />
-      <textarea className="kk-note-input kk-note-body-input" placeholder="Описание" value={data.description || ""} onChange={txt("description")} rows={2} maxLength={2000} />
+      <input className="kk-note-input" placeholder="Название *" value={data.name || ""} onChange={txt("name")} disabled={isLocked(lore, "name")} required maxLength={100} />
+      <textarea className="kk-note-input kk-note-body-input" placeholder="Описание" value={data.description || ""} onChange={txt("description")} disabled={isLocked(lore, "description")} rows={2} maxLength={2000} />
 
       {/* ── Состояние (вещи) ── */}
       {(type === "weapon" || type === "gear" || type === "artifact" || type === "device") && (

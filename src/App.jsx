@@ -42,6 +42,8 @@ import { roundStatusPatch, bennieGrantPatch } from "./lib/rest";
 import { CAMPAIGN_ID, clearActiveCampaign } from "./lib/config";
 import { getPath, applyOverrides, canAdvance } from "./lib/appUtils";
 import { loadPrefs, savePref } from "./lib/userPrefs";
+import { overlay, overlayList } from "./lib/lorebook";
+import { LorebookProvider, useLorebookProjection } from "./lib/useLorebook";
 import "./styles/app.css";
 import "./styles/theme-explorer.css";
 import "./styles/tier2.css";
@@ -78,7 +80,7 @@ export default function App({ user, signOut }) {
   const { pathname } = useLocation();
   const [theme, setTheme] = useState(() => loadPrefs(user.uid).theme || "original");
   const saveTheme = useCallback((t) => { setTheme(t); savePref(user.uid, "theme", t); }, [user.uid]);
-  const [campaign, setCampaign] = useState(null);
+  const [campaignRaw, setCampaign] = useState(null);
   const [characters, setCharacters] = useState([]);
   const [ready, setReady] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -94,15 +96,15 @@ export default function App({ user, signOut }) {
   const [advancementConfig, setAdvancementConfig] = useState(null);
   const [advConfigReady, setAdvConfigReady] = useState(false);
   const [gmModeData, setGmModeData] = useState(null);
-  const [campaignStatuses, setCampaignStatuses] = useState([]);
+  const [campaignStatusesRaw, setCampaignStatuses] = useState([]);
   const [npcs, setNpcs] = useState([]);
-  const [activeScene, setActiveScene] = useState(null);
+  const [activeSceneRaw, setActiveScene] = useState(null);
   const [activeItems, setActiveItems] = useState([]);
-  const [allItems, setAllItems] = useState([]);
-  const [orgs, setOrgs] = useState([]);
+  const [allItemsRaw, setAllItems] = useState([]);
+  const [orgsRaw, setOrgs] = useState([]);
   const [shops, setShops] = useState([]);
   const [sellRequests, setSellRequests] = useState([]);
-  const [library, setLibrary] = useState([]);
+  const [libraryRaw, setLibrary] = useState([]);
   // Глобальная роль из users/{uid} (admin/gm/player) — источник правды для доступа.
   const [globalRole, setGlobalRole] = useState(null);
   const [attacks, setAttacks] = useState([]);
@@ -125,6 +127,20 @@ export default function App({ user, signOut }) {
     setCampaignStatuses(statuses);
     if (statuses.length === 0) seedStatuses(CAMPAIGN_ID, STATUSES_DATA).catch(console.error);
   }), []);
+
+  // Кампания связана с миром Лорбука — текст лорных записей живёт там. Он
+  // накладывается здесь, один раз, поверх того, что пришло из базы: дальше все
+  // экраны видят уже текст мира, а формы запирают его ключи (`lib/lorebook.js`).
+  const lore = useLorebookProjection(CAMPAIGN_ID, campaignRaw);
+  const campaign = useMemo(() => overlay(campaignRaw, lore, "guide", "guide"), [campaignRaw, lore]);
+  const library = useMemo(() => overlayList(libraryRaw, lore, "library"), [libraryRaw, lore]);
+  const orgs = useMemo(() => overlayList(orgsRaw, lore, "organizations"), [orgsRaw, lore]);
+  const allItems = useMemo(() => overlayList(allItemsRaw, lore, "items"), [allItemsRaw, lore]);
+  const campaignStatuses = useMemo(() => overlayList(campaignStatusesRaw, lore, "statuses"), [campaignStatusesRaw, lore]);
+  const activeScene = useMemo(
+    () => (activeSceneRaw ? overlay(activeSceneRaw, lore, `scenes/${activeSceneRaw.id}`, "scene") : activeSceneRaw),
+    [activeSceneRaw, lore],
+  );
 
   const cardMatch = pathname.match(/^\/card\/([^/]+)/);
   const urlCharId = cardMatch ? cardMatch[1] : null;
@@ -546,6 +562,7 @@ export default function App({ user, signOut }) {
   // + menu are shown only to an admin so they can switch back out of demo mode.
   if (ready && cl && role === "demo") {
     return (
+      <LorebookProvider value={lore}>
       <div className={`kk-root${themeClass}`}>
         <div className="kk-bg" aria-hidden/>
         <ScenePlayerView/>
@@ -557,10 +574,12 @@ export default function App({ user, signOut }) {
         )}
         {isAdmin && <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} onSwitchCampaign={onSwitchCampaign} isDemo hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>}
       </div>
+      </LorebookProvider>
     );
   }
   if (view === "scene" && ready && cl) {
     return (
+      <LorebookProvider value={lore}>
       <div className={`kk-root${themeClass}`}>
         <div className="kk-bg" aria-hidden/>
         <ScenePlayerView isGM={isGM} onBack={() => navigate("/")}/>
@@ -580,10 +599,12 @@ export default function App({ user, signOut }) {
         )}
         <Menu open={menu} onClose={() => setMenu(false)} onNav={nav} current={current} onSignOut={signOut} isGM={isGM} isAdmin={isAdmin} actingAs={actingAs} onActAs={actAs} onSwitchCampaign={onSwitchCampaign} isDemo={role === "demo"} hasChar={!!activeId} hasLk={!!campaign?.lk?.projectUrl}/>
       </div>
+      </LorebookProvider>
     );
   }
 
   return (
+    <LorebookProvider value={lore}>
     <div className={`kk-root${themeClass}`}>
       <div className="kk-bg" aria-hidden/>
       <button className="kk-burger kk-burger-fixed" onClick={() => setMenu(true)} aria-label="Меню"><span/><span/><span/></button>
@@ -658,5 +679,6 @@ export default function App({ user, signOut }) {
         </div>
       )}
     </div>
+    </LorebookProvider>
   );
 }

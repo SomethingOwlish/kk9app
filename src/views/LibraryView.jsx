@@ -4,6 +4,8 @@ import {
   DAEMON_COLORS, CONDITIONS, MAJOR_ARCANA, libraryDefaultsFor,
 } from "../lib/library";
 import RelationsList from "../components/RelationsList";
+import LoreNote from "../components/LoreNote";
+import { isLocked } from "../lib/lorebook";
 
 // Library kinds that carry a relations block (all NPC weights except light).
 const RELATION_KINDS = new Set(["npc-hard", "npc-boss", "curator", "companion", "daemon"]);
@@ -119,6 +121,7 @@ function LibCard({ entry, isGM, peers = [], onSaveRelations, onEdit, onDelete })
         {isGM && entry.visibleToPlayers && <span className="kk-lib-badge" title="Видно игрокам">👁</span>}
       </div>
 
+      {isGM || entry._lore?.hidden ? <LoreNote doc={entry} compact /> : null}
       <ReadBody entry={entry} isGM={isGM} />
 
       {showRelations && (
@@ -311,12 +314,16 @@ function LibEditModal({ entry, onClose, onSave }) {
   // Недостающие поля статблока берутся умолчанием рода: кураторы, засеянные
   // без статблока, открываются с пустым статблоком босса, а не с дырами.
   const [draft, setDraft] = useState(() => ({ ...libraryDefaultsFor(entry.kind), ...entry }));
-  const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
+  // Текст записи, связанной с Лорбуком, правится там: его ключи заперты и в базу
+  // отсюда не пишутся — иначе правка легла бы под текст мира и пропала.
+  const lk = (key) => isLocked(entry, key);
+  const set = (key, value) => { if (!lk(key)) setDraft((d) => ({ ...d, [key]: value })); };
 
   const save = () => {
     const patch = { ...draft };
     delete patch.id;
     delete patch.createdAt;
+    for (const key of entry._lore?.locked || []) delete patch[key];
     onSave(patch);
   };
 
@@ -329,11 +336,12 @@ function LibEditModal({ entry, onClose, onSave }) {
         </div>
 
         <div className="kk-modal-body">
-          <TextField label="Имя" value={draft.name} onChange={(v) => set("name", v)} />
-          <TextField label="Картинка (URL)" value={draft.img} onChange={(v) => set("img", v)} />
-          <TextAreaField label="Описание (HTML)" value={draft.description} onChange={(v) => set("description", v)} />
+          <LoreNote doc={entry} />
+          <TextField label="Имя" value={draft.name} onChange={(v) => set("name", v)} disabled={lk?.("name")} />
+          <TextField label="Картинка (URL)" value={draft.img} onChange={(v) => set("img", v)} disabled={lk?.("img")} />
+          <TextAreaField label="Описание (HTML)" value={draft.description} onChange={(v) => set("description", v)} disabled={lk?.("description")} />
 
-          <KindFields draft={draft} set={set} />
+          <KindFields draft={draft} set={set} lk={lk} />
 
           <BoolField label="Видно игрокам" value={draft.visibleToPlayers} onChange={(v) => set("visibleToPlayers", v)} />
         </div>
@@ -347,33 +355,33 @@ function LibEditModal({ entry, onClose, onSave }) {
   );
 }
 
-function KindFields({ draft, set }) {
+function KindFields({ draft, set, lk }) {
   const k = draft.kind;
-  if (k === "daemon") return <DaemonFields draft={draft} set={set} />;
-  if (k === "companion") return <CompanionFields draft={draft} set={set} />;
-  if (k === "faculty") return <FacultyFields draft={draft} set={set} />;
+  if (k === "daemon") return <DaemonFields draft={draft} set={set} lk={lk} />;
+  if (k === "companion") return <CompanionFields draft={draft} set={set} lk={lk} />;
+  if (k === "faculty") return <FacultyFields draft={draft} set={set} lk={lk} />;
   // npc-light / npc-hard / npc-boss / curator
-  return <NpcFields draft={draft} set={set} isCurator={k === "curator"} />;
+  return <NpcFields draft={draft} set={set} lk={lk} isCurator={k === "curator"} />;
 }
 
-function NpcFields({ draft, set, isCurator }) {
+function NpcFields({ draft, set, lk, isCurator }) {
   return (
     <>
       {isCurator && (
         <div className="kk-lib-row2">
-          <TextField label="Ключ факультета" value={draft.facultyKey} onChange={(v) => set("facultyKey", v)} />
-          <TextField label="Факультет" value={draft.facultyName} onChange={(v) => set("facultyName", v)} />
+          <TextField label="Ключ факультета" value={draft.facultyKey} onChange={(v) => set("facultyKey", v)} disabled={lk?.("facultyKey")} />
+          <TextField label="Факультет" value={draft.facultyName} onChange={(v) => set("facultyName", v)} disabled={lk?.("facultyName")} />
         </div>
       )}
-      <TextField label="Роль" value={draft.role} onChange={(v) => set("role", v)} />
+      <TextField label="Роль" value={draft.role} onChange={(v) => set("role", v)} disabled={lk?.("role")} />
       <div className="kk-lib-row3">
-        <TextField label="Раса" value={draft.race} onChange={(v) => set("race", v)} />
-        <TextField label="Возраст" value={draft.age} onChange={(v) => set("age", v)} />
-        <TextField label="Пол" value={draft.gender} onChange={(v) => set("gender", v)} />
+        <TextField label="Раса" value={draft.race} onChange={(v) => set("race", v)} disabled={lk?.("race")} />
+        <TextField label="Возраст" value={draft.age} onChange={(v) => set("age", v)} disabled={lk?.("age")} />
+        <TextField label="Пол" value={draft.gender} onChange={(v) => set("gender", v)} disabled={lk?.("gender")} />
       </div>
       <AttrsEditor attributes={draft.attributes} onChange={(a) => set("attributes", a)} />
       <div className="kk-lib-row3">
-        <NumberField label="Стойкость" value={draft.toughness} onChange={(v) => set("toughness", v)} />
+        <NumberField label="Стойкость" value={draft.toughness} onChange={(v) => set("toughness", v)} disabled={lk?.("toughness")} />
         <NumberField label="Энергия" value={draft.energy?.value} onChange={(v) => set("energy", { ...(draft.energy || {}), value: v })} />
         <NumberField label="Энергия макс" value={draft.energy?.max} onChange={(v) => set("energy", { ...(draft.energy || {}), max: v })} />
       </div>
@@ -384,40 +392,40 @@ function NpcFields({ draft, set, isCurator }) {
       />
       <StringListEditor label="Оружие" value={draft.weapons} onChange={(v) => set("weapons", v)} placeholder="Название оружия" />
       <StringListEditor label="Снаряжение" value={draft.gear} onChange={(v) => set("gear", v)} placeholder="Название снаряжения" />
-      <TextAreaField label="Заметки" value={draft.notes} onChange={(v) => set("notes", v)} />
+      <TextAreaField label="Заметки" value={draft.notes} onChange={(v) => set("notes", v)} disabled={lk?.("notes")} />
     </>
   );
 }
 
-function FacultyFields({ draft, set }) {
+function FacultyFields({ draft, set, lk }) {
   return (
     <>
       <div className="kk-lib-row3">
-        <TextField label="Ключ" value={draft.key} onChange={(v) => set("key", v)} />
+        <TextField label="Ключ" value={draft.key} onChange={(v) => set("key", v)} disabled={lk?.("key")} />
         <ColorField label="Цвет" value={draft.color} onChange={(v) => set("color", v)} />
-        <TextField label="Ключ куратора" value={draft.curatorKey} onChange={(v) => set("curatorKey", v)} />
+        <TextField label="Ключ куратора" value={draft.curatorKey} onChange={(v) => set("curatorKey", v)} disabled={lk?.("curatorKey")} />
       </div>
       <div className="kk-lib-row3">
-        <TextField label="Основан" value={draft.date_founded} onChange={(v) => set("date_founded", v)} />
-        <TextField label="Реформирован" value={draft.date_reformed} onChange={(v) => set("date_reformed", v)} />
+        <TextField label="Основан" value={draft.date_founded} onChange={(v) => set("date_founded", v)} disabled={lk?.("date_founded")} />
+        <TextField label="Реформирован" value={draft.date_reformed} onChange={(v) => set("date_reformed", v)} disabled={lk?.("date_reformed")} />
         <BoolField label="Действует" value={draft.active} onChange={(v) => set("active", v)} />
       </div>
-      <TextAreaField label="Общежитие (HTML)" value={draft.dormitory} onChange={(v) => set("dormitory", v)} />
-      <TextAreaField label="Подходит (HTML)" value={draft.traits_fit} onChange={(v) => set("traits_fit", v)} />
-      <TextAreaField label="Не подходит (HTML)" value={draft.traits_unfit} onChange={(v) => set("traits_unfit", v)} />
-      <TextAreaField label="Особые правила (HTML)" value={draft.special_rules} onChange={(v) => set("special_rules", v)} />
+      <TextAreaField label="Общежитие (HTML)" value={draft.dormitory} onChange={(v) => set("dormitory", v)} disabled={lk?.("dormitory")} />
+      <TextAreaField label="Подходит (HTML)" value={draft.traits_fit} onChange={(v) => set("traits_fit", v)} disabled={lk?.("traits_fit")} />
+      <TextAreaField label="Не подходит (HTML)" value={draft.traits_unfit} onChange={(v) => set("traits_unfit", v)} disabled={lk?.("traits_unfit")} />
+      <TextAreaField label="Особые правила (HTML)" value={draft.special_rules} onChange={(v) => set("special_rules", v)} disabled={lk?.("special_rules")} />
       <StringListEditor label="Навыки факультета" value={draft.abilities} onChange={(v) => set("abilities", v)} placeholder="Название навыка" />
     </>
   );
 }
 
-function CompanionFields({ draft, set }) {
+function CompanionFields({ draft, set, lk }) {
   return (
     <>
       <div className="kk-lib-row3">
-        <TextField label="Вид" value={draft.species} onChange={(v) => set("species", v)} />
-        <NumberField label="Возраст" value={draft.age} onChange={(v) => set("age", v)} />
-        <NumberField label="Связь (bond)" value={draft.bond} onChange={(v) => set("bond", v)} />
+        <TextField label="Вид" value={draft.species} onChange={(v) => set("species", v)} disabled={lk?.("species")} />
+        <NumberField label="Возраст" value={draft.age} onChange={(v) => set("age", v)} disabled={lk?.("age")} />
+        <NumberField label="Связь (bond)" value={draft.bond} onChange={(v) => set("bond", v)} disabled={lk?.("bond")} />
       </div>
       <SelectField label="Состояние" value={draft.condition} opts={CONDITIONS} onChange={(v) => set("condition", v)} />
       <AttrsEditor attributes={draft.attributes} onChange={(a) => set("attributes", a)} />
@@ -425,13 +433,13 @@ function CompanionFields({ draft, set }) {
   );
 }
 
-function DaemonFields({ draft, set }) {
+function DaemonFields({ draft, set, lk }) {
   return (
     <>
-      <TextField label="Истинное имя" value={draft.true_name} onChange={(v) => set("true_name", v)} />
+      <TextField label="Истинное имя" value={draft.true_name} onChange={(v) => set("true_name", v)} disabled={lk?.("true_name")} />
       <div className="kk-lib-row2">
         <SelectField label="Корпорация" value={draft.corporation} opts={DAEMON_CORPORATIONS} onChange={(v) => set("corporation", v)} />
-        <TextField label="Класс" value={draft.daemon_class} onChange={(v) => set("daemon_class", v)} />
+        <TextField label="Класс" value={draft.daemon_class} onChange={(v) => set("daemon_class", v)} disabled={lk?.("daemon_class")} />
       </div>
       <div className="kk-lib-row3">
         <SelectField label="Старший аркан" value={draft.major_arcana} opts={MAJOR_ARCANA.map((a) => [a, a])} onChange={(v) => set("major_arcana", v)} />
@@ -439,11 +447,11 @@ function DaemonFields({ draft, set }) {
         <SelectField label="Цвет" value={draft.color} opts={DAEMON_COLORS} onChange={(v) => set("color", v)} />
       </div>
       <BoolField label="Режим: шарик" value={draft.is_orb} onChange={(v) => set("is_orb", v)} />
-      <TextAreaField label="Внешность" value={draft.appearance} onChange={(v) => set("appearance", v)} />
+      <TextAreaField label="Внешность" value={draft.appearance} onChange={(v) => set("appearance", v)} disabled={lk?.("appearance")} />
       <div className="kk-lib-row3">
-        <TextField label="Мечта" value={draft.dream} onChange={(v) => set("dream", v)} />
-        <TextField label="Страх" value={draft.fear} onChange={(v) => set("fear", v)} />
-        <TextField label="Желание" value={draft.desire} onChange={(v) => set("desire", v)} />
+        <TextField label="Мечта" value={draft.dream} onChange={(v) => set("dream", v)} disabled={lk?.("dream")} />
+        <TextField label="Страх" value={draft.fear} onChange={(v) => set("fear", v)} disabled={lk?.("fear")} />
+        <TextField label="Желание" value={draft.desire} onChange={(v) => set("desire", v)} disabled={lk?.("desire")} />
       </div>
       <SelectField label="Состояние" value={draft.condition} opts={CONDITIONS} onChange={(v) => set("condition", v)} />
       <AttrsEditor attributes={draft.attributes} onChange={(a) => set("attributes", a)} />
@@ -452,27 +460,27 @@ function DaemonFields({ draft, set }) {
 }
 
 // ── Controlled field primitives ──────────────────────────────
-function TextField({ label, value, onChange }) {
+function TextField({ label, value, onChange, disabled }) {
   return (
     <label className="kk-lib-field">
       <span>{label}</span>
-      <input value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+      <input value={value ?? ""} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
-function TextAreaField({ label, value, onChange }) {
+function TextAreaField({ label, value, onChange, disabled }) {
   return (
     <label className="kk-lib-field">
       <span>{label}</span>
-      <textarea value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+      <textarea value={value ?? ""} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
-function NumberField({ label, value, onChange }) {
+function NumberField({ label, value, onChange, disabled }) {
   return (
     <label className="kk-lib-field">
       <span>{label}</span>
-      <input type="number" value={value ?? 0} onChange={(e) => onChange(Number(e.target.value) || 0)} />
+      <input type="number" value={value ?? 0} disabled={disabled} onChange={(e) => onChange(Number(e.target.value) || 0)} />
     </label>
   );
 }

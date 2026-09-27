@@ -1,12 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   watchScenes, createScene, updateScene, deleteScene,
   activateScene, deactivateAllScenes,
 } from "../lib/db";
 import { CAMPAIGN_ID } from "../lib/config";
+import { useLore } from "../lib/useLorebook";
+import { isLocked, overlayList } from "../lib/lorebook";
+import LoreNote from "./LoreNote";
 
 export default function SceneManager() {
-  const [scenes, setScenes] = useState([]);
+  const [rawScenes, setScenes] = useState([]);
+  const lore = useLore();
+  // Сцена, связанная с Лорбуком, показывает его название и текст; фон — свой.
+  const scenes = useMemo(() => overlayList(rawScenes, lore, "scenes"), [rawScenes, lore]);
   const [editing, setEditing] = useState(null); // null | "new" | sceneId
   const [form, setForm] = useState({ title: "", background: "", text: "" });
   const [busy, setBusy] = useState(false);
@@ -34,11 +40,11 @@ export default function SceneManager() {
           text: form.text.trim(),
         });
       } else {
-        await updateScene(CAMPAIGN_ID, editing, {
-          title: form.title.trim(),
-          background: form.background.trim(),
-          text: form.text.trim(),
-        });
+        // Запертое Лорбуком отсюда не пишется: правка легла бы под текст мира.
+        const scene = scenes.find((sc) => sc.id === editing);
+        const patch = { title: form.title.trim(), background: form.background.trim(), text: form.text.trim() };
+        for (const key of scene?._lore?.locked || []) delete patch[key];
+        await updateScene(CAMPAIGN_ID, editing, patch);
       }
       setEditing(null);
     } catch (e) {
@@ -103,6 +109,7 @@ export default function SceneManager() {
           editing === sc.id ? (
             <SceneForm
               key={sc.id}
+              scene={sc}
               form={form}
               onChange={setForm}
               onSave={save}
@@ -169,14 +176,16 @@ function SceneRow({ scene, busy, onActivate, onDeactivate, onEdit, onDelete }) {
   );
 }
 
-function SceneForm({ form, onChange, onSave, onCancel, busy, label }) {
+function SceneForm({ scene, form, onChange, onSave, onCancel, busy, label }) {
   return (
     <div className="kk-scene-form">
+      <LoreNote doc={scene} />
       <div className="kk-field">
         <label>Название</label>
         <input
           className="kk-input"
           value={form.title}
+          disabled={isLocked(scene, "title")}
           onChange={(e) => onChange((f) => ({ ...f, title: e.target.value }))}
           placeholder="Название сцены"
           autoFocus
@@ -196,6 +205,7 @@ function SceneForm({ form, onChange, onSave, onCancel, busy, label }) {
         <textarea
           className="kk-input kk-textarea"
           value={form.text}
+          disabled={isLocked(scene, "text")}
           onChange={(e) => onChange((f) => ({ ...f, text: e.target.value }))}
           placeholder="Описание сцены, видимое игрокам…"
           rows={4}
