@@ -63,6 +63,8 @@ service cloud.firestore {
     }
 
     // True when an update touches only the listed keys (and nothing else).
+    // `updatedAt` ставит сам клиент на каждую запись предмета (src/lib/stamp.js),
+    // поэтому он вписан в каждый список игрока у items.
     function changedOnly(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
@@ -269,19 +271,19 @@ service cloud.firestore {
         allow update: if isMember(campaignId)
                       && resource.data.ownerCharacterId != null
                       && ownsChar(campaignId, resource.data.ownerCharacterId)
-                      && changedOnly(["active", "equipped"]);
+                      && changedOnly(["active", "equipped", "updatedAt"]);
         // Shop BUY (unique, D-22): claim an unowned catalog item for your own
         // character — sets ownerCharacterId from null and changes nothing else.
         allow update: if isMember(campaignId)
                       && resource.data.ownerCharacterId == null
-                      && changedOnly(["ownerCharacterId"])
+                      && changedOnly(["ownerCharacterId", "updatedAt"])
                       && request.resource.data.ownerCharacterId != null
                       && ownsChar(campaignId, request.resource.data.ownerCharacterId);
         // Shop SELL (D-22): release your own item back to the catalog (unowned).
         allow update: if isMember(campaignId)
                       && resource.data.ownerCharacterId != null
                       && ownsChar(campaignId, resource.data.ownerCharacterId)
-                      && changedOnly(["ownerCharacterId"])
+                      && changedOnly(["ownerCharacterId", "updatedAt"])
                       && request.resource.data.ownerCharacterId == null;
         // Shop BUY (stackable, D-22): create a purchased item for your own character.
         allow create: if isMember(campaignId)
@@ -294,7 +296,7 @@ service cloud.firestore {
         allow update: if isMember(campaignId)
                       && resource.data.ownerCharacterId != null
                       && ownsChar(campaignId, resource.data.ownerCharacterId)
-                      && changedOnly(["soakAbsoluteCurrent", "soakUses", "soakBonusUses"]);
+                      && changedOnly(["soakAbsoluteCurrent", "soakUses", "soakBonusUses", "updatedAt"]);
       }
 
       // ── Shops (B-19 / FEAT-17, revised B-50/D1) ───────────────────────────

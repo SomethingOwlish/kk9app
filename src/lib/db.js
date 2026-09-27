@@ -8,10 +8,12 @@
 // выносим в отдельный документ под gm-only правило.
 // ============================================================
 import {
-  doc, collection, onSnapshot, setDoc, updateDoc, getDoc, serverTimestamp,
-  addDoc, getDocs, query, orderBy, where, writeBatch, deleteDoc, limit, runTransaction,
+  doc, collection, onSnapshot, getDoc, serverTimestamp,
+  getDocs, query, orderBy, where, deleteDoc, limit,
   arrayUnion, arrayRemove, deleteField,
 } from "firebase/firestore";
+// Запись — через обёртки: они ставят updatedAt персонажам, библиотеке, сценам и предметам.
+import { setDoc, updateDoc, addDoc, writeBatch, runTransaction } from "./stamp";
 import { db } from "./firebase";
 import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
 import { derivePhysicalToughness, deriveEnergyMax, deriveTensionMax } from "./derive";
