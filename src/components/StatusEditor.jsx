@@ -38,6 +38,7 @@ export default function StatusEditor({ campaignStatuses = [], activeStatuses = [
       apply_stun: selected.apply_stun ?? false,
       durationMode: dur.mode || "time",
       durationRemaining,
+      autoReduce: dur.auto_reduce ?? false,
       effects: selected.effects || [],
       progresses: selected.progresses ?? false,
       progress_every: selected.progress_every ?? 1,

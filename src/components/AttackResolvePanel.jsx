@@ -3,6 +3,7 @@ import * as combat from "../lib/combat";
 import * as soak from "../lib/soak";
 import { healthMax } from "../lib/portrait";
 import { buildStatusInstance } from "../lib/statusInstance";
+import { npcKind, advanceLightNpc } from "../lib/npc";
 
 const BLEED_STATUS = "Кровотечение";
 
@@ -65,7 +66,26 @@ function buildPlan(res, ch, attackData, campaignStatuses) {
   const physDmg = res.damageApplied?.physical > 0 ? res.damageApplied.physical : 0;
   const mentDmg = res.damageApplied?.mental > 0 ? res.damageApplied.mental : 0;
   let appliedBreakdown = null;
-  if (physDmg > 0 || mentDmg > 0) {
+  const kind = npcKind(ch);
+  if ((physDmg > 0 || mentDmg > 0) && kind === "npc-boss") {
+    // Босс: шкалы нет, весь урон копится в счётчике (ширма §7).
+    const overflowDamage = physDmg + mentDmg;
+    healthPatch["overflow_damage"] = (ch.overflow_damage ?? 0) + overflowDamage;
+    appliedBreakdown = { physApplied: 0, mentApplied: 0, overflowDamage, overflowed: false };
+  } else if ((physDmg > 0 || mentDmg > 0) && kind === "npc-light") {
+    // Лёгкий НПС: дискретная шкала 0 → 1 → 3 → 5, урон двигает её ступенями.
+    // Перелив в ментальную — только когда физическая уже на 5 (Foundry).
+    let newPhys = physCur;
+    let newMent = mentCur;
+    if (physDmg > 0) {
+      newPhys = advanceLightNpc(physCur, physDmg);
+      if (allowOverflow && physCur === 5) newMent = advanceLightNpc(newMent, physDmg);
+    }
+    if (mentDmg > 0) newMent = advanceLightNpc(newMent, mentDmg);
+    if (newPhys !== physCur) healthPatch["health.physical.value"] = newPhys;
+    if (newMent !== mentCur) healthPatch["health.mental.value"] = newMent;
+    appliedBreakdown = { physApplied: newPhys - physCur, mentApplied: newMent - mentCur, overflowDamage: 0, overflowed: newMent - mentCur > mentDmg };
+  } else if (physDmg > 0 || mentDmg > 0) {
     let newPhys = physCur;
     let newMent = mentCur;
     let overflowDamage = 0;
@@ -111,19 +131,20 @@ function buildPlan(res, ch, attackData, campaignStatuses) {
   }
   const itemPatches = [...byItem.entries()].map(([itemId, fields]) => ({ itemId, fields }));
 
-  // 3) status instances.
+  // 3) status instances. Каждый рейз атаки накладывает статус ещё раз —
+  // отдельным экземпляром, стаком (решение К0: «+1 заряд за рейз» ширмы).
   const statusInstances = [];
-  for (const st of res.statusesToApply || []) {
-    if (st === "bleed") {
-      const inst = buildStatusInstance(campaignStatuses, BLEED_STATUS, "attack", ["bleed"]);
-      if (inst.definitionId) statusInstances.push(inst);
-    } else if (st && st.attackStatusUuid) {
-      const name = attackData?.statusName || "";
-      if (name) {
-        const inst = buildStatusInstance(campaignStatuses, name, "attack", []);
-        if (inst.definitionId) statusInstances.push(inst);
-      }
+  const stacks = 1 + Math.max(0, (attackData?.attackSuccesses ?? 1) - 1);
+  const addStacks = (name, types) => {
+    for (let i = 0; i < stacks; i++) {
+      const inst = buildStatusInstance(campaignStatuses, name, "attack", types);
+      if (!inst.definitionId) return;
+      statusInstances.push(inst);
     }
+  };
+  for (const st of res.statusesToApply || []) {
+    if (st === "bleed") addStacks(BLEED_STATUS, ["bleed"]);
+    else if (st && st.attackStatusUuid && attackData?.statusName) addStacks(attackData.statusName, []);
   }
 
   return {

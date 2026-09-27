@@ -19,6 +19,7 @@ import { buildBaseSkills, SKILLS_DATA } from "./seed-skills";
 import { derivePhysicalToughness, deriveEnergyMax, deriveTensionMax } from "./derive";
 import { tickStatuses } from "./statusEngine";
 import { tensionSettings } from "./tension";
+import { bennieGrantPatch } from "./rest";
 import { buildFields as buildRequestFields } from "./requestFields";
 import { buildMagicTalents } from "./constants";
 
@@ -612,7 +613,10 @@ export async function addBennie(campaignId, charId) {
   const ref = doc(db, "campaigns", campaignId, "characters", charId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
-  await updateDoc(ref, { bennies: (snap.data().bennies ?? 0) + 1 });
+  const ch = snap.data();
+  const n = (ch.bennies ?? 0) + 1;
+  // Выдача жетона снимает напряжение, равное новому числу жетонов (ширма §10).
+  await updateDoc(ref, { bennies: n, ...bennieGrantPatch(ch, n) });
 }
 export async function addExperience(campaignId, charId, amount) {
   const ref = doc(db, "campaigns", campaignId, "characters", charId);

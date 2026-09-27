@@ -14,6 +14,7 @@ import { deriveToughnessFormula, deriveSoakBase, deriveEnergyMax } from "../lib/
 import { applyStatus, removeStatus, removeLanguageFromChar, addFeatureToChar, removeFeatureFromChar } from "../lib/db";
 import { buildItemRollTarget } from "../lib/items";
 import { deactivateSpellEntry } from "../lib/activeSpells";
+import { sleepPatch } from "../lib/rest";
 import { resizePortrait, validatePortraitFile } from "../lib/storage";
 import { loadPrefs, savePref } from "../lib/userPrefs";
 import { RELATION_TAG_LABELS, getRelationLabel } from "../lib/relations";
@@ -461,6 +462,13 @@ export default function CharacterCard({ ch, save, isGM, user, canAdv, onEdit, on
                 <span className="rl">Инициатива</span>
                 <span className="rv sm">{initStr}</span>
               </div>
+              {(isGM || ch.ownerUid === user?.uid) && (
+                <div className="rsbtn">
+                  <span className="rl">Отдых</span>
+                  <button className="kk-btn ghost sm" title="Выспаться: −1 порог каждой шкалы, +8 энергии, −1 напряжение, снимает стан, статусы-заряды и короткую защиту"
+                    onClick={() => { const r = sleepPatch(ch, items); if (r.blocked) { alert(`Нельзя спать: ${r.blocked}`); return; } if (Object.keys(r.patch).length) save(r.patch); }}>Выспаться</button>
+                </div>
+              )}
             </div>
           </div>
         </aside>

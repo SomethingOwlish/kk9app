@@ -285,8 +285,9 @@ export function enrichPatch(ch, patch) {
   const age = ageChanged ? (Number(patch.age) || 15) : (ch.age ?? 15);
   const skills = skillsChanged ? patch.skills : (ch.skills ?? []);
 
-  // spirit.die → toughness
-  if (spiritDieChanged) {
+  // spirit.die → toughness. У НПС стойкость — число каталога, и формула её не
+  // переписывает (решение К0, 27.09.2026).
+  if (spiritDieChanged && !ch?.isNpc) {
     result["health.physical.toughness"] = 2 + Math.floor(spiritDie / 2);
   }
 

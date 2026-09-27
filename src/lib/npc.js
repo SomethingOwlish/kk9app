@@ -12,6 +12,22 @@ export function isLightNpc(npc) {
   return !kind || kind === "npc-light";
 }
 
+// Род карточки для правил урона и отдыха: у НПС доски он лежит в `kind`
+// (пустой — лёгкий), у документов из Foundry — в `type`.
+export function npcKind(ch) {
+  if (ch?.isNpc) return ch.kind || "npc-light";
+  return ch?.type || "character";
+}
+
+// Шкала лёгкого НПС дискретна: 0 → 1 → 3 → 5 (Foundry weapon-combat.mjs:242).
+export const LIGHT_NPC_SCALE = [0, 1, 3, 5];
+export function advanceLightNpc(current, steps) {
+  const s = LIGHT_NPC_SCALE;
+  let idx = s.indexOf(current);
+  if (idx < 0) idx = Math.max(0, s.findLastIndex((v) => v <= current));
+  return s[Math.min(s.length - 1, idx + steps)];
+}
+
 // Merge a linked NPC's live per-board state (wounds, statuses, relations, name/img
 // overrides) with the statblock resolved from its Library entry. Library stores
 // attribute dice as {die,modifier}; the sheet/engine expect {die,mod}.

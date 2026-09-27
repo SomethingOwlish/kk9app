@@ -19,7 +19,7 @@ import {
   watchMyRequests, watchRequests,
 } from "./lib/db";
 import { effectiveRole } from "./lib/roles";
-import { libraryDefaultsFor, LIBRARY_KIND_LABEL } from "./lib/library";
+import { libraryDefaultsFor, curatorDefaults, LIBRARY_KIND_LABEL } from "./lib/library";
 import { resolveNpc } from "./lib/npc";
 import { FACULTIES } from "./lib/seed-faculties";
 import { CURATORS_DATA } from "./lib/seed-curators";
@@ -29,7 +29,8 @@ import { NPC_LIGHT_DATA } from "./lib/seed-npc-light";
 // Library kinds that can be batch-seeded from a static catalog.
 const LIBRARY_SEED = {
   faculty: FACULTIES,
-  curator: CURATORS_DATA,
+  // Кураторы — боссы: сеются с пустым статблоком босса (решение К0).
+  curator: CURATORS_DATA.map((c) => ({ ...curatorDefaults(), ...c })),
   companion: COMPANIONS_DATA,
   "npc-light": NPC_LIGHT_DATA,
 };
@@ -37,6 +38,7 @@ import { STATUSES_DATA } from "./lib/seed-statuses";
 import { advSettings } from "./lib/advancement";
 import { enrichPatch } from "./lib/derive";
 import { tickRoundPatch } from "./lib/activeSpells";
+import { roundStatusPatch, bennieGrantPatch } from "./lib/rest";
 import { CAMPAIGN_ID, clearActiveCampaign } from "./lib/config";
 import { getPath, applyOverrides, canAdvance } from "./lib/appUtils";
 import { loadPrefs, savePref } from "./lib/userPrefs";
@@ -215,6 +217,7 @@ export default function App({ user, signOut }) {
   const save = useCallback((patch) => {
     if (!activeId || !viewCh) return;
     const enriched = enrichPatch(viewCh, patch);
+    if ("bennies" in patch) Object.assign(enriched, bennieGrantPatch(viewCh, patch.bennies));
     setOverridesCharId(activeId);
     setOverrides(prev => ({ ...prev, ...enriched }));
     saveCharacterDebounced(CAMPAIGN_ID, activeId, enriched, 500);
@@ -232,6 +235,7 @@ export default function App({ user, signOut }) {
   const saveEdit = useCallback(async (rawPatch) => {
     if (!activeId || !activeChar) return;
     const patch = enrichPatch(activeChar, rawPatch);
+    if ("bennies" in rawPatch) Object.assign(patch, bennieGrantPatch(activeChar, rawPatch.bennies));
     try { await updateCharacterNow(CAMPAIGN_ID, activeId, patch); setEditing(false); }
     catch (e) { alert("Не удалось сохранить: " + (e?.message || e)); }
   }, [activeId, activeChar]);
@@ -312,9 +316,11 @@ export default function App({ user, signOut }) {
   const onTickRound = useCallback(async () => {
     for (const c of characters) {
       const { patch } = tickRoundPatch(c);
+      // Категория 3 статусов: счётчики и заряды с «авто» убывают в конце раунда.
+      Object.assign(patch, roundStatusPatch(c, campaignStatuses).patch);
       if (Object.keys(patch).length) await updateCharacterNow(CAMPAIGN_ID, c.id, patch);
     }
-  }, [characters]);
+  }, [characters, campaignStatuses]);
   const onCreateItem = useCallback(async (data) => {
     if (!activeId) return;
     const COPY_ITEM_TYPES = new Set(["weapon", "gear", "spell", "device", "vehicle"]);
@@ -594,7 +600,7 @@ export default function App({ user, signOut }) {
         )}
         {ready && cl && role === "player" && gmModeData?.active && view === "card" && <div className="kk-gmmode-block"><div className="kk-gmmode-block-inner"><div className="kk-gmmode-block-icon">🎬</div><div className="kk-gmmode-block-title">ГМ настраивает сцену</div><div className="kk-gmmode-block-sub">Подождите, скоро продолжим</div></div></div>}
         {ready && cl && view === "portal" && isGM && <LiveSession campaign={campaign} party={partyMembers} activeScene={activeScene} role={baseRole} isGM onOpen={openCard} canOpen={() => true} onSettings={() => navigate("/settings")} requestCount={requestCount} onOpenRequests={() => navigate("/requests-queue")}/>}
-        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={resolvedNpcs} library={library} onAddNpcFromLibrary={onAddNpcFromLibrary} campaignStatuses={campaignStatuses} onTickRound={onTickRound}/>}
+        {ready && cl && view === "board" && isGM && <GmBoard campaign={campaign} characters={characters} partyMembers={partyMembers} gmModeData={gmModeData} userUid={user.uid} onOpenChar={openCard} onSettings={() => navigate("/settings")} npcs={resolvedNpcs} library={library} onAddNpcFromLibrary={onAddNpcFromLibrary} campaignStatuses={campaignStatuses} onTickRound={onTickRound} items={allItems}/>}
         {ready && cl && view === "requests" && baseRole && role !== "demo" && !isGM && <RequestsPlayer campaignId={CAMPAIGN_ID} uid={user.uid} myChars={myChars} campaignStatuses={campaignStatuses} requests={requests}/>}
         {ready && cl && view === "requests_queue" && isGM && <RequestsQueue campaignId={CAMPAIGN_ID} requests={requests} characters={characters} campaignStatuses={campaignStatuses} gmUid={user.uid}/>}
         {ready && cl && view === "journal" && baseRole && <JournalView isGM={isGM} campaign={campaign}/>}
