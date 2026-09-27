@@ -20,7 +20,7 @@ export const FEATURES_DATA = [
     description: "в случае когда ты действуешь строго по протоколу КК9 или по чёткому приказу, не отступая от него",
   },
   {
-    name: "Хладнокровие", img: "icons/svg/upgrade.svg", folder: "Силы", is_weakness: false,
+    name: "Выдержка", img: "icons/svg/upgrade.svg", folder: "Силы", is_weakness: false,
     modifier: { target_spirit: true, target_smarts: true, modifier: 2 },
     description: "в случае когда вокруг паника или хаос, а тебе нужно действовать так, будто ничего не происходит",
   },

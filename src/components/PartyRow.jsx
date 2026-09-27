@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
 import { updateCharacterNow } from "../lib/db";
 import { tensionAdjustPatch, tensionClearPatch, tensionSettings, effectiveEnergyMax } from "../lib/tension";
+import { sleepPatch, bennieGrantPatch } from "../lib/rest";
 
-export default function PartyRow({ ch, campaignId, campaign, onOpen, onRemove }) {
+export default function PartyRow({ ch, campaignId, campaign, items = [], onOpen, onRemove }) {
   const [modal, setModal] = useState(null); // 'xp' | 'money' | null
   const [modalVal, setModalVal] = useState("");
 
@@ -61,7 +62,8 @@ export default function PartyRow({ ch, campaignId, campaign, onOpen, onRemove })
           {(tension > 0 || overcap > 0) && (
             <button className="kk-qa-btn" title="Сбросить напряжение" onClick={() => quick(tensionClearPatch())}>⚗0</button>
           )}
-          <button className="kk-qa-btn" title="+ Бенни" onClick={() => quick({ bennies: Math.min(9, (ch.bennies ?? 0) + 1) })}>◆</button>
+          <button className="kk-qa-btn" title="+ Бенни" onClick={() => { const n = Math.min(9, (ch.bennies ?? 0) + 1); quick({ bennies: n, ...bennieGrantPatch(ch, n) }); }}>◆</button>
+          <button className="kk-qa-btn" title="Выспаться" onClick={() => { const r = sleepPatch(ch, items); if (r.blocked) { alert(`${ch.name}: не может спать — ${r.blocked}`); return; } if (Object.keys(r.patch).length) quick(r.patch); }}>☾</button>
           <button className="kk-qa-btn" title="Опыт" onClick={() => openModal("xp")}>★</button>
           <button className="kk-qa-btn" title="Деньги" onClick={() => openModal("money")}>₽</button>
           <button className="kk-qa-btn kk-qa-remove" title="Убрать из отряда" onClick={onRemove}>✕</button>

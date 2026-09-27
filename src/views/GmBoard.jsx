@@ -10,7 +10,7 @@ import NpcSheet from "./NpcSheet";
 // here — they're throwaway mooks, created fresh via "+ Добавить НПС".
 const LIBRARY_NPC_KINDS = new Set(["npc-hard", "npc-boss", "curator", "companion", "daemon"]);
 
-export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], onAddNpcFromLibrary, campaignStatuses = [], onTickRound }) {
+export default function GmBoard({ campaign, characters, partyMembers, gmModeData, userUid, onOpenChar, onSettings, npcs = [], library = [], onAddNpcFromLibrary, campaignStatuses = [], onTickRound, items = [] }) {
   const gameDate  = campaign?.gameDate  ?? "";
   const [weather,   setWeather]   = useState(() => campaign?.weather   ?? "");
   const [worldNote, setWorldNote] = useState(() => campaign?.worldNote ?? "");
@@ -40,7 +40,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
         <div className="kk-h2">ГМ Борд</div>
         <div style={{ display: "flex", gap: ".4rem" }}>
           {onTickRound && (
-            <button className="kk-btn ghost sm" onClick={onTickRound} title="Следующий раунд боя: списать поддержание заклинаний, сократить длительность, снять истёкшие">Раунд →</button>
+            <button className="kk-btn ghost sm" onClick={onTickRound} title="Следующий раунд боя: списать поддержание заклинаний, сократить длительность, снять истёкшие, убавить статусы-счётчики">Раунд →</button>
           )}
           {onSettings && (
             <button className="kk-btn ghost sm" onClick={onSettings}>⚙ Настройки</button>
@@ -114,6 +114,7 @@ export default function GmBoard({ campaign, characters, partyMembers, gmModeData
                   ch={ch}
                   campaignId={CAMPAIGN_ID}
                   campaign={campaign}
+                  items={items}
                   onOpen={() => onOpenChar(ch.id)}
                   onRemove={() => removeFromParty(CAMPAIGN_ID, ch.id).catch(console.error)}
                 />

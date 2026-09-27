@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   LIBRARY_KINDS, LIBRARY_KIND_LABEL, DAEMON_CORPORATIONS, DAEMON_SUITS,
-  DAEMON_COLORS, CONDITIONS, MAJOR_ARCANA,
+  DAEMON_COLORS, CONDITIONS, MAJOR_ARCANA, libraryDefaultsFor,
 } from "../lib/library";
 import RelationsList from "../components/RelationsList";
 
@@ -308,7 +308,9 @@ const condLabel = (v) => optLabel(CONDITIONS, v);
 // Edit modal (GM only) — full field set per kind
 // ════════════════════════════════════════════════════════════
 function LibEditModal({ entry, onClose, onSave }) {
-  const [draft, setDraft] = useState(() => ({ ...entry }));
+  // Недостающие поля статблока берутся умолчанием рода: кураторы, засеянные
+  // без статблока, открываются с пустым статблоком босса, а не с дырами.
+  const [draft, setDraft] = useState(() => ({ ...libraryDefaultsFor(entry.kind), ...entry }));
   const set = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
 
   const save = () => {

@@ -206,6 +206,7 @@ function buildInstanceFromDef(def) {
     apply_stun: def.apply_stun ?? false,
     durationMode: dur.mode || "time",
     durationRemaining,
+    autoReduce: dur.auto_reduce ?? false,
     effects: def.effects || [],
     progresses: def.progresses ?? false,
     progress_every: def.progress_every ?? 1,
